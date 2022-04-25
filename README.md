@@ -1,2 +1,2 @@
 # cao
-GPU ehlper experiments
+GPU helper experiments
