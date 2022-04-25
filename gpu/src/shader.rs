@@ -60,7 +60,7 @@ impl std::fmt::Debug for ShaderModule {
 }
 
 impl ShaderModule {
-    pub fn raw_shader_module(&self) -> vk::ShaderModule {
+    pub unsafe fn raw_shader_module(&self) -> vk::ShaderModule {
         **self.raw
     }
 }

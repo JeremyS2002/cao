@@ -229,12 +229,12 @@ impl std::fmt::Debug for Texture {
 }
 
 impl Texture {
-    pub fn raw_image(&self) -> vk::Image {
+    pub unsafe fn raw_image(&self) -> vk::Image {
         **self.raw
     }
 
     /// If the texture if from the swapchain then will return None
-    pub fn raw_memory(&self) -> Option<vk::DeviceMemory> {
+    pub unsafe fn raw_memory(&self) -> Option<vk::DeviceMemory> {
         self.memory.as_ref().map(|m| **m)
     }
 }

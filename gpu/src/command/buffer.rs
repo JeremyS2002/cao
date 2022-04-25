@@ -34,23 +34,23 @@ impl std::fmt::Debug for CommandBuffer {
 }
 
 impl CommandBuffer {
-    pub fn raw_pool(&self) -> vk::CommandPool {
+    pub unsafe fn raw_pool(&self) -> vk::CommandPool {
         self.pool
     }
 
-    pub fn raw_command_buffer(&self) -> vk::CommandBuffer {
+    pub unsafe fn raw_command_buffer(&self) -> vk::CommandBuffer {
         self.buffer
     }
 
-    pub fn raw_semaphore(&self) -> vk::Semaphore {
+    pub unsafe fn raw_semaphore(&self) -> vk::Semaphore {
         self.semaphore
     }
 
-    pub fn raw_fence(&self) -> vk::Fence {
+    pub unsafe fn raw_fence(&self) -> vk::Fence {
         self.fence
     }
 
-    pub fn raw_queue(&self) -> vk::Queue {
+    pub unsafe fn raw_queue(&self) -> vk::Queue {
         self.queue
     }
 }

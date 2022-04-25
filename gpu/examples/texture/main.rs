@@ -176,7 +176,7 @@ fn main() {
     let sampler = device.create_sampler(&gpu::SamplerDesc::LINEAR).unwrap();
 
     let rust = image::open("examples/texture/rust.png").unwrap();
-    let rust_rgb = rust.to_rgb8();
+    let rust_rgb = rust.to_rgba8();
     let rust_bytes = rust_rgb.as_raw();
     let staging_buffer = device.create_buffer(&gpu::BufferDesc {
         name: None,
@@ -189,7 +189,7 @@ fn main() {
 
     let texture = device.create_texture(&gpu::TextureDesc {
         name: None,
-        format: gpu::Format::Rgb8Unorm,
+        format: gpu::Format::Rgba8Unorm,
         usage: gpu::TextureUsage::SAMPLED
             | gpu::TextureUsage::COPY_DST,
         dimension: gpu::TextureDimension::D2(rust_rgb.width(), rust_rgb.height(), gpu::Samples::S1),

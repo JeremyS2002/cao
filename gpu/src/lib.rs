@@ -121,6 +121,11 @@ pub struct InstanceDesc<'a> {
     /// validation layers for the api to use
     /// will be ignored on release builds
     pub validation_layers: &'a [&'a str],
+    /// additional extension names, extensions required by this library
+    /// will be automatically added additional functionality can be added by 
+    /// using the the raw_ methods on structs and the ash crate to 
+    /// create the extension required
+    pub extension_names: &'a [&'a str],
 }
 
 impl Default for InstanceDesc<'static> {
@@ -132,6 +137,7 @@ impl Default for InstanceDesc<'static> {
             engine_version: (1, 0, 0, 0),
             api_version: (0, 1, 0, 0),
             validation_layers: &[],
+            extension_names: &[],
         }
     }
 }
@@ -168,7 +174,13 @@ impl Instance {
         validation_layers.push(KHRONOS_VALIDATION);
         let mut desc = (*desc).clone();
         desc.validation_layers = &validation_layers;
-        unsafe { Self::no_validation(&desc) }
+        let (s, validation) = unsafe { Self::raw(&desc)? };
+        // TODO return error not panic
+        if !validation {
+            panic!("Validation layer VK_LAYER_KHRONOS_validation not supported\nConsider using gpu::Instance::no_validation(..) instead")
+        } else {
+            Ok(s)
+        }
     }
 
     /// Create a new Instance without the KHRONOS_VALIDATION layer
@@ -179,6 +191,11 @@ impl Instance {
     /// This is the entry point to the api and will be the first object created
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkInstance.html>
     pub unsafe fn no_validation(desc: &InstanceDesc<'_>) -> Result<Self, Error> {
+        return Self::raw(desc).map(|(s, _)| s)
+    }
+
+    /// returns (Self, VK_LAYER_KHRONOS_validation available)
+    unsafe fn raw(desc: &InstanceDesc<'_>) -> Result<(Self, bool), Error> {
         let app_name = CString::new(desc.app_name).unwrap();
         let app_version =
             vk::make_api_version(desc.app_version.0, desc.app_version.1, desc.app_version.2, desc.app_version.3);
@@ -210,24 +227,48 @@ impl Instance {
         };
         let available_extension_set = available_extensions
             .iter()
-            .map(|e| CStr::from_ptr(&e.extension_name[0]))
+            .map(|e| CStr::from_ptr(&e.extension_name[0]).to_str().unwrap())
             .collect::<HashSet<_>>();
+        // TODO check this with user supplied extensions
         let pp_enabled_extension_names = extension_names
             .iter()
-            .filter_map(|&n| {
+            .map(|&n| n.to_str().unwrap())
+            .chain(desc.extension_names.iter().map(|&l| l))
+            .filter_map(|n| {
                 if available_extension_set.contains(n) {
-                    Some(n.as_ptr())
+                    Some(n.as_ptr() as _)
                 } else {
+                    #[cfg(feature = "logging")]
+                    log::warn!("Extension {:?} not present", n);
                     None
                 }
             })
             .collect::<Vec<*const i8>>();
 
+        let available_validation_result = VK_ENTRY.enumerate_instance_layer_properties();
+        let available_validation = match available_validation_result {
+            Ok(e) => e,
+            Err(e) => return Err(ExplicitError(e).into()),
+        };
+
+        let available_validation_set = available_validation
+            .iter()
+            .map(|e| CStr::from_ptr(&e.layer_name[0]).to_str().unwrap())
+            .collect::<HashSet<_>>();
+
+        let validation_available = available_validation_set.contains("VK_LAYER_KHRONOS_validation");
+
         let validation_layers = desc
             .validation_layers
             .iter()
-            .map(|&l| {
-                CString::new(l)
+            .filter_map(|&l| {
+                if available_validation_set.contains(l) {
+                    Some(CString::new(l))
+                } else {
+                    #[cfg(feature = "logging")]
+                    log::warn!("Validation Layer {:?} not present", l);
+                    None
+                }
             })
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
@@ -235,7 +276,7 @@ impl Instance {
             .iter()
             .map(|l| l.as_ptr())
             .collect::<Vec<_>>();
-        let enabled_layer_count = desc.validation_layers.len() as u32;
+        let enabled_layer_count = pp_enabled_layer_names.len() as u32;
         let validation = enabled_layer_count != 0;
 
         let create_info = vk::InstanceCreateInfo {
@@ -260,12 +301,12 @@ impl Instance {
             },
         };
 
-        Ok(Self {
+        Ok((Self {
             raw: Md::new(Arc::new(raw)),
 
             extension_names,
             validation_layers,
-        })
+        }, validation_available))
     }
 
     /// Get infomation about all the devices that are available
@@ -280,6 +321,42 @@ impl Instance {
             .map(|&physical_device| self.device_info(physical_device))
             .collect::<Result<Vec<_>, _>>()?;
         Ok(info)
+    }
+
+    /// Get the names of all supported validation layers
+    pub fn validation_layers() -> Result<Vec<&'static str>, crate::Error> {
+        let available_validation_result = VK_ENTRY.enumerate_instance_layer_properties();
+        let available_validation = match available_validation_result {
+            Ok(e) => e,
+            Err(e) => return Err(ExplicitError(e).into()),
+        };
+
+        let layers = available_validation
+            .iter()
+            .map(|l| {
+                unsafe { CStr::from_ptr(&l.layer_name[0]) }.to_str().unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        Ok(layers)
+    }
+
+    /// Get the names of all supported extensions
+    pub fn extensions() -> Result<Vec<&'static str>, crate::Error> {
+        let available_extensions_result = VK_ENTRY.enumerate_instance_extension_properties(None);
+        let available_extensions = match available_extensions_result {
+            Ok(e) => e,
+            Err(e) => return Err(ExplicitError(e).into()),
+        };
+
+        let extensions = available_extensions
+            .iter()
+            .map(|e| {
+                unsafe { CStr::from_ptr(&e.extension_name[0]) }.to_str().unwrap() 
+            })
+            .collect::<Vec<_>>();
+
+        Ok(extensions)
     }
 
     pub(crate) fn device_info(

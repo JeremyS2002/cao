@@ -7,6 +7,18 @@ use winit::{
 fn main() {
     env_logger::init();
 
+    for name in gpu::Instance::validation_layers().unwrap() {
+        println!("{}", name);
+    }
+
+    println!("");
+
+    for name in gpu::Instance::extensions().unwrap() {
+        println!("{}", name);
+    }
+
+    println!("");
+
     let instance = gpu::Instance::new(&gpu::InstanceDesc::default()).unwrap();
 
     for device in instance.devices().unwrap() {

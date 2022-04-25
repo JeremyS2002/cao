@@ -74,7 +74,7 @@ impl std::fmt::Debug for DescriptorLayout {
 }
 
 impl DescriptorLayout {
-    pub fn raw_descriptor_set_layout(&self) -> vk::DescriptorSetLayout {
+    pub unsafe fn raw_descriptor_set_layout(&self) -> vk::DescriptorSetLayout {
         self.raw
     }
 }
@@ -224,11 +224,11 @@ impl Clone for DescriptorSet {
 }
 
 impl DescriptorSet {
-    pub fn raw_pool(&self) -> vk::DescriptorPool {
+    pub unsafe fn raw_pool(&self) -> vk::DescriptorPool {
         **self.pool
     }
 
-    pub fn raw_set(&self) -> vk::DescriptorSet {
+    pub unsafe fn raw_set(&self) -> vk::DescriptorSet {
         **self.set
     }
 }

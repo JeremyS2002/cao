@@ -88,11 +88,11 @@ impl std::fmt::Debug for Buffer {
 }
 
 impl Buffer {
-    pub fn raw_buffer(&self) -> vk::Buffer {
+    pub unsafe fn raw_buffer(&self) -> vk::Buffer {
         **self.raw
     }
 
-    pub fn raw_memory(&self) -> vk::DeviceMemory {
+    pub unsafe fn raw_memory(&self) -> vk::DeviceMemory {
         **self.memory
     }
 }

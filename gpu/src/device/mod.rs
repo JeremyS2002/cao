@@ -95,6 +95,20 @@ impl std::fmt::Debug for Device {
 }
 
 impl Device {
+    pub unsafe fn raw_device<'a>(&'a self) -> &'a ash::Device {
+        &self.raw.device
+    }
+
+    pub unsafe fn raw_debug<'a>(&'a self) -> Option<&'a ash::extensions::ext::DebugUtils> {
+        self.raw.debug_loader.as_ref()
+    }
+
+    pub unsafe fn semaphore(&self) -> Option<vk::Semaphore> {
+        self.raw.semaphore.lock().clone()
+    }
+}
+
+impl Device {
     /// Internal function, create Device from vk::PhysicalDevice and other required info
     fn from_raw(
         instance: &crate::Instance,

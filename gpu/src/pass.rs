@@ -85,7 +85,7 @@ impl std::fmt::Debug for RenderPass {
 }
 
 impl RenderPass {
-    pub fn raw_render_pass(&self) -> vk::RenderPass {
+    pub unsafe fn raw_render_pass(&self) -> vk::RenderPass {
         **self.raw
     }
 }

@@ -61,7 +61,7 @@ impl std::fmt::Debug for PipelineLayout {
 }
 
 impl PipelineLayout {
-    pub fn raw_pipeline_layout(&self) -> vk::PipelineLayout {
+    pub unsafe fn raw_pipeline_layout(&self) -> vk::PipelineLayout {
         **self.raw
     }
 }
@@ -208,7 +208,7 @@ impl std::fmt::Debug for GraphicsPipeline {
 }
 
 impl GraphicsPipeline {
-    pub fn raw_pipeline(&self) -> vk::Pipeline {
+    pub unsafe fn raw_pipeline(&self) -> vk::Pipeline {
         **self.raw
     }
 }
@@ -509,7 +509,7 @@ impl std::fmt::Debug for ComputePipeline {
 }
 
 impl ComputePipeline {
-    pub fn raw_pipeline(&self) -> vk::Pipeline {
+    pub unsafe fn raw_pipeline(&self) -> vk::Pipeline {
         **self.raw
     }
 }
