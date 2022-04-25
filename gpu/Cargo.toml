@@ -1,0 +1,52 @@
+[package]
+name = "gpu"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+default            = ["logging"]
+
+logging            = ["log"]
+
+[dependencies]
+ash                = "0.37.0"
+raw-window-handle  = "^0.3.3"
+bitflags           = "^1.2.1"
+lazy_static        = "^1.4.0"
+parking_lot        = "^0.11.1"
+winit              = "0.26.1"
+env_logger         = "0.9.0"
+
+log                = { version = "^0.4.14", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+metal              = "^0.20.0"
+cocoa              = "^0.24.0"
+objc               = "^0.2.7"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+winapi             = { version = "^0.3.9", features = ["windef", "libloaderapi"] }
+
+[dev-dependencies]
+bytemuck = "*"
+image = "0.24.1"
+
+[[example]]
+name="basic"
+
+[[example]]
+name="clear"
+
+[[example]]
+name="triangle"
+
+[[example]]
+name="texture"
+
+[[example]]
+name="push_constants"
+
+[[example]]
+name="compute"
