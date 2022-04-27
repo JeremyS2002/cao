@@ -1,6 +1,5 @@
-
-pub mod graphics;
 pub mod compute;
+pub mod graphics;
 
-pub use graphics::*;
 pub use compute::*;
+pub use graphics::*;

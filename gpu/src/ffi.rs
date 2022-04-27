@@ -1,6 +1,5 @@
-
 use ash::vk;
-use std::ffi::{CStr, c_void};
+use std::ffi::{c_void, CStr};
 
 #[allow(unused_variables)]
 pub(crate) unsafe extern "system" fn vulkan_debug_utils_callback(

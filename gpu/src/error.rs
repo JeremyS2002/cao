@@ -1,4 +1,3 @@
-
 use ash::vk;
 
 /// An all encompassing error type

@@ -1141,6 +1141,19 @@ pub struct Viewport {
     pub max_depth: f32,
 }
 
+impl Default for Viewport {
+    fn default() -> Self {
+        Self {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+            min_depth: 0.0,
+            max_depth: 1.0,
+        }
+    }
+}
+
 impl Into<vk::Viewport> for Viewport {
     fn into(self) -> vk::Viewport {
         vk::Viewport {
@@ -1816,6 +1829,96 @@ pub enum DescriptorSetEntry<'a> {
 }
 
 impl<'a> DescriptorSetEntry<'a> {
+    pub fn into_owned(self) -> DescriptorSetEntry<'static> {
+        match self {
+            DescriptorSetEntry::Buffer(b) => DescriptorSetEntry::Buffer(b.as_owned()),
+            DescriptorSetEntry::BufferArray(b) => {
+                DescriptorSetEntry::BufferArray(b.into_iter().map(|a| a.as_owned()).collect())
+            }
+            DescriptorSetEntry::Texture(t, l) => {
+                DescriptorSetEntry::Texture(Cow::Owned(t.clone().into_owned()), l)
+            }
+            DescriptorSetEntry::TextureArray(t) => DescriptorSetEntry::TextureArray(
+                t.into_iter()
+                    .map(|(t, l)| (Cow::Owned(t.clone().into_owned()), *l))
+                    .collect(),
+            ),
+            DescriptorSetEntry::Sampler(s) => {
+                DescriptorSetEntry::Sampler(Cow::Owned(s.clone().into_owned()))
+            }
+            DescriptorSetEntry::SamplerArray(s) => DescriptorSetEntry::SamplerArray(
+                s.into_iter()
+                    .map(|s| Cow::Owned(s.clone().into_owned()))
+                    .collect(),
+            ),
+            DescriptorSetEntry::CombinedTextureSampler(t, l, s) => {
+                DescriptorSetEntry::CombinedTextureSampler(
+                    Cow::Owned(t.clone().into_owned()),
+                    l,
+                    Cow::Owned(s.clone().into_owned()),
+                )
+            }
+            DescriptorSetEntry::CombinedTextureSamplerArray(a) => {
+                DescriptorSetEntry::CombinedTextureSamplerArray(
+                    a.into_iter()
+                        .map(|(t, l, s)| {
+                            (
+                                Cow::Owned(t.clone().into_owned()),
+                                *l,
+                                Cow::Owned(s.clone().into_owned()),
+                            )
+                        })
+                        .collect(),
+                )
+            }
+        }
+    }
+
+    pub fn as_owned(&self) -> DescriptorSetEntry<'static> {
+        match self {
+            DescriptorSetEntry::Buffer(b) => DescriptorSetEntry::Buffer(b.as_owned()),
+            DescriptorSetEntry::BufferArray(b) => {
+                DescriptorSetEntry::BufferArray(b.into_iter().map(|a| a.as_owned()).collect())
+            }
+            DescriptorSetEntry::Texture(t, l) => {
+                DescriptorSetEntry::Texture(Cow::Owned(t.clone().into_owned()), *l)
+            }
+            DescriptorSetEntry::TextureArray(t) => DescriptorSetEntry::TextureArray(
+                t.into_iter()
+                    .map(|(t, l)| (Cow::Owned(t.clone().into_owned()), *l))
+                    .collect(),
+            ),
+            DescriptorSetEntry::Sampler(s) => {
+                DescriptorSetEntry::Sampler(Cow::Owned(s.clone().into_owned()))
+            }
+            DescriptorSetEntry::SamplerArray(s) => DescriptorSetEntry::SamplerArray(
+                s.into_iter()
+                    .map(|s| Cow::Owned(s.clone().into_owned()))
+                    .collect(),
+            ),
+            DescriptorSetEntry::CombinedTextureSampler(t, l, s) => {
+                DescriptorSetEntry::CombinedTextureSampler(
+                    Cow::Owned(t.clone().into_owned()),
+                    *l,
+                    Cow::Owned(s.clone().into_owned()),
+                )
+            }
+            DescriptorSetEntry::CombinedTextureSamplerArray(a) => {
+                DescriptorSetEntry::CombinedTextureSamplerArray(
+                    a.into_iter()
+                        .map(|(t, l, s)| {
+                            (
+                                Cow::Owned(t.clone().into_owned()),
+                                *l,
+                                Cow::Owned(s.clone().into_owned()),
+                            )
+                        })
+                        .collect(),
+                )
+            }
+        }
+    }
+
     /// Create a buffer entry from a reference to a buffer
     #[inline]
     pub fn buffer(buffer: crate::BufferSlice<'a>) -> Self {
@@ -2605,7 +2708,7 @@ pub struct DepthAttachmentDesc {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Attachment<'a> {
     View(&'a crate::TextureView, crate::ClearValue),
-    Swapchain(&'a crate::SwapchainView<'a>, crate::ClearValue)
+    Swapchain(&'a crate::SwapchainView<'a>, crate::ClearValue),
 }
 
 impl<'a> Attachment<'a> {

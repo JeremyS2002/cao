@@ -1,12 +1,14 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::mem::ManuallyDrop as Md;
-use std::borrow::Cow;
 
 use smallvec::SmallVec;
 
 #[cfg(feature = "reflect")]
-use crate::Bundle;
+use crate::reflect::Bundle;
+#[cfg(feature = "reflect")]
+use std::any::TypeId;
 
 /// Represents valid operations to perform during a compute pass
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -302,6 +304,7 @@ pub struct ReflectedComputePass<'a, 'b> {
     pub(crate) bundle_needed: bool,
     pub(crate) push_constant_names:
         Cow<'a, Option<HashMap<String, (u32, gpu::ShaderStages, TypeId)>>>,
+    /// Pipeline contained inside a manually drop so that it can be taken an moved into the encoder
     pub(crate) pipeline: Md<Cow<'a, gpu::ComputePipeline>>,
     pub(crate) commands: Vec<ComputePassCommand<'a>>,
     pub(crate) encoder: &'b mut crate::CommandEncoder<'a>,

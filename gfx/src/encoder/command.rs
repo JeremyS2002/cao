@@ -1,4 +1,3 @@
-
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -139,8 +138,8 @@ impl<'a> Command<'a> {
                 pipeline,
             } => {
                 command_buffer.begin_graphics_pass(
-                    &color_attachments,
-                    &resolve_attachments,
+                    color_attachments,
+                    resolve_attachments,
                     *depth_attachment,
                     pipeline,
                 )?;
@@ -168,11 +167,9 @@ impl<'a> Command<'a> {
                     let view = a.view();
                     let c = pipeline.pass().colors()[i];
 
-                    for i in
-                        view.base_mip_level()..(view.base_mip_level() + view.mip_levels())
-                    {
-                        for j in view.base_array_layer()
-                            ..(view.base_array_layer() + view.array_layers())
+                    for i in view.base_mip_level()..(view.base_mip_level() + view.mip_levels()) {
+                        for j in
+                            view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
                             result.push((Cow::Borrowed(view.texture()), i, j, c.final_layout));
                         }
@@ -183,11 +180,9 @@ impl<'a> Command<'a> {
                     let r = pipeline.pass().resolves()[i];
 
                     let view = a.view();
-                    for i in
-                        view.base_mip_level()..(view.base_mip_level() + view.mip_levels())
-                    {
-                        for j in view.base_array_layer()
-                            ..(view.base_array_layer() + view.array_layers())
+                    for i in view.base_mip_level()..(view.base_mip_level() + view.mip_levels()) {
+                        for j in
+                            view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
                             result.push((Cow::Borrowed(view.texture()), i, j, r.final_layout));
                         }
@@ -197,11 +192,9 @@ impl<'a> Command<'a> {
                 if let Some(a) = depth_attachment {
                     let view = a.view();
 
-                    for i in
-                        view.base_mip_level()..(view.base_mip_level() + view.mip_levels())
-                    {
-                        for j in view.base_array_layer()
-                            ..(view.base_array_layer() + view.array_layers())
+                    for i in view.base_mip_level()..(view.base_mip_level() + view.mip_levels()) {
+                        for j in
+                            view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
                             result.push((
                                 Cow::Borrowed(view.texture()),
@@ -410,11 +403,9 @@ impl<'a> Command<'a> {
                         for j in
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
-                            
-                            if let Some(_) = result.insert(
-                                (Cow::Borrowed(view.texture()), i, j),
-                                c.initial_layout,
-                            ) {
+                            if let Some(_) = result
+                                .insert((Cow::Borrowed(view.texture()), i, j), c.initial_layout)
+                            {
                                 panic!(
                                     "ERROR: GraphicsPass uses texture {:?} as multiple attachments",
                                     view.texture()
@@ -430,11 +421,9 @@ impl<'a> Command<'a> {
                         for j in
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
-                            
-                            if let Some(_) = result.insert(
-                                (Cow::Borrowed(view.texture()), i, j),
-                                c.initial_layout,
-                            ) {
+                            if let Some(_) = result
+                                .insert((Cow::Borrowed(view.texture()), i, j), c.initial_layout)
+                            {
                                 panic!(
                                     "ERROR: GraphicsPass uses texture {:?} as multiple attachments",
                                     view.texture()
@@ -450,10 +439,9 @@ impl<'a> Command<'a> {
                         for j in
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
-                            if let Some(_) = result.insert(
-                                (Cow::Borrowed(view.texture()), i, j),
-                                d.initial_layout,
-                            ) {
+                            if let Some(_) = result
+                                .insert((Cow::Borrowed(view.texture()), i, j), d.initial_layout)
+                            {
                                 panic!(
                                     "ERROR: GraphicsPass uses texture {:?} as multiple attachments",
                                     view.texture()

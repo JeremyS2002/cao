@@ -1,12 +1,12 @@
+use std::cell::Cell;
 use std::mem::ManuallyDrop as Md;
 use std::ptr;
 use std::sync::Arc;
-use std::cell::Cell;
 
 use parking_lot::Mutex;
 
-use ash::vk;
 use ash::extensions::khr;
+use ash::vk;
 
 use crate::error::*;
 
@@ -56,7 +56,7 @@ pub struct SwapchainView<'a> {
     pub(crate) signal_semaphore: vk::Semaphore,
     /// The index of the view
     pub(crate) index: u32,
-    /// Flags to store if the view has been rendered to 
+    /// Flags to store if the view has been rendered to
     /// and therefore if the semaphore should be waited on
     pub(crate) drawn: Cell<bool>,
 }
@@ -130,7 +130,7 @@ impl std::hash::Hash for Swapchain {
 
 impl Swapchain {
     /// Create a new swapchain for the surface
-    /// 
+    ///
     /// NOTE: If the swapchain desc is invalid the properties of the swwapchain wlll be modified so that the creation can still take place
     pub fn new(
         device: &crate::Device,
@@ -138,17 +138,11 @@ impl Swapchain {
         desc: &SwapchainDesc,
     ) -> Result<Self, Error> {
         let loader = khr::Swapchain::new(&**device.raw.instance, &**device.raw);
-        let (
-            raw, 
-            format, 
-            extent, 
-            pre_transform, 
-        ) = Self::create_raw(device, surface, desc, &loader)?;
+        let (raw, format, extent, pre_transform) =
+            Self::create_raw(device, surface, desc, &loader)?;
         let (textures, views) = Self::create_frames(device, &loader, &raw, format, extent)?;
-        let (
-            rendering_complete_semaphores,
-            acquire_complete_semaphores,
-        ) = Self::create_sync(device, desc.frames_in_flight)?;
+        let (rendering_complete_semaphores, acquire_complete_semaphores) =
+            Self::create_sync(device, desc.frames_in_flight)?;
 
         let image_count = textures.len() as u32;
 
@@ -188,15 +182,25 @@ impl Swapchain {
         surface: &crate::Surface,
         desc: &SwapchainDesc,
         loader: &khr::Swapchain,
-    ) -> Result<(vk::SwapchainKHR, vk::SurfaceFormatKHR, vk::Extent2D, vk::SurfaceTransformFlagsKHR), crate::Error> {
+    ) -> Result<
+        (
+            vk::SwapchainKHR,
+            vk::SurfaceFormatKHR,
+            vk::Extent2D,
+            vk::SurfaceTransformFlagsKHR,
+        ),
+        crate::Error,
+    > {
         let raw_format = desc.format.into();
 
         let supported_formats_result = unsafe {
-            surface.loader.get_physical_device_surface_formats(device.physical, **surface.raw)
+            surface
+                .loader
+                .get_physical_device_surface_formats(device.physical, **surface.raw)
         };
         let supported_formats = match supported_formats_result {
             Ok(f) => f,
-            Err(e) => return Err(crate::ExplicitError(e).into())
+            Err(e) => return Err(crate::ExplicitError(e).into()),
         };
 
         let format_available = supported_formats.iter().find(|&f| f.format == raw_format);
@@ -204,19 +208,24 @@ impl Swapchain {
         let format = if let Some(&f) = format_available {
             f
         } else {
-            panic!("ERROR: Attempt to create swapchain with unsupported format")  
+            panic!("ERROR: Attempt to create swapchain with unsupported format")
         };
 
         let caps_result = unsafe {
-            surface.loader.get_physical_device_surface_capabilities(device.physical, **surface.raw)
+            surface
+                .loader
+                .get_physical_device_surface_capabilities(device.physical, **surface.raw)
         };
 
         let caps = match caps_result {
             Ok(c) => c,
-            Err(e)  => return Err(crate::error::ExplicitError(e).into())
+            Err(e) => return Err(crate::error::ExplicitError(e).into()),
         };
 
-        let pre_transform = if caps.supported_transforms.contains(vk::SurfaceTransformFlagsKHR::IDENTITY) {
+        let pre_transform = if caps
+            .supported_transforms
+            .contains(vk::SurfaceTransformFlagsKHR::IDENTITY)
+        {
             vk::SurfaceTransformFlagsKHR::IDENTITY
         } else {
             caps.current_transform
@@ -243,21 +252,14 @@ impl Swapchain {
             flags: vk::SwapchainCreateFlagsKHR::empty(),
         };
 
-        let swapchain_result = unsafe { 
-            loader.create_swapchain(&create_info, None)
-        };
+        let swapchain_result = unsafe { loader.create_swapchain(&create_info, None) };
 
         let swapchain = match swapchain_result {
             Ok(s) => s,
-            Err(e) => return Err(crate::error::ExplicitError(e).into())
+            Err(e) => return Err(crate::error::ExplicitError(e).into()),
         };
 
-        return Ok((
-            swapchain, 
-            format, 
-            caps.current_extent,
-            pre_transform,
-        ))
+        return Ok((swapchain, format, caps.current_extent, pre_transform));
     }
 
     fn create_frames(
@@ -270,7 +272,7 @@ impl Swapchain {
         let raw_images_result = unsafe { loader.get_swapchain_images(*swapchain) };
         let raw_images = match raw_images_result {
             Ok(i) => i,
-            Err(e) => return Err(crate::ExplicitError(e).into())
+            Err(e) => return Err(crate::ExplicitError(e).into()),
         };
 
         let textures: Vec<crate::Texture> = raw_images
@@ -290,14 +292,10 @@ impl Swapchain {
                         extent.width,
                         extent.height,
                         crate::Samples::S1,
-                    )
+                    ),
                 };
 
-                crate::init_image_layout(
-                    &device,
-                    &t,
-                    crate::TextureLayout::SwapchainPresent,
-                )?;
+                crate::init_image_layout(&device, &t, crate::TextureLayout::SwapchainPresent)?;
 
                 Ok(t)
             })
@@ -307,11 +305,14 @@ impl Swapchain {
             .iter()
             .map(|t| t.create_default_view())
             .collect::<Result<_, crate::Error>>()?;
-        
+
         Ok((textures, views))
     }
 
-    fn create_sync(device: &crate::Device, frames_in_flight: usize) -> Result<(Vec<vk::Semaphore>, Vec<vk::Semaphore>), crate::Error> {
+    fn create_sync(
+        device: &crate::Device,
+        frames_in_flight: usize,
+    ) -> Result<(Vec<vk::Semaphore>, Vec<vk::Semaphore>), crate::Error> {
         let semaphore_create_info = vk::SemaphoreCreateInfo {
             s_type: vk::StructureType::SEMAPHORE_CREATE_INFO,
             p_next: ptr::null(),
@@ -323,24 +324,22 @@ impl Swapchain {
         // let mut fences = Vec::new();
 
         for _ in 0..frames_in_flight {
-            let semaphore_1_res = unsafe {
-                device.raw.create_semaphore(&semaphore_create_info, None)
-            };
-    
+            let semaphore_1_res =
+                unsafe { device.raw.create_semaphore(&semaphore_create_info, None) };
+
             let semaphore_1 = match semaphore_1_res {
                 Ok(s) => s,
-                Err(e) => return Err(crate::ExplicitError(e).into())
+                Err(e) => return Err(crate::ExplicitError(e).into()),
             };
 
             semaphores_1.push(semaphore_1);
 
-            let semaphore_2_res = unsafe {
-                device.raw.create_semaphore(&semaphore_create_info, None)
-            };
-    
+            let semaphore_2_res =
+                unsafe { device.raw.create_semaphore(&semaphore_create_info, None) };
+
             let semaphore_2 = match semaphore_2_res {
                 Ok(s) => s,
-                Err(e) => return Err(crate::ExplicitError(e).into())
+                Err(e) => return Err(crate::ExplicitError(e).into()),
             };
 
             semaphores_2.push(semaphore_2);
@@ -350,11 +349,11 @@ impl Swapchain {
             //     p_next: ptr::null(),
             //     flags: vk::FenceCreateFlags::empty(),
             // };
-    
+
             // let fence_res = unsafe {
             //     device.raw.create_fence(&fence_create_info, None)
             // };
-    
+
             // let fence = match fence_res {
             //     Ok(f) => f,
             //     Err(e) => return Err(crate::ExplicitError(e).into())
@@ -366,10 +365,7 @@ impl Swapchain {
         Ok((semaphores_1, semaphores_2))
     }
 
-    pub fn recreate(
-        &mut self, 
-        device: &crate::Device, 
-    ) -> Result<(), crate::Error> {
+    pub fn recreate(&mut self, device: &crate::Device) -> Result<(), crate::Error> {
         self.device.wait_idle()?;
 
         // destroy previous resources
@@ -390,12 +386,13 @@ impl Swapchain {
         }
 
         let caps_result = unsafe {
-            self.surface_loader.get_physical_device_surface_capabilities(device.physical, **self.surface)
+            self.surface_loader
+                .get_physical_device_surface_capabilities(device.physical, **self.surface)
         };
 
         let caps = match caps_result {
             Ok(c) => c,
-            Err(e)  => return Err(crate::error::ExplicitError(e).into())
+            Err(e) => return Err(crate::error::ExplicitError(e).into()),
         };
 
         let create_info = vk::SwapchainCreateInfoKHR {
@@ -419,18 +416,17 @@ impl Swapchain {
             flags: vk::SwapchainCreateFlagsKHR::empty(),
         };
 
-        let swapchain_result = unsafe {
-            self.loader.create_swapchain(&create_info, None)
-        };
+        let swapchain_result = unsafe { self.loader.create_swapchain(&create_info, None) };
 
         let swapchain = match swapchain_result {
             Ok(s) => s,
-            Err(e) => return Err(crate::error::ExplicitError(e).into())
+            Err(e) => return Err(crate::error::ExplicitError(e).into()),
         };
 
         self.extent = caps.current_extent;
 
-        let (textures, views) = Self::create_frames(device, &self.loader, &swapchain, self.format, self.extent)?;
+        let (textures, views) =
+            Self::create_frames(device, &self.loader, &swapchain, self.format, self.extent)?;
 
         self.raw = swapchain;
         self.textures = textures;
@@ -448,10 +444,10 @@ impl Swapchain {
 
         let result = unsafe {
             self.loader.acquire_next_image(
-                self.raw, 
-                timeout, 
+                self.raw,
+                timeout,
                 self.acquire_complete_semaphores[frame],
-                // vk::Semaphore::null(), 
+                // vk::Semaphore::null(),
                 vk::Fence::null(),
                 //self.acquire_complete_fences[frame],
             )
@@ -459,7 +455,7 @@ impl Swapchain {
 
         let (index, suboptimal) = match result {
             Ok(t) => t,
-            Err(e) => return Err(crate::ExplicitError(e).into())
+            Err(e) => return Err(crate::ExplicitError(e).into()),
         };
 
         // let elapsed = start.elapsed().as_nanos();
@@ -467,8 +463,8 @@ impl Swapchain {
 
         // let wait_result = unsafe {
         //     self.device.wait_for_fences(
-        //         &[self.acquire_complete_fences[frame]], 
-        //         true, 
+        //         &[self.acquire_complete_fences[frame]],
+        //         true,
         //         remaining
         //     )
         // };
@@ -489,13 +485,16 @@ impl Swapchain {
 
         self.device.check_errors()?;
 
-        Ok((SwapchainView {
-            view: self.views.get(index as usize).unwrap(),
-            index: index as _,
-            wait_semaphore: self.acquire_complete_semaphores[frame],
-            signal_semaphore: self.rendering_complete_semaphores[frame],
-            drawn: Cell::new(false),
-        }, suboptimal))
+        Ok((
+            SwapchainView {
+                view: self.views.get(index as usize).unwrap(),
+                index: index as _,
+                wait_semaphore: self.acquire_complete_semaphores[frame],
+                signal_semaphore: self.rendering_complete_semaphores[frame],
+                drawn: Cell::new(false),
+            },
+            suboptimal,
+        ))
     }
 
     pub fn present(&self, view: SwapchainView<'_>) -> Result<bool, crate::Error> {
@@ -520,17 +519,16 @@ impl Swapchain {
             };
 
             let submit_result = unsafe {
-                self.device.queue_submit(
-                    self.queue, &[submit_info], vk::Fence::null()
-                )
+                self.device
+                    .queue_submit(self.queue, &[submit_info], vk::Fence::null())
             };
 
             match submit_result {
                 Ok(_) => (),
-                Err(e) => return Err(crate::ExplicitError(e).into())
+                Err(e) => return Err(crate::ExplicitError(e).into()),
             }
         }
-        
+
         let present_info = vk::PresentInfoKHR {
             s_type: vk::StructureType::PRESENT_INFO_KHR,
             p_next: ptr::null(),
@@ -541,13 +539,8 @@ impl Swapchain {
             wait_semaphore_count: 1,
             p_results: ptr::null_mut(),
         };
-        
-        let result = unsafe {
-            self.loader.queue_present(
-                self.queue, 
-                &present_info,
-            )
-        };
+
+        let result = unsafe { self.loader.queue_present(self.queue, &present_info) };
 
         match result {
             Ok(b) => {
@@ -555,8 +548,8 @@ impl Swapchain {
                 let frame = (self.frame.get() + 1) % self.frames_in_flight;
                 self.frame.set(frame);
                 Ok(b)
-            },
-            Err(e) => Err(crate::ExplicitError(e).into())
+            }
+            Err(e) => Err(crate::ExplicitError(e).into()),
         }
     }
 
@@ -579,7 +572,7 @@ impl Drop for Swapchain {
                 self.surface_loader.destroy_surface(surface, None);
             }
         }
-        
+
         for semaphore in self.acquire_complete_semaphores.drain(..) {
             unsafe {
                 self.device.destroy_semaphore(semaphore, None);

@@ -1,6 +1,5 @@
-
-use std::ptr;
 use std::borrow::Borrow;
+use std::ptr;
 
 use ash::vk;
 
@@ -520,14 +519,17 @@ pub(crate) fn begin_compute_pass(
     Ok(device.check_errors()?)
 }
 
-pub(crate) fn begin_graphics_pass(
+pub(crate) fn begin_graphics_pass<'a, B>(
     command_buffer: vk::CommandBuffer,
     device: &crate::RawDevice,
-    color_attachments: &[crate::Attachment<'_>],
-    resolve_attachments: &[crate::Attachment<'_>],
-    depth_attachment: Option<crate::Attachment<'_>>,
+    color_attachments: &[B],
+    resolve_attachments: &[B],
+    depth_attachment: Option<B>,
     pipeline: &crate::GraphicsPipeline,
-) -> Result<Option<(vk::Semaphore, vk::Semaphore)>, crate::Error> {
+) -> Result<Option<(vk::Semaphore, vk::Semaphore)>, crate::Error>
+where
+    B: std::borrow::Borrow<crate::Attachment<'a>>,
+{
     #[cfg(feature = "logging")]
     log::trace!("GPU: begin_graphics_pass pipeline: {:?}", pipeline);
     let swapchain = begin_render_pass(
@@ -549,18 +551,21 @@ pub(crate) fn begin_graphics_pass(
     Ok(swapchain)
 }
 
-pub(crate) fn begin_render_pass(
+pub(crate) fn begin_render_pass<'a, B>(
     command_buffer: vk::CommandBuffer,
     device: &crate::RawDevice,
-    color_attachments: &[crate::Attachment<'_>],
-    resolve_attachments: &[crate::Attachment<'_>],
-    depth_attachment: Option<crate::Attachment<'_>>,
+    color_attachments: &[B],
+    resolve_attachments: &[B],
+    depth_attachment: Option<B>,
     pass: &crate::RenderPass,
-) -> Result<Option<(vk::Semaphore, vk::Semaphore)>, crate::Error> {
+) -> Result<Option<(vk::Semaphore, vk::Semaphore)>, crate::Error>
+where
+    B: std::borrow::Borrow<crate::Attachment<'a>>,
+{
     let (framebuffer_key, swapchain, extent) = framebuffer_key(
         color_attachments,
         resolve_attachments,
-        depth_attachment,
+        depth_attachment.as_ref(),
         **pass.raw,
     );
     let framebuffer_cache = device.framebuffers.read();
@@ -571,7 +576,7 @@ pub(crate) fn begin_render_pass(
             .into_iter()
             .chain(resolve_attachments)
             .chain(depth_attachment.as_ref())
-            .map(|v| &**v.view().framebuffers)
+            .map(|v| &**v.borrow().view().framebuffers)
             .collect::<Vec<_>>();
         raw_framebuffer(device, &framebuffer_key, extent, &framebuffers)?;
     }
@@ -582,7 +587,7 @@ pub(crate) fn begin_render_pass(
         .into_iter()
         .chain(resolve_attachments)
         .chain(depth_attachment.as_ref())
-        .map(|v| v.clear_value().into())
+        .map(|v| v.borrow().clear_value().into())
         .collect::<Vec<_>>();
 
     unsafe {
@@ -612,40 +617,54 @@ pub(crate) fn begin_render_pass(
     Ok(swapchain)
 }
 
-pub(crate) fn framebuffer_key(
-    color_attachments: &[crate::Attachment<'_>],
-    resolve_attachments: &[crate::Attachment<'_>],
-    depth_attachment: Option<crate::Attachment<'_>>,
+pub(crate) fn framebuffer_key<'a, B>(
+    color_attachments: &[B],
+    resolve_attachments: &[B],
+    depth_attachment: Option<&B>,
     pass: vk::RenderPass,
-) -> (crate::FramebufferKey, Option<(vk::Semaphore, vk::Semaphore)>, crate::Extent2D) {
+) -> (
+    crate::FramebufferKey,
+    Option<(vk::Semaphore, vk::Semaphore)>,
+    crate::Extent2D,
+)
+where
+    B: std::borrow::Borrow<crate::Attachment<'a>>,
+{
     let mut swapchain = None;
-    let mut extent = crate::Extent2D { width: 0, height: 0 };
+    let mut extent = crate::Extent2D {
+        width: 0,
+        height: 0,
+    };
 
     let attachments = color_attachments
         .iter()
         .chain(resolve_attachments)
-        .chain(depth_attachment.borrow())
+        .chain(depth_attachment.borrow().iter().map(|a| *a))
         .map(|v| {
-            match v {
+            match v.borrow() {
                 crate::Attachment::Swapchain(s, _) => {
                     swapchain = Some((s.wait_semaphore, s.signal_semaphore));
                     s.drawn.set(true);
                     extent.width = s.view.extent.width;
                     extent.height = s.view.extent.height;
-                },
+                }
                 crate::Attachment::View(v, _) => {
                     extent.width = v.extent.width;
                     extent.height = v.extent.height;
-                },
+                }
             }
-            **v.view().raw
+            **v.borrow().view().raw
         })
         .collect::<Vec<_>>();
 
-    (crate::FramebufferKey {
-        attachments,
-        render_pass: pass,
-    }, swapchain, extent)
+    (
+        crate::FramebufferKey {
+            attachments,
+            render_pass: pass,
+        },
+        swapchain,
+        extent,
+    )
 }
 
 pub(crate) fn raw_framebuffer(
@@ -940,26 +959,25 @@ pub(crate) fn submit(
 
     // println!("{:?}", unsafe { *submit_info.p_wait_dst_stage_mask });
 
-//      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ UNASSIGNED-GeneralParameterError-UnrecognizedValue ] Object 0: handle = 0x55d82e546570, type = VK_OBJECT_TYPE_DEVICE; | MessageID = 0xbe6eff91 | vkQueueSubmit: value of pSubmits[0].pWaitDstStageMask[1] contains flag bits that are not recognized members of VkPipelineStageFlagBits"
-//      [Debug]ERROR[Validation]"Validation Error: [ UNASSIGNED-GeneralParameterError-UnrecognizedValue ] Object 0: handle = 0x55d82e546570, type = VK_OBJECT_TYPE_DEVICE; | MessageID = 0xbe6eff91 | vkQueueSubmit: value of pSubmits[0].pWaitDstStageMask[1] contains flag bits that are not recognized members of VkPipelineStageFlagBits"
-//      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
-//      [Debug]ERROR[Validation]"Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
-//      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
-//      [Debug]ERROR[Validation]"Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
-//      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
-//      [Debug]ERROR[Validation]"Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
-//      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
-//      [Debug]ERROR[Validation]"Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
-//      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ VUID-VkSubmitInfo-pWaitDstStageMask-00076 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x974ac677 | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT when the device does not have geometryShader feature enabled. The Vulkan spec states: If the geometry shaders feature is not enabled, each element of pWaitDstStageMask must not contain VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-VkSubmitInfo-pWaitDstStageMask-00076)"
-//      [Debug]ERROR[Validation]"Validation Error: [ VUID-VkSubmitInfo-pWaitDstStageMask-00076 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x974ac677 | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT when the device does not have geometryShader feature enabled. The Vulkan spec states: If the geometry shaders feature is not enabled, each element of pWaitDstStageMask must not contain VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-VkSubmitInfo-pWaitDstStageMask-00076)"
-//      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ UNASSIGNED-CoreChecks-VkSubmitInfo-pWaitDstStageMask-conditionalRendering ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x76a3c53 | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT when the device does not have conditionalRendering feature enabled."
-//      [Debug]ERROR[Validation]"Validation Error: [ UNASSIGNED-CoreChecks-VkSubmitInfo-pWaitDstStageMask-conditionalRendering ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x76a3c53 | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT when the device does not have conditionalRendering feature enabled."
-//      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ VUID-VkSubmitInfo-pWaitDstStageMask-02090 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x3702e1cc | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV when the device does not have taskShader feature enabled. The Vulkan spec states: If the task shaders feature is not enabled, each element of pWaitDstStageMask must not contain VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-VkSubmitInfo-pWaitDstStageMask-02090)"
-//      [Debug]ERROR[Validation]"Validation Error: [ VUID-VkSubmitInfo-pWaitDstStageMask-02090 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x3702e1cc | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV when the device does not have taskShader feature enabled. The Vulkan spec states: If the task shaders feature is not enabled, each element of pWaitDstStageMask must not contain VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-VkSubmitInfo-pWaitDstStageMask-02090)"
-//      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ UNASSIGNED-CoreChecks-VkSubmitInfo-pWaitDstStageMask-shadingRate ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0xb718b4cd | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR when the device does not have shadingRate feature enabled."
-//      [Debug]ERROR[Validation]"Validation Error: [ UNASSIGNED-CoreChecks-VkSubmitInfo-pWaitDstStageMask-shadingRate ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0xb718b4cd | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR when the device does not have shadingRate feature enabled."
-//      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ VUID-VkSubmitInfo-pWaitDstStageMask-00078 ] Object 0: handle = 0x55d82e546570, type = VK_OBJECT_TYPE_DEVICE; | MessageID = 0xc17cd9ae | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] stage mask must not include VK_PIPELINE_STAGE_HOST_BIT as the stage can't be invoked inside a command buffer. The Vulkan spec states: Each element of pWaitDstStageMask must not include VK_PIPELINE_STAGE_HOST_BIT (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-VkSubmitInfo-pWaitDstStageMask-00078)"
-
+    //      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ UNASSIGNED-GeneralParameterError-UnrecognizedValue ] Object 0: handle = 0x55d82e546570, type = VK_OBJECT_TYPE_DEVICE; | MessageID = 0xbe6eff91 | vkQueueSubmit: value of pSubmits[0].pWaitDstStageMask[1] contains flag bits that are not recognized members of VkPipelineStageFlagBits"
+    //      [Debug]ERROR[Validation]"Validation Error: [ UNASSIGNED-GeneralParameterError-UnrecognizedValue ] Object 0: handle = 0x55d82e546570, type = VK_OBJECT_TYPE_DEVICE; | MessageID = 0xbe6eff91 | vkQueueSubmit: value of pSubmits[0].pWaitDstStageMask[1] contains flag bits that are not recognized members of VkPipelineStageFlagBits"
+    //      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
+    //      [Debug]ERROR[Validation]"Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
+    //      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
+    //      [Debug]ERROR[Validation]"Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
+    //      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
+    //      [Debug]ERROR[Validation]"Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
+    //      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
+    //      [Debug]ERROR[Validation]"Validation Error: [ VUID-vkQueueSubmit-pWaitDstStageMask-00066 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x48e8bcee | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] flag Unhandled VkPipelineStageFlagBits is not compatible with the queue family properties (VK_QUEUE_GRAPHICS_BIT|VK_QUEUE_COMPUTE_BIT|VK_QUEUE_TRANSFER_BIT) of this command buffer. The Vulkan spec states: Any stage flag included in any element of the pWaitDstStageMask member of any element of pSubmits must be a pipeline stage supported by one of the capabilities of queue, as specified in the table of supported pipeline stages (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-vkQueueSubmit-pWaitDstStageMask-00066)"
+    //      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ VUID-VkSubmitInfo-pWaitDstStageMask-00076 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x974ac677 | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT when the device does not have geometryShader feature enabled. The Vulkan spec states: If the geometry shaders feature is not enabled, each element of pWaitDstStageMask must not contain VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-VkSubmitInfo-pWaitDstStageMask-00076)"
+    //      [Debug]ERROR[Validation]"Validation Error: [ VUID-VkSubmitInfo-pWaitDstStageMask-00076 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x974ac677 | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT when the device does not have geometryShader feature enabled. The Vulkan spec states: If the geometry shaders feature is not enabled, each element of pWaitDstStageMask must not contain VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-VkSubmitInfo-pWaitDstStageMask-00076)"
+    //      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ UNASSIGNED-CoreChecks-VkSubmitInfo-pWaitDstStageMask-conditionalRendering ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x76a3c53 | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT when the device does not have conditionalRendering feature enabled."
+    //      [Debug]ERROR[Validation]"Validation Error: [ UNASSIGNED-CoreChecks-VkSubmitInfo-pWaitDstStageMask-conditionalRendering ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x76a3c53 | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT when the device does not have conditionalRendering feature enabled."
+    //      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ VUID-VkSubmitInfo-pWaitDstStageMask-02090 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x3702e1cc | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV when the device does not have taskShader feature enabled. The Vulkan spec states: If the task shaders feature is not enabled, each element of pWaitDstStageMask must not contain VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-VkSubmitInfo-pWaitDstStageMask-02090)"
+    //      [Debug]ERROR[Validation]"Validation Error: [ VUID-VkSubmitInfo-pWaitDstStageMask-02090 ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0x3702e1cc | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV when the device does not have taskShader feature enabled. The Vulkan spec states: If the task shaders feature is not enabled, each element of pWaitDstStageMask must not contain VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-VkSubmitInfo-pWaitDstStageMask-02090)"
+    //      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ UNASSIGNED-CoreChecks-VkSubmitInfo-pWaitDstStageMask-shadingRate ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0xb718b4cd | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR when the device does not have shadingRate feature enabled."
+    //      [Debug]ERROR[Validation]"Validation Error: [ UNASSIGNED-CoreChecks-VkSubmitInfo-pWaitDstStageMask-shadingRate ] Object 0: handle = 0x967dd1000000000e, type = VK_OBJECT_TYPE_SEMAPHORE; Object 1: handle = 0x55d82e4a6c00, type = VK_OBJECT_TYPE_QUEUE; | MessageID = 0xb718b4cd | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] includes VK_PIPELINE_STAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR when the device does not have shadingRate feature enabled."
+    //      [2022-04-15T01:08:53Z ERROR gpu::ffi] GPU VALIDATION "Validation Error: [ VUID-VkSubmitInfo-pWaitDstStageMask-00078 ] Object 0: handle = 0x55d82e546570, type = VK_OBJECT_TYPE_DEVICE; | MessageID = 0xc17cd9ae | vkQueueSubmit(): pSubmits[0].pWaitDstStageMask[1] stage mask must not include VK_PIPELINE_STAGE_HOST_BIT as the stage can't be invoked inside a command buffer. The Vulkan spec states: Each element of pWaitDstStageMask must not include VK_PIPELINE_STAGE_HOST_BIT (https://vulkan.lunarg.com/doc/view/1.2.189.0/linux/1.2-extensions/vkspec.html#VUID-VkSubmitInfo-pWaitDstStageMask-00078)"
 
     let submit_result = unsafe { device.queue_submit(queue, &[submit_info], fence) };
 

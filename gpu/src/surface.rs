@@ -1,4 +1,3 @@
-
 use std::mem::ManuallyDrop as Md;
 use std::ptr;
 use std::sync::Arc;
@@ -56,13 +55,9 @@ impl Surface {
 
         match window.raw_window_handle() {
             #[cfg(target_os = "linux")]
-            RawWindowHandle::Xlib(h) => unsafe { 
-                Self::create_surface_from_xlib(instance, h) 
-            },
+            RawWindowHandle::Xlib(h) => unsafe { Self::create_surface_from_xlib(instance, h) },
             #[cfg(target_os = "linux")]
-            RawWindowHandle::Xcb(h) => unsafe { 
-                Self::create_surface_from_xcb(instance, h) 
-            },
+            RawWindowHandle::Xcb(h) => unsafe { Self::create_surface_from_xcb(instance, h) },
             #[cfg(target_os = "linux")]
             RawWindowHandle::Wayland(h) => unsafe {
                 Self::create_surface_from_wayland(instance, h)
@@ -80,7 +75,7 @@ impl Surface {
             h => panic!("ERROR: Can't create surface from window of type {:?}", h),
         }
     }
-    
+
     /// Get infomation about the surface
     pub fn info(&self, device: &crate::Device) -> Result<SurfaceInfo, Error> {
         let raw_formats_result = unsafe {
@@ -305,12 +300,12 @@ impl Surface {
 }
 
 impl Drop for Surface {
-fn drop(&mut self) {
-    unsafe {
-        let raw = Md::take(&mut self.raw);
-        if let Ok(raw) = Arc::try_unwrap(raw) {
-            self.loader.destroy_surface(raw, None);
+    fn drop(&mut self) {
+        unsafe {
+            let raw = Md::take(&mut self.raw);
+            if let Ok(raw) = Arc::try_unwrap(raw) {
+                self.loader.destroy_surface(raw, None);
+            }
         }
     }
-}
 }

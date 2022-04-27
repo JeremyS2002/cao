@@ -1,7 +1,8 @@
-
+#[cfg(feature = "reflect")]
+use std::any::TypeId;
 use std::borrow::Cow;
-use std::mem::ManuallyDrop as Md;
 use std::collections::HashMap;
+use std::mem::ManuallyDrop as Md;
 
 pub mod command;
 
@@ -156,20 +157,12 @@ impl<'a> CommandEncoder<'a> {
                 "ERROR: Device missing features {:?}",
                 gpu::DeviceFeatures::TRANSFER,
             );
-        } else if !src
-            .buffer()
-            .usage()
-            .contains(gpu::BufferUsage::COPY_SRC)
-        {
+        } else if !src.buffer().usage().contains(gpu::BufferUsage::COPY_SRC) {
             panic!(
                 "ERROR: Buffer missing usage {:?}",
                 gpu::BufferUsage::COPY_SRC,
             );
-        } else if !dst
-            .buffer()
-            .usage()
-            .contains(gpu::BufferUsage::COPY_DST)
-        {
+        } else if !dst.buffer().usage().contains(gpu::BufferUsage::COPY_DST) {
             panic!(
                 "ERROR: Buffer missing usage {:?}",
                 gpu::BufferUsage::COPY_DST,
@@ -193,20 +186,12 @@ impl<'a> CommandEncoder<'a> {
                 "ERROR: Device missing features {:?}",
                 gpu::DeviceFeatures::TRANSFER,
             );
-        } else if !src
-            .texture()
-            .usage()
-            .contains(gpu::TextureUsage::COPY_SRC)
-        {
+        } else if !src.texture().usage().contains(gpu::TextureUsage::COPY_SRC) {
             panic!(
                 "ERROR: Buffer missing usage {:?}",
                 gpu::TextureUsage::COPY_SRC,
             );
-        } else if !dst
-            .buffer()
-            .usage()
-            .contains(gpu::BufferUsage::COPY_DST)
-        {
+        } else if !dst.buffer().usage().contains(gpu::BufferUsage::COPY_DST) {
             panic!(
                 "ERROR: Buffer missing usage {:?}",
                 gpu::BufferUsage::COPY_DST,
@@ -240,20 +225,12 @@ impl<'a> CommandEncoder<'a> {
                 "ERROR: Device missing features {:?}",
                 gpu::DeviceFeatures::TRANSFER,
             );
-        } else if !src
-            .buffer()
-            .usage()
-            .contains(gpu::BufferUsage::COPY_SRC)
-        {
+        } else if !src.buffer().usage().contains(gpu::BufferUsage::COPY_SRC) {
             panic!(
                 "ERROR: Buffer missing usage {:?}",
                 gpu::BufferUsage::COPY_SRC,
             );
-        } else if !dst
-            .texture()
-            .usage()
-            .contains(gpu::TextureUsage::COPY_DST)
-        {
+        } else if !dst.texture().usage().contains(gpu::TextureUsage::COPY_DST) {
             panic!(
                 "ERROR: Buffer missing usage {:?}",
                 gpu::TextureUsage::COPY_DST,
@@ -283,20 +260,12 @@ impl<'a> CommandEncoder<'a> {
                 "ERROR: Device missing features {:?}",
                 gpu::DeviceFeatures::TRANSFER,
             );
-        } else if !src
-            .texture()
-            .usage()
-            .contains(gpu::TextureUsage::COPY_SRC)
-        {
+        } else if !src.texture().usage().contains(gpu::TextureUsage::COPY_SRC) {
             panic!(
                 "ERROR: Buffer missing usage {:?}",
                 gpu::TextureUsage::COPY_SRC,
             );
-        } else if !dst
-            .texture()
-            .usage()
-            .contains(gpu::TextureUsage::COPY_DST)
-        {
+        } else if !dst.texture().usage().contains(gpu::TextureUsage::COPY_DST) {
             panic!(
                 "ERROR: Buffer missing usage {:?}",
                 gpu::TextureUsage::COPY_DST,
@@ -378,10 +347,11 @@ impl<'a> CommandEncoder<'a> {
     #[cfg(feature = "reflect")]
     pub fn graphics_pass_reflected<'b, V: crate::Vertex>(
         &'b mut self,
-        colors: &[crate::Attachment<'a>],
-        resolves: &[crate::Attachment<'a>],
-        depth: Option<crate::Attachment<'a>>,
-        graphics: &crate::ReflectedGraphics,
+        device: &gpu::Device,
+        colors: &'a [gpu::Attachment<'a>],
+        resolves: &'a [gpu::Attachment<'a>],
+        depth: Option<gpu::Attachment<'a>>,
+        graphics: &crate::reflect::ReflectedGraphics,
     ) -> Result<crate::pass::ReflectedGraphicsPass<'a, 'b, V>, gpu::Error> {
         if !self.features.contains(gpu::DeviceFeatures::GRAPHICS) {
             panic!(
@@ -390,66 +360,30 @@ impl<'a> CommandEncoder<'a> {
             );
         }
 
-        let pass_desc = gpu::RenderPassDesc {
-            colors: Cow::Owned(
-                colors
-                    .iter()
-                    .map(|a| gpu::ColorAttachment {
-                        format: a.view.format(),
-                        load: a.load,
-                        store: a.store,
-                        initial_layout: a.initial_layout,
-                        final_layout: a.final_layout,
-                    })
-                    .collect(),
-            ),
-            resolves: Cow::Owned(
-                resolves
-                    .iter()
-                    .map(|a| gpu::ResolveAttachment {
-                        load: a.load,
-                        store: a.store,
-                        initial_layout: a.initial_layout,
-                        final_layout: a.final_layout,
-                    })
-                    .collect(),
-            ),
-            depth: depth.as_ref().map(|a| gpu::DepthAttachment {
-                format: a.view.format(),
-                load: a.load,
-                store: a.store,
-                initial_layout: a.initial_layout,
-                final_layout: a.final_layout,
-            }),
-            samples: if colors.len() != 0 {
-                colors[0].view.samples()
-            } else {
-                depth.as_ref().unwrap().view.samples()
-            },
-            extent: if colors.len() != 0 {
-                colors[0].view.extent().into()
-            } else {
-                depth.as_ref().unwrap().view.extent().into()
-            },
-            name: graphics
-                .pipeline_data
-                .name
-                .clone(),
+        let extent = if colors.len() != 0 {
+            colors[0].view().extent()
+        } else if let Some(d) = depth.as_ref() {
+            d.view().extent()
+        } else {
+            todo!();
         };
 
-        let c = graphics.pass_map.read();
-        if let None = c.get(&pass_desc) {
-            drop(c);
-            let pass = self.device.create_render_pass(&pass_desc)?;
-            graphics.pass_map.write().insert(pass_desc.clone(), pass);
-        }
-
-        let pass_map = graphics.pass_map.read();
-        let pass = pass_map.get(&pass_desc).unwrap();
+        let viewport = gpu::Viewport {
+            x: 0,
+            y: 0,
+            width: extent.width as _,
+            height: extent.height as _,
+            ..Default::default()
+        };
 
         let c = graphics.pipeline_map.read();
-        let pass_id = unsafe { std::mem::transmute(pass.raw_render_pass()) };
-        if let None = c.get(&(pass_id, TypeId::of::<V>())) {
+
+        let key = crate::reflect::GraphicsPipelineKey {
+            vertex_ty: TypeId::of::<V>(),
+            viewport,
+        };
+
+        if let None = c.get(&key) {
             drop(c);
             let vertex_state = gpu::VertexState {
                 stride: std::mem::size_of::<V>() as u32,
@@ -459,47 +393,39 @@ impl<'a> CommandEncoder<'a> {
 
             let vertex_states = &[vertex_state];
 
-            let mut desc = gpu::GraphicsPipelineDesc::from_ref(
-                None,
-                &graphics.pipeline_data.layout,
-                pass,
-                &graphics.pipeline_data.vertex,
-                None,
-                graphics.pipeline_data.geometry.as_ref(),
-                graphics.pipeline_data.fragment.as_ref(),
-                graphics.pipeline_data.rasterizer,
+            let mut desc = gpu::GraphicsPipelineDesc {
+                name: None,
+                layout: &graphics.pipeline_data.layout,
+                pass: &graphics.pipeline_data.pass,
+                vertex: &graphics.pipeline_data.vertex,
+                tessellation: None,
+                geometry: graphics.pipeline_data.geometry.as_ref(),
+                fragment: graphics.pipeline_data.fragment.as_ref(),
+                rasterizer: graphics.pipeline_data.rasterizer,
                 vertex_states,
-                &graphics.pipeline_data.blend_states[..colors.len()],
-                graphics.pipeline_data.depth_stencil,
-            );
+                blend_states: &graphics.pipeline_data.blend_states[..colors.len()],
+                depth_stencil: graphics.pipeline_data.depth_stencil,
+                viewport,
+            };
 
             if std::mem::size_of::<V>() == 0 {
-                desc.vertex_states = Cow::Borrowed(&[])
+                desc.vertex_states = &[];
             }
 
-            let pipeline = self.device.create_graphics_pipeline(&desc)?;
-            graphics
-                .pipeline_map
-                .write()
-                .insert((pass_id, TypeId::of::<V>()), pipeline);
+            let pipeline = device.create_graphics_pipeline(&desc)?;
+            graphics.pipeline_map.write().insert(key, pipeline);
         }
 
         let pipeline_map = graphics.pipeline_map.read();
-        let pipeline = pipeline_map.get(&(pass_id, TypeId::of::<V>())).unwrap();
+        let pipeline = pipeline_map.get(&key).unwrap();
 
         Ok(crate::pass::ReflectedGraphicsPass {
             parent_id: graphics.id,
             bundle_needed: graphics.bundle_needed(),
             push_constant_names: graphics.reflect_data.push_constant_names.clone(),
-            color_attachments: colors
-                .iter()
-                .map(|a| (a.view.clone(), a.clear_value))
-                .collect(),
-            resolve_attachments: resolves
-                .iter()
-                .map(|a| (a.view.clone(), a.clear_value))
-                .collect(),
-            depth_attachment: depth.map(|a| (a.view, a.clear_value)),
+            color_attachments: colors.to_vec(),
+            resolve_attachments: resolves.to_vec(),
+            depth_attachment: depth,
             pipeline: Md::new(Cow::Owned(pipeline.clone())),
             commands: Vec::new(),
             encoder: self,
@@ -547,7 +473,7 @@ impl<'a> CommandEncoder<'a> {
     #[cfg(feature = "reflect")]
     pub fn compute_pass_reflected_ref<'b>(
         &'b mut self,
-        compute: &'a crate::ReflectedCompute,
+        compute: &'a crate::reflect::ReflectedCompute,
     ) -> Result<crate::pass::ReflectedComputePass<'a, 'b>, gpu::Error> {
         if !self.features.contains(gpu::DeviceFeatures::COMPUTE) {
             panic!(
@@ -570,7 +496,7 @@ impl<'a> CommandEncoder<'a> {
     #[cfg(feature = "reflect")]
     pub fn compute_pass_reflected_owned<'b>(
         &'b mut self,
-        compute: &crate::ReflectedCompute,
+        compute: &crate::reflect::ReflectedCompute,
     ) -> Result<crate::pass::ReflectedComputePass<'a, 'b>, gpu::Error> {
         if !self.features.contains(gpu::DeviceFeatures::COMPUTE) {
             panic!(
@@ -627,9 +553,7 @@ impl<'a> CommandEncoder<'a> {
                 }
 
                 for texture in textures {
-                    for i in texture.base_mip_level
-                        ..(texture.base_mip_level + texture.mip_levels)
-                    {
+                    for i in texture.base_mip_level..(texture.base_mip_level + texture.mip_levels) {
                         for j in texture.base_array_layer
                             ..(texture.base_array_layer + texture.array_layers)
                         {
@@ -695,9 +619,7 @@ impl<'a> CommandEncoder<'a> {
                 }
 
                 for texture in textures {
-                    for i in texture.base_mip_level
-                        ..(texture.base_mip_level + texture.mip_levels)
-                    {
+                    for i in texture.base_mip_level..(texture.base_mip_level + texture.mip_levels) {
                         for j in texture.base_array_layer
                             ..(texture.base_array_layer + texture.array_layers)
                         {

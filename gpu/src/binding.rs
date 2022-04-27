@@ -167,13 +167,13 @@ union Descriptor {
 
 /// Describes a DescriptorSet
 #[derive(Debug)]
-pub struct DescriptorSetDesc<'a> {
+pub struct DescriptorSetDesc<'a, 'b> {
     /// The name of the DescriptorSet
     pub name: Option<String>,
     /// The layout of the DescriptorSet
     pub layout: &'a DescriptorLayout,
     /// The entries in the DescriptorSet
-    pub entries: &'a [crate::DescriptorSetEntry<'a>],
+    pub entries: &'a [crate::DescriptorSetEntry<'b>],
 }
 
 /// A DescriptorSet
@@ -245,7 +245,7 @@ impl std::fmt::Debug for DescriptorSet {
 
 impl DescriptorSet {
     /// Create a new DescriptorSet
-    pub fn new(device: &crate::Device, desc: &DescriptorSetDesc<'_>) -> Result<Self, Error> {
+    pub fn new(device: &crate::Device, desc: &DescriptorSetDesc<'_, '_>) -> Result<Self, Error> {
         #[cfg(feature = "logging")]
         log::trace!("GPU: Create DescriptorSet, name {:?}", desc.name);
 
@@ -284,7 +284,7 @@ impl DescriptorSet {
     }
 
     fn make_cache(
-        desc: &DescriptorSetDesc<'_>,
+        desc: &DescriptorSetDesc<'_, '_>,
     ) -> (
         HashMap<crate::TextureView, crate::TextureLayout>,
         HashSet<crate::BufferSlice<'static>>,
@@ -383,7 +383,7 @@ impl DescriptorSet {
     fn write_descriptors(
         device: &crate::Device,
         descriptors: Vec<Vec<Descriptor>>,
-        desc: &DescriptorSetDesc<'_>,
+        desc: &DescriptorSetDesc<'_, '_>,
         set: vk::DescriptorSet,
     ) {
         let mut write = Vec::new();
@@ -680,7 +680,7 @@ impl DescriptorSet {
         }
     }
 
-    fn descriptors(desc: &DescriptorSetDesc<'_>) -> Result<Vec<Vec<Descriptor>>, Error> {
+    fn descriptors(desc: &DescriptorSetDesc<'_, '_>) -> Result<Vec<Vec<Descriptor>>, Error> {
         Ok(desc
             .entries
             .iter()
@@ -691,7 +691,7 @@ impl DescriptorSet {
 
     fn raw(
         device: &crate::Device,
-        desc: &DescriptorSetDesc<'_>,
+        desc: &DescriptorSetDesc<'_, '_>,
     ) -> Result<(vk::DescriptorPool, vk::DescriptorSet), Error> {
         let pool_sizes = desc
             .layout

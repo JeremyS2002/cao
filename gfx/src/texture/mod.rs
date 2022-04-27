@@ -1,4 +1,3 @@
-
 pub mod formats;
 pub mod traits;
 
@@ -8,7 +7,7 @@ pub use traits::*;
 /// Iterate over the formats and see if it is compaitble with the dimension and
 pub fn choose_format(
     device: &gpu::Device,
-    options: impl IntoIterator<Item=gpu::Format>,
+    options: impl IntoIterator<Item = gpu::Format>,
     dimension: gpu::TextureDimension,
     usage: gpu::TextureUsage,
     mip_levels: u32,
@@ -72,7 +71,8 @@ impl CubeFace {
             CubeFace::NegY,
             CubeFace::PosZ,
             CubeFace::NegZ,
-        ].into_iter()
+        ]
+        .into_iter()
     }
 }
 
@@ -377,7 +377,7 @@ impl GTexture1D {
         width: gpu::Size,
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        formats: impl IntoIterator<Item=gpu::Format>,
+        formats: impl IntoIterator<Item = gpu::Format>,
         name: Option<String>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(
@@ -474,7 +474,7 @@ impl GTexture1DArray {
         layers: gpu::Layer,
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        formats: impl IntoIterator<Item=gpu::Format>,
+        formats: impl IntoIterator<Item = gpu::Format>,
         name: Option<String>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(
@@ -558,14 +558,7 @@ impl GTexture2D {
         format: gpu::Format,
         name: Option<String>,
     ) -> Result<Self, gpu::Error> {
-        Self::from_dimension(
-            device,
-            D2(width, height),
-            usage,
-            mip_levels,
-            format,
-            name,
-        )
+        Self::from_dimension(device, D2(width, height), usage, mip_levels, format, name)
     }
 
     /// Create a new Texture from dimensions and a list of possible formats
@@ -576,7 +569,7 @@ impl GTexture2D {
         height: gpu::Size,
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        formats: impl IntoIterator<Item=gpu::Format>,
+        formats: impl IntoIterator<Item = gpu::Format>,
         name: Option<String>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(
@@ -586,10 +579,7 @@ impl GTexture2D {
             usage,
             mip_levels,
         ) {
-            Self::new(
-                device, width, height, usage, mip_levels, format, name,
-            )
-            .map(|t| Some(t))
+            Self::new(device, width, height, usage, mip_levels, format, name).map(|t| Some(t))
         } else {
             Ok(None)
         }
@@ -738,7 +728,7 @@ impl GTexture2DMs {
         usage: gpu::TextureUsage,
         mip_levels: u32,
         samples: gpu::Samples,
-        formats: impl IntoIterator<Item=gpu::Format>,
+        formats: impl IntoIterator<Item = gpu::Format>,
         name: Option<String>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(
@@ -791,7 +781,7 @@ impl GTexture2DArray {
         layers: gpu::Layer,
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        formats: impl IntoIterator<Item=gpu::Format>,
+        formats: impl IntoIterator<Item = gpu::Format>,
         name: Option<String>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(
@@ -952,7 +942,7 @@ impl GTextureCube {
         height: gpu::Size,
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        formats: impl IntoIterator<Item=gpu::Format>,
+        formats: impl IntoIterator<Item = gpu::Format>,
         name: Option<String>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(
@@ -1195,7 +1185,7 @@ impl GTextureCubeArray {
         layers: gpu::Layer,
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        formats: impl IntoIterator<Item=gpu::Format>,
+        formats: impl IntoIterator<Item = gpu::Format>,
         name: Option<String>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(
@@ -1364,7 +1354,7 @@ impl GTexture3D {
         height: gpu::Size,
         depth: gpu::Size,
         usage: gpu::TextureUsage,
-        formats: impl IntoIterator<Item=gpu::Format>,
+        formats: impl IntoIterator<Item = gpu::Format>,
         name: Option<String>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(

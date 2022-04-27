@@ -8,11 +8,11 @@ use crate::error::*;
 
 /// Describes a shader module
 #[derive(Debug)]
-pub struct ShaderModuleDesc<'a> {
+pub struct ShaderModuleDesc<'a, 'b> {
     /// the name of the shader module
     pub name: Option<String>,
     /// tuple containting shader stage -> entry point name
-    pub entries: &'a [(crate::ShaderStages, &'a str)],
+    pub entries: &'a [(crate::ShaderStages, &'b str)],
     /// pre compiled spirv data
     pub spirv: &'a [u32],
 }
@@ -72,7 +72,7 @@ impl ShaderModule {
     ///
     /// The spirv module must be valid and must not make use of features
     /// that that arn't declared in the device creation
-    pub fn new(device: &crate::Device, desc: &ShaderModuleDesc<'_>) -> Result<Self, Error> {
+    pub fn new(device: &crate::Device, desc: &ShaderModuleDesc<'_, '_>) -> Result<Self, Error> {
         #[cfg(feature = "logging")]
         log::trace!("GPU: Create ShaderModule, name {:?}", desc.name);
 

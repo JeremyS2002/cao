@@ -1,13 +1,12 @@
-
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::ffi::{c_void, CStr};
-use std::sync::Arc;
 use std::ptr;
+use std::sync::Arc;
 
+use ash::extensions::ext;
 use ash::vk;
 use vk::Handle;
-use ash::extensions::ext;
 
 use crate::error::*;
 
@@ -215,17 +214,17 @@ impl Device {
 
     /// Create a new Device from the id of the physical device
     pub fn from_id(
-        instance: &crate::Instance, 
+        instance: &crate::Instance,
         id: u64,
         features: crate::DeviceFeatures,
-        compatible_surfaces: &'_ [&'_ crate::Surface]
+        compatible_surfaces: &'_ [&'_ crate::Surface],
     ) -> Result<Self, Error> {
         let physical = vk::PhysicalDevice::from_raw(id);
         let info = match instance.device_info(physical) {
             Ok(i) => i,
             Err(e) => return Err(e.into()),
         };
-        
+
         Self::from_raw(instance, physical, info, features, compatible_surfaces)
     }
 
@@ -239,7 +238,13 @@ impl Device {
 
         let (physical, info) = Self::get_physical_device(instance, desc)?;
 
-        Self::from_raw(instance, physical, info, desc.features, desc.compatible_surfaces)
+        Self::from_raw(
+            instance,
+            physical,
+            info,
+            desc.features,
+            desc.compatible_surfaces,
+        )
     }
 
     fn create_command(
@@ -298,7 +303,7 @@ impl Device {
 
         let semaphore = match semaphore_result {
             Ok(s) => s,
-            Err(e) => return Err(ExplicitError(e).into())
+            Err(e) => return Err(ExplicitError(e).into()),
         };
 
         Ok((pool, buffer, fence, semaphore))
@@ -476,45 +481,56 @@ impl Device {
         kind: crate::TextureKind,
         usage: crate::TextureUsage,
     ) -> Result<crate::TextureFormatProperties, crate::Error> {
-        let raw = unsafe { 
-            self.raw.instance.get_physical_device_image_format_properties(
-                self.physical,
-                format.into(),
-                kind.into(),
-                vk::ImageTiling::OPTIMAL,
-                usage.into(),
-                usage.into(),
-            )
+        let raw = unsafe {
+            self.raw
+                .instance
+                .get_physical_device_image_format_properties(
+                    self.physical,
+                    format.into(),
+                    kind.into(),
+                    vk::ImageTiling::OPTIMAL,
+                    usage.into(),
+                    usage.into(),
+                )
         };
 
         match raw {
             Ok(p) => Ok(p.into()),
-            Err(e) => Err(crate::ExplicitError(e).into())
+            Err(e) => Err(crate::ExplicitError(e).into()),
         }
     }
 
     /// create a new swapchain to present to the surface supplied
     pub fn create_swapchain(
-        &self, 
-        surface: &crate::Surface, 
-        desc: &crate::SwapchainDesc
+        &self,
+        surface: &crate::Surface,
+        desc: &crate::SwapchainDesc,
     ) -> Result<crate::Swapchain, crate::Error> {
         crate::Swapchain::new(self, surface, desc)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkCreateRenderPass.html>
-    pub fn create_render_pass(&self, desc: &crate::RenderPassDesc) -> Result<crate::RenderPass, crate::Error> {
+    pub fn create_render_pass(
+        &self,
+        desc: &crate::RenderPassDesc,
+    ) -> Result<crate::RenderPass, crate::Error> {
         crate::RenderPass::new(self, desc)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkCreateCommandPool.html>
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkAllocateCommandBuffers.html>
-    pub fn create_command_buffer(&self, name: Option<String>) -> Result<crate::CommandBuffer, crate::Error> {
+    pub fn create_command_buffer(
+        &self,
+        name: Option<String>,
+    ) -> Result<crate::CommandBuffer, crate::Error> {
         crate::CommandBuffer::new(self, name)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkCreateShaderModule.html>
-    pub fn create_shader_module(&self, desc: &crate::ShaderModuleDesc) -> Result<crate::ShaderModule, crate::Error> {
+    pub fn create_shader_module(
+        &self,
+        desc: &crate::ShaderModuleDesc,
+    ) -> Result<crate::ShaderModule, crate::Error> {
         crate::ShaderModule::new(self, desc)
     }
 
@@ -524,38 +540,59 @@ impl Device {
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkCreateImage.html>
-    pub fn create_texture(&self, desc: &crate::TextureDesc) -> Result<crate::Texture, crate::Error> {
+    pub fn create_texture(
+        &self,
+        desc: &crate::TextureDesc,
+    ) -> Result<crate::Texture, crate::Error> {
         crate::Texture::new(self, desc)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkCreateSampler.html>
-    pub fn create_sampler(&self, desc: &crate::SamplerDesc) -> Result<crate::Sampler, crate::Error> {
+    pub fn create_sampler(
+        &self,
+        desc: &crate::SamplerDesc,
+    ) -> Result<crate::Sampler, crate::Error> {
         crate::Sampler::new(self, desc)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkCreatePipelineLayout.html>
-    pub fn create_pipeline_layout(&self, desc: &crate::PipelineLayoutDesc) -> Result<crate::PipelineLayout, crate::Error> {
+    pub fn create_pipeline_layout(
+        &self,
+        desc: &crate::PipelineLayoutDesc,
+    ) -> Result<crate::PipelineLayout, crate::Error> {
         crate::PipelineLayout::new(self, desc)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkCreateGraphicsPipelines.html>
-    pub fn create_graphics_pipeline(&self, desc: &crate::GraphicsPipelineDesc) -> Result<crate::GraphicsPipeline, crate::Error> {
+    pub fn create_graphics_pipeline(
+        &self,
+        desc: &crate::GraphicsPipelineDesc,
+    ) -> Result<crate::GraphicsPipeline, crate::Error> {
         crate::GraphicsPipeline::new(self, desc)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkCreateComputePipelines.html>
-    pub fn create_compute_pipeline(&self, desc: &crate::ComputePipelineDesc) -> Result<crate::ComputePipeline, crate::Error> {
+    pub fn create_compute_pipeline(
+        &self,
+        desc: &crate::ComputePipelineDesc,
+    ) -> Result<crate::ComputePipeline, crate::Error> {
         crate::ComputePipeline::new(self, desc)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkCreateDescriptorSetLayout.html>
-    pub fn create_descriptor_layout(&self, desc: &crate::DescriptorLayoutDesc) -> Result<crate::DescriptorLayout, crate::Error> {
+    pub fn create_descriptor_layout(
+        &self,
+        desc: &crate::DescriptorLayoutDesc,
+    ) -> Result<crate::DescriptorLayout, crate::Error> {
         crate::DescriptorLayout::new(self, desc)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkCreateDescriptorPool.html>
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkAllocateDescriptorSets.html>
-    pub fn create_descriptor_set(&self, desc: &crate::DescriptorSetDesc) -> Result<crate::DescriptorSet, crate::Error> {
+    pub fn create_descriptor_set(
+        &self,
+        desc: &crate::DescriptorSetDesc,
+    ) -> Result<crate::DescriptorSet, crate::Error> {
         crate::DescriptorSet::new(self, desc)
     }
 }

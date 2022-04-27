@@ -1,7 +1,6 @@
-
-use std::sync::Arc;
-use std::ptr;
 use std::borrow::Borrow;
+use std::ptr;
+use std::sync::Arc;
 
 use super::raw;
 
@@ -25,11 +24,7 @@ pub struct CommandBuffer {
 
 impl std::fmt::Debug for CommandBuffer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "CommandBuffer id: {:?} name: {:?}",
-            self.pool, self.name
-        )
+        write!(f, "CommandBuffer id: {:?} name: {:?}", self.pool, self.name)
     }
 }
 
@@ -64,13 +59,11 @@ impl CommandBuffer {
             queue_family_index: device.queue_family,
         };
 
-        let pool_result = unsafe {
-            device.raw.create_command_pool(&pool_create_info, None)
-        };
+        let pool_result = unsafe { device.raw.create_command_pool(&pool_create_info, None) };
 
         let pool = match pool_result {
             Ok(p) => p,
-            Err(e) => return Err(crate::ExplicitError(e).into())
+            Err(e) => return Err(crate::ExplicitError(e).into()),
         };
 
         let buffer_alloc_info = vk::CommandBufferAllocateInfo {
@@ -81,13 +74,11 @@ impl CommandBuffer {
             level: vk::CommandBufferLevel::PRIMARY,
         };
 
-        let buffer_result = unsafe {
-            device.raw.allocate_command_buffers(&buffer_alloc_info)
-        };
+        let buffer_result = unsafe { device.raw.allocate_command_buffers(&buffer_alloc_info) };
 
         let buffer = match buffer_result {
             Ok(b) => b[0],
-            Err(e) => return Err(crate::ExplicitError(e).into())
+            Err(e) => return Err(crate::ExplicitError(e).into()),
         };
 
         let fence_create_info = vk::FenceCreateInfo {
@@ -96,9 +87,7 @@ impl CommandBuffer {
             flags: vk::FenceCreateFlags::SIGNALED,
         };
 
-        let fence_result = unsafe {
-            device.raw.create_fence(&fence_create_info, None)
-        };
+        let fence_result = unsafe { device.raw.create_fence(&fence_create_info, None) };
 
         let fence = match fence_result {
             Ok(f) => f,
@@ -111,9 +100,7 @@ impl CommandBuffer {
             flags: vk::SemaphoreCreateFlags::empty(),
         };
 
-        let semaphore_result = unsafe {
-            device.raw.create_semaphore(&semaphore_create_info, None)
-        };
+        let semaphore_result = unsafe { device.raw.create_semaphore(&semaphore_create_info, None) };
 
         let semaphore = match semaphore_result {
             Ok(s) => s,
@@ -155,13 +142,11 @@ impl CommandBuffer {
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkWaitForFences.html>
     pub fn wait(&self, timeout: u64) -> Result<(), crate::Error> {
-        let wait_result = unsafe {
-            self.device.wait_for_fences(&[self.fence], true, timeout)
-        };
+        let wait_result = unsafe { self.device.wait_for_fences(&[self.fence], true, timeout) };
 
         match wait_result {
             Ok(_) => Ok(()),
-            Err(e) => return Err(crate::ExplicitError(e).into())
+            Err(e) => return Err(crate::ExplicitError(e).into()),
         }
     }
 
@@ -169,19 +154,20 @@ impl CommandBuffer {
     pub fn reset(&mut self) -> Result<(), crate::Error> {
         self.version += 1;
         let result = unsafe {
-            self.device.reset_command_pool(self.pool, vk::CommandPoolResetFlags::empty())
+            self.device
+                .reset_command_pool(self.pool, vk::CommandPoolResetFlags::empty())
         };
 
         match result {
             Ok(_) => Ok(()),
-            Err(e) => return Err(crate::ExplicitError(e).into())
+            Err(e) => return Err(crate::ExplicitError(e).into()),
         }
     }
 
     /// Get a unique id of the command bufer
     /// equivalent to buffer.id() == mem::transmute(buffer.raw_pool())
     pub fn id(&self) -> u64 {
-        unsafe { std::mem::transmute(self.raw_pool()) } 
+        unsafe { std::mem::transmute(self.raw_pool()) }
     }
 
     /// Command buffers keep track of how many times they have been recorded to
@@ -191,13 +177,11 @@ impl CommandBuffer {
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkBeginCommandBuffer.html>
     pub fn begin(&mut self, one_time_submit: bool) -> Result<(), crate::Error> {
-        let wait_result = unsafe {
-            self.device.wait_for_fences(&[self.fence], true, !0)
-        };
+        let wait_result = unsafe { self.device.wait_for_fences(&[self.fence], true, !0) };
 
         match wait_result {
             Ok(_) => (),
-            Err(e) => return Err(crate::ExplicitError(e).into())
+            Err(e) => return Err(crate::ExplicitError(e).into()),
         }
 
         self.version += 1;
@@ -223,14 +207,19 @@ impl CommandBuffer {
             src_stages,
             dst_stages,
             buffers,
-            textures
+            textures,
         )
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdUpdateBuffer.html>
-    pub fn update_buffer<B>(&mut self, buffer: B, offset: u64, data: &[u8]) -> Result<(), crate::Error> 
+    pub fn update_buffer<B>(
+        &mut self,
+        buffer: B,
+        offset: u64,
+        data: &[u8],
+    ) -> Result<(), crate::Error>
     where
-        B: Borrow<crate::Buffer>
+        B: Borrow<crate::Buffer>,
     {
         raw::update_buffer(self.buffer, &self.device, buffer, offset, data)
     }
@@ -242,9 +231,9 @@ impl CommandBuffer {
         texture: T,
         layout: crate::TextureLayout,
         value: crate::ClearValue,
-    ) -> Result<(), crate::Error> 
+    ) -> Result<(), crate::Error>
     where
-        T: Borrow<crate::TextureSlice<'a>>
+        T: Borrow<crate::TextureSlice<'a>>,
     {
         raw::clear_texture(self.buffer, &self.device, texture, layout, value)
     }
@@ -258,7 +247,7 @@ impl CommandBuffer {
         dst: T2,
         dst_layout: crate::TextureLayout,
         filter: crate::FilterMode,
-    ) -> Result<(), crate::Error> 
+    ) -> Result<(), crate::Error>
     where
         T1: Borrow<crate::TextureSlice<'a>>,
         T2: Borrow<crate::TextureSlice<'a>>,
@@ -275,7 +264,11 @@ impl CommandBuffer {
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkBufferImageCopy.html>
-    pub fn copy_buffer_to_buffer<'a, B1, B2>(&mut self, src: B1, dst: B2) -> Result<(), crate::Error>
+    pub fn copy_buffer_to_buffer<'a, B1, B2>(
+        &mut self,
+        src: B1,
+        dst: B2,
+    ) -> Result<(), crate::Error>
     where
         B1: Borrow<crate::BufferSlice<'a>>,
         B2: Borrow<crate::BufferSlice<'a>>,
@@ -289,10 +282,10 @@ impl CommandBuffer {
         src: T,
         src_layout: crate::TextureLayout,
         dst: B,
-    ) -> Result<(), crate::Error> 
+    ) -> Result<(), crate::Error>
     where
         T: Borrow<crate::TextureSlice<'a>>,
-        B: Borrow<crate::BufferSlice<'a>>
+        B: Borrow<crate::BufferSlice<'a>>,
     {
         raw::copy_texture_to_buffer(self.buffer, &self.device, src, src_layout, dst)
     }
@@ -303,10 +296,10 @@ impl CommandBuffer {
         src: B,
         dst: T,
         dst_layout: crate::TextureLayout,
-    ) -> Result<(), crate::Error> 
+    ) -> Result<(), crate::Error>
     where
         B: Borrow<crate::BufferSlice<'a>>,
-        T: Borrow<crate::TextureSlice<'a>>
+        T: Borrow<crate::TextureSlice<'a>>,
     {
         raw::copy_buffer_to_texture(self.buffer, &self.device, src, dst, dst_layout)
     }
@@ -318,7 +311,7 @@ impl CommandBuffer {
         src_layout: crate::TextureLayout,
         dst: T2,
         dst_layout: crate::TextureLayout,
-    ) -> Result<(), crate::Error> 
+    ) -> Result<(), crate::Error>
     where
         T1: Borrow<crate::TextureSlice<'a>>,
         T2: Borrow<crate::TextureSlice<'a>>,
@@ -333,7 +326,7 @@ impl CommandBuffer {
         src_layout: crate::TextureLayout,
         dst: T2,
         dst_layout: crate::TextureLayout,
-    ) -> Result<(), crate::Error> 
+    ) -> Result<(), crate::Error>
     where
         T1: Borrow<crate::TextureSlice<'a>>,
         T2: Borrow<crate::TextureSlice<'a>>,
@@ -366,13 +359,16 @@ impl CommandBuffer {
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdBeginRenderPass.html>
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdBindPipeline.html>
-    pub fn begin_graphics_pass(
+    pub fn begin_graphics_pass<'a, B>(
         &mut self,
-        color_attachments: &[crate::Attachment<'_>],
-        resolve_attachments: &[crate::Attachment<'_>],
-        depth_attachment: Option<crate::Attachment<'_>>,
+        color_attachments: &[B],
+        resolve_attachments: &[B],
+        depth_attachment: Option<B>,
         pipeline: &crate::GraphicsPipeline,
-    ) -> Result<(), crate::Error> {
+    ) -> Result<(), crate::Error>
+    where
+        B: std::borrow::Borrow<crate::Attachment<'a>>,
+    {
         if let Some(swapchain) = raw::begin_graphics_pass(
             self.buffer,
             &self.device,
@@ -406,7 +402,7 @@ impl CommandBuffer {
             first_vertex,
             vertex_count,
             first_instance,
-            instance_count
+            instance_count,
         )
     }
 
@@ -431,25 +427,33 @@ impl CommandBuffer {
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdBindIndexBuffer.html>
-    pub fn bind_index_buffer<'a, B>(&mut self, buffer: B, ty: crate::IndexType) -> Result<(), crate::Error>
+    pub fn bind_index_buffer<'a, B>(
+        &mut self,
+        buffer: B,
+        ty: crate::IndexType,
+    ) -> Result<(), crate::Error>
     where
-        B: Borrow<crate::BufferSlice<'a>>
+        B: Borrow<crate::BufferSlice<'a>>,
     {
         raw::bind_index_buffer(self.buffer, &self.device, buffer, ty)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdBindVertexBuffers.html>
-    pub fn bind_vertex_buffer<'a, B>(&mut self, buffer: B, binding: u32) -> Result<(), crate::Error> 
+    pub fn bind_vertex_buffer<'a, B>(&mut self, buffer: B, binding: u32) -> Result<(), crate::Error>
     where
-        B: Borrow<crate::BufferSlice<'a>>
+        B: Borrow<crate::BufferSlice<'a>>,
     {
         raw::bind_vertex_buffers(self.buffer, &self.device, &[buffer], binding)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdBindVertexBuffers.html>
-    pub fn bind_vertex_buffers<'a, B>(&mut self, buffers: &[B], first_binding: u32) -> Result<(), crate::Error> 
+    pub fn bind_vertex_buffers<'a, B>(
+        &mut self,
+        buffers: &[B],
+        first_binding: u32,
+    ) -> Result<(), crate::Error>
     where
-        B: Borrow<crate::BufferSlice<'a>>
+        B: Borrow<crate::BufferSlice<'a>>,
     {
         raw::bind_vertex_buffers(self.buffer, &self.device, buffers, first_binding)
     }
@@ -463,15 +467,15 @@ impl CommandBuffer {
         layout: &crate::PipelineLayout,
     ) -> Result<(), crate::Error>
     where
-        G: Borrow<crate::DescriptorSet> 
+        G: Borrow<crate::DescriptorSet>,
     {
         raw::bind_descriptors(
-            self.buffer, 
-            &self.device, 
-            location, 
-            &[group], 
-            bind_point, 
-            layout
+            self.buffer,
+            &self.device,
+            location,
+            &[group],
+            bind_point,
+            layout,
         )
     }
 
@@ -484,16 +488,16 @@ impl CommandBuffer {
         layout: &crate::PipelineLayout,
     ) -> Result<(), crate::Error>
     where
-        G: Borrow<crate::DescriptorSet> 
+        G: Borrow<crate::DescriptorSet>,
     {
         raw::bind_descriptors(
-            self.buffer, 
-            &self.device, 
-            first_location, 
-            groups, 
-            bind_point, 
-            layout
-        )   
+            self.buffer,
+            &self.device,
+            first_location,
+            groups,
+            bind_point,
+            layout,
+        )
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdPushConstants.html>
@@ -508,7 +512,10 @@ impl CommandBuffer {
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdBindPipeline.html>
-    pub fn begin_compute_pass(&mut self, pipeline: &crate::ComputePipeline) -> Result<(), crate::Error> {
+    pub fn begin_compute_pass(
+        &mut self,
+        pipeline: &crate::ComputePipeline,
+    ) -> Result<(), crate::Error> {
         raw::begin_compute_pass(self.buffer, &self.device, pipeline)
     }
 

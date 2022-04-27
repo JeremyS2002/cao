@@ -1,15 +1,16 @@
 //! GraphicsPass + Implementors
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::mem::ManuallyDrop as Md;
-use std::borrow::Cow;
 
+#[cfg(feature = "reflect")]
+use crate::reflect::Bundle;
+#[cfg(feature = "reflect")]
+use std::any::TypeId;
 #[cfg(feature = "reflect")]
 use std::marker::PhantomData;
-
-#[cfg(feature = "reflect")]
-use crate::Bundle;
 
 // #[cfg(feature = "reflect")]
 // use crate::prelude::*;
@@ -481,10 +482,11 @@ impl<'a, 'b> Drop for BasicGraphicsPass<'a, 'b> {
 pub struct ReflectedGraphicsPass<'a, 'b, V: crate::Vertex> {
     pub(crate) parent_id: u64,
     pub(crate) bundle_needed: bool,
+    /// Pipeline contained inside a manually drop so that it can be taken an moved into the encoder
     pub(crate) pipeline: Md<Cow<'a, gpu::GraphicsPipeline>>,
-    pub(crate) color_attachments: Vec<(Cow<'a, gpu::TextureView>, gpu::ClearValue)>,
-    pub(crate) resolve_attachments: Vec<(Cow<'a, gpu::TextureView>, gpu::ClearValue)>,
-    pub(crate) depth_attachment: Option<(Cow<'a, gpu::TextureView>, gpu::ClearValue)>,
+    pub(crate) color_attachments: Vec<gpu::Attachment<'a>>,
+    pub(crate) resolve_attachments: Vec<gpu::Attachment<'a>>,
+    pub(crate) depth_attachment: Option<gpu::Attachment<'a>>,
     pub(crate) push_constant_names: Option<HashMap<String, (u32, gpu::ShaderStages, TypeId)>>,
     pub(crate) commands: Vec<GraphicsPassCommand<'a>>,
     /// The encoder that the graphics pass will be recorded into
@@ -552,30 +554,33 @@ impl<'a, 'b, V: crate::Vertex> ReflectedGraphicsPass<'a, 'b, V> {
     pub fn draw_instanced_mesh_ref(
         &mut self,
         mesh: &'a (impl crate::Mesh<V> + ?Sized),
+        instance_buffer: &'a gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     ) {
-        mesh.draw_instanced_ref(self, first_instance, instance_count);
+        mesh.draw_instanced_ref(self, instance_buffer, first_instance, instance_count);
     }
 
     /// Draw a mesh cloning the mesh's buffers
     pub fn draw_instanced_mesh_owned(
         &mut self,
         mesh: &(impl crate::Mesh<V> + ?Sized),
+        instance_buffer: gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     ) {
-        mesh.draw_instanced_owned(self, first_instance, instance_count);
+        mesh.draw_instanced_owned(self, instance_buffer, first_instance, instance_count);
     }
 
     /// Draw a mesh consuming the mesh
     pub fn draw_instanced_mesh_into(
         &mut self,
         mesh: impl crate::Mesh<V>,
+        instance_buffer: gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     ) {
-        mesh.draw_instanced_into(self, first_instance, instance_count);
+        mesh.draw_instanced_into(self, instance_buffer, first_instance, instance_count);
     }
 
     /// Set a bundle referencing the bundle

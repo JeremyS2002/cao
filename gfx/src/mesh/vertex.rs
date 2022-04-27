@@ -1,4 +1,3 @@
-
 /// Allows for using vertex buffers of different types
 /// with the same shader modules by recreating the graphics pipeline
 /// with a different vertex state

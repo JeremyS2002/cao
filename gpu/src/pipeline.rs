@@ -1,7 +1,6 @@
-
 use std::mem::ManuallyDrop as Md;
-use std::sync::Arc;
 use std::ptr;
+use std::sync::Arc;
 
 use ash::vk;
 
@@ -68,7 +67,10 @@ impl PipelineLayout {
 
 impl PipelineLayout {
     /// Create a new PipelineLayout
-    pub fn new(device: &crate::Device, desc: &PipelineLayoutDesc<'_>) -> Result<Self, crate::Error> {
+    pub fn new(
+        device: &crate::Device,
+        desc: &PipelineLayoutDesc<'_>,
+    ) -> Result<Self, crate::Error> {
         let descriptor_sets = desc
             .descriptor_sets
             .iter()
@@ -221,7 +223,10 @@ impl GraphicsPipeline {
     /// The shaders must be compatible with the pipeline layout
     /// If in doubt enable the "VK_LAYER_KHRONOS_validation" validation layer
     /// And check for messages when the pipeline is created
-    pub fn new(device: &crate::Device, desc: &GraphicsPipelineDesc<'_>) -> Result<Self, crate::Error> {
+    pub fn new(
+        device: &crate::Device,
+        desc: &GraphicsPipelineDesc<'_>,
+    ) -> Result<Self, crate::Error> {
         let mut shaders = Vec::new();
         let mut push_shader = |stage: crate::ShaderStages,
                                module: &crate::ShaderModule|
@@ -516,7 +521,10 @@ impl ComputePipeline {
 
 impl ComputePipeline {
     /// Create a new ComputePipeline
-    pub fn new(device: &crate::Device, desc: &ComputePipelineDesc<'_>) -> Result<Self, crate::Error> {
+    pub fn new(
+        device: &crate::Device,
+        desc: &ComputePipelineDesc<'_>,
+    ) -> Result<Self, crate::Error> {
         let entry = if let Some(entry) = desc.shader.map.iter().fold(None, |t, (s, e)| {
             if t.is_some() {
                 t

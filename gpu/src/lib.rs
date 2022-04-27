@@ -1,47 +1,46 @@
-
 use ash::{vk, Entry};
-use vk::Handle;
-use std::mem::ManuallyDrop as Md;
-use std::sync::Arc;
-use std::ffi::{CString, CStr};
-use std::ptr;
-use std::collections::HashSet;
-use std::cmp::Ordering;
 use std::borrow::Cow;
+use std::cmp::Ordering;
+use std::collections::HashSet;
+use std::ffi::{CStr, CString};
+use std::mem::ManuallyDrop as Md;
+use std::ptr;
+use std::sync::Arc;
+use vk::Handle;
 
 use raw_window_handle::HasRawWindowHandle;
 
-mod ffi;
-pub mod error;
-pub mod device;
-pub mod pass;
 pub mod binding;
+pub mod buffer;
+pub mod command;
 pub mod data;
+pub mod device;
+pub mod error;
+mod ffi;
 pub mod format;
+pub mod pass;
+pub mod pipeline;
+pub mod sampler;
 pub mod shader;
 pub mod surface;
 pub mod swapchain;
 pub mod texture;
-pub mod buffer;
-pub mod command;
-pub mod pipeline;
-pub mod sampler;
 
-use ffi::*;
-pub use error::*;
-pub use device::*;
-pub use pass::*;
 pub use binding::*;
+pub use buffer::*;
+pub use command::*;
 pub use data::*;
+pub use device::*;
+pub use error::*;
+use ffi::*;
 pub use format::*;
+pub use pass::*;
+pub use pipeline::*;
+pub use sampler::*;
 pub use shader::*;
 pub use surface::*;
 pub use swapchain::*;
 pub use texture::*;
-pub use buffer::*;
-pub use command::*;
-pub use pipeline::*;
-pub use sampler::*;
 
 /// Makes [u8] into [u32] ensuring correct spirv
 ///
@@ -98,7 +97,6 @@ macro_rules! include_spirv {
     };
 }
 
-
 lazy_static::lazy_static! {
     pub(crate) static ref VK_ENTRY: ash::Entry = unsafe { Entry::load().expect("Failed to create vulkan entry")};
 }
@@ -122,8 +120,8 @@ pub struct InstanceDesc<'a> {
     /// will be ignored on release builds
     pub validation_layers: &'a [&'a str],
     /// additional extension names, extensions required by this library
-    /// will be automatically added additional functionality can be added by 
-    /// using the the raw_ methods on structs and the ash crate to 
+    /// will be automatically added additional functionality can be added by
+    /// using the the raw_ methods on structs and the ash crate to
     /// create the extension required
     pub extension_names: &'a [&'a str],
 }
@@ -191,23 +189,31 @@ impl Instance {
     /// This is the entry point to the api and will be the first object created
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkInstance.html>
     pub unsafe fn no_validation(desc: &InstanceDesc<'_>) -> Result<Self, Error> {
-        return Self::raw(desc).map(|(s, _)| s)
+        return Self::raw(desc).map(|(s, _)| s);
     }
 
     /// returns (Self, VK_LAYER_KHRONOS_validation available)
     unsafe fn raw(desc: &InstanceDesc<'_>) -> Result<(Self, bool), Error> {
         let app_name = CString::new(desc.app_name).unwrap();
-        let app_version =
-            vk::make_api_version(desc.app_version.0, desc.app_version.1, desc.app_version.2, desc.app_version.3);
+        let app_version = vk::make_api_version(
+            desc.app_version.0,
+            desc.app_version.1,
+            desc.app_version.2,
+            desc.app_version.3,
+        );
         let engine_name = CString::new(desc.engine_name).unwrap();
         let engine_version = vk::make_api_version(
             desc.engine_version.0,
             desc.engine_version.1,
             desc.engine_version.2,
-            desc.engine_version.3
+            desc.engine_version.3,
         );
-        let api_version =
-            vk::make_api_version(desc.api_version.0, desc.api_version.1, desc.api_version.2, desc.api_version.3);
+        let api_version = vk::make_api_version(
+            desc.api_version.0,
+            desc.api_version.1,
+            desc.api_version.2,
+            desc.api_version.3,
+        );
         let app_info = vk::ApplicationInfo {
             s_type: vk::StructureType::APPLICATION_INFO,
             p_next: ptr::null(),
@@ -298,15 +304,18 @@ impl Instance {
             Ok(r) => r,
             Err(e) => {
                 return Err(error::ExplicitError(e).into());
-            },
+            }
         };
 
-        Ok((Self {
-            raw: Md::new(Arc::new(raw)),
+        Ok((
+            Self {
+                raw: Md::new(Arc::new(raw)),
 
-            extension_names,
-            validation_layers,
-        }, validation_available))
+                extension_names,
+                validation_layers,
+            },
+            validation_available,
+        ))
     }
 
     /// Get infomation about all the devices that are available
@@ -334,7 +343,9 @@ impl Instance {
         let layers = available_validation
             .iter()
             .map(|l| {
-                unsafe { CStr::from_ptr(&l.layer_name[0]) }.to_str().unwrap()
+                unsafe { CStr::from_ptr(&l.layer_name[0]) }
+                    .to_str()
+                    .unwrap()
             })
             .collect::<Vec<_>>();
 
@@ -352,7 +363,9 @@ impl Instance {
         let extensions = available_extensions
             .iter()
             .map(|e| {
-                unsafe { CStr::from_ptr(&e.extension_name[0]) }.to_str().unwrap() 
+                unsafe { CStr::from_ptr(&e.extension_name[0]) }
+                    .to_str()
+                    .unwrap()
             })
             .collect::<Vec<_>>();
 
@@ -420,7 +433,7 @@ impl Instance {
 
     /// create a new device from id of physical device
     pub fn create_device_from_id(
-        &self, 
+        &self,
         id: u64,
         features: crate::DeviceFeatures,
         compatible_surfaces: &'_ [&'_ crate::Surface],

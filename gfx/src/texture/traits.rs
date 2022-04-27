@@ -1,4 +1,3 @@
-
 pub trait AsDimension: std::fmt::Debug {
     fn as_dimension(&self) -> gpu::TextureDimension;
 }

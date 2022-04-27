@@ -1,5 +1,4 @@
-
-pub(crate) mod raw;
 pub mod buffer;
+pub(crate) mod raw;
 
 pub use buffer::*;

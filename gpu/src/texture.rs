@@ -13,40 +13,30 @@ pub(crate) fn init_image_layout(
     texture: &crate::Texture,
     layout: crate::TextureLayout,
 ) -> Result<(), Error> {
-
     use crate::command::raw;
 
-    raw::begin_primary(
-        device.command_buffer,
-        &device.raw,
-        true,
-    )?;
+    raw::begin_primary(device.command_buffer, &device.raw, true)?;
 
     raw::pipeline_barrier(
         device.command_buffer,
-        &device.raw, 
-        crate::PipelineStageFlags::TOP_OF_PIPE, 
-        crate::PipelineStageFlags::BOTTOM_OF_PIPE, 
-        &[], 
-        &[
-            crate::TextureAccessInfo {
-                texture: Cow::Borrowed(&texture),
-                base_array_layer: 0,
-                array_layers: texture.dimension().layers(),
-                base_mip_level: 0,
-                mip_levels: texture.mip_levels(),
-                src_access: crate::AccessFlags::empty(),
-                dst_access: crate::AccessFlags::empty(),
-                src_layout: crate::TextureLayout::Undefined,
-                dst_layout: layout
-            }
-        ]
+        &device.raw,
+        crate::PipelineStageFlags::TOP_OF_PIPE,
+        crate::PipelineStageFlags::BOTTOM_OF_PIPE,
+        &[],
+        &[crate::TextureAccessInfo {
+            texture: Cow::Borrowed(&texture),
+            base_array_layer: 0,
+            array_layers: texture.dimension().layers(),
+            base_mip_level: 0,
+            mip_levels: texture.mip_levels(),
+            src_access: crate::AccessFlags::empty(),
+            dst_access: crate::AccessFlags::empty(),
+            src_layout: crate::TextureLayout::Undefined,
+            dst_layout: layout,
+        }],
     )?;
 
-    raw::end_recording(
-        device.command_buffer,  
-        &device.raw,
-    )?;
+    raw::end_recording(device.command_buffer, &device.raw)?;
 
     raw::submit(
         &device.raw,
