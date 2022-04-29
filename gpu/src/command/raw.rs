@@ -908,15 +908,15 @@ pub(crate) fn submit(
     let mut wait_semaphores = Vec::new();
     let mut signal_semaphores = Vec::new();
 
-    if let Some(s) = semaphores.take() {
-        wait_semaphores.push(s);
+    if let Some(s) = semaphores.get(&std::thread::current().id()) {
+        wait_semaphores.push(*s);
     }
     signal_semaphores.push(semaphore);
     if let Some((wait, signal)) = swapchain_sync {
         wait_semaphores.push(wait);
         signal_semaphores.push(signal);
     }
-    *semaphores = Some(semaphore);
+    semaphores.insert(std::thread::current().id(), semaphore);
 
     let wait_dst_stage_mask = if wait_semaphores.len() == 0 {
         vk::PipelineStageFlags::empty()

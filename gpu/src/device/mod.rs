@@ -101,10 +101,6 @@ impl Device {
     pub unsafe fn raw_debug<'a>(&'a self) -> Option<&'a ash::extensions::ext::DebugUtils> {
         self.raw.debug_loader.as_ref()
     }
-
-    pub unsafe fn semaphore(&self) -> Option<vk::Semaphore> {
-        self.raw.semaphore.lock().clone()
-    }
 }
 
 impl Device {

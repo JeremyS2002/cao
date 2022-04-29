@@ -1,5 +1,6 @@
 use std::ffi::CString;
 use std::{collections::HashMap, mem::ManuallyDrop as Md, ptr, sync::Arc};
+use std::thread::ThreadId;
 
 use ash::extensions::ext;
 use ash::vk;
@@ -22,7 +23,7 @@ pub(crate) struct RawDevice {
     pub debug_loader: Option<ext::DebugUtils>,
     pub error: RwLock<Vec<String>>,
 
-    pub semaphore: Mutex<Option<vk::Semaphore>>,
+    pub semaphore: Mutex<HashMap<ThreadId, vk::Semaphore>>,
 }
 
 impl std::ops::Deref for RawDevice {
@@ -80,7 +81,7 @@ impl RawDevice {
             debug_loader,
             error: RwLock::new(Vec::new()),
 
-            semaphore: Mutex::new(None),
+            semaphore: Mutex::new(HashMap::new()),
         }
     }
 
