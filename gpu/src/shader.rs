@@ -88,7 +88,7 @@ impl ShaderModule {
 
         let raw = match raw_result {
             Ok(r) => r,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let map = desc

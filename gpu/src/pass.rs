@@ -217,7 +217,7 @@ impl RenderPass {
 
         let p = match pass_result {
             Ok(p) => p,
-            Err(e) => return Err(crate::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let s = Self {

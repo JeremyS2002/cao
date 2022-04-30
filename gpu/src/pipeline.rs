@@ -96,7 +96,7 @@ impl PipelineLayout {
 
         let raw = match raw_result {
             Ok(r) => r,
-            Err(e) => return Err(crate::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let s = Self {
@@ -408,7 +408,7 @@ impl GraphicsPipeline {
 
         let raw = match raw_result {
             Ok(r) => r[0],
-            Err((_, e)) => return Err(crate::ExplicitError(e).into()),
+            Err((_, e)) => return Err(e.into()),
         };
 
         let s = Self {
@@ -558,7 +558,7 @@ impl ComputePipeline {
         };
         let raw = match raw_result {
             Ok(r) => r[0],
-            Err((_, e)) => return Err(crate::ExplicitError(e).into()),
+            Err((_, e)) => return Err(e.into()),
         };
 
         let s = Self {

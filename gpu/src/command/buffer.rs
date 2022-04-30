@@ -63,7 +63,7 @@ impl CommandBuffer {
 
         let pool = match pool_result {
             Ok(p) => p,
-            Err(e) => return Err(crate::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let buffer_alloc_info = vk::CommandBufferAllocateInfo {
@@ -78,7 +78,7 @@ impl CommandBuffer {
 
         let buffer = match buffer_result {
             Ok(b) => b[0],
-            Err(e) => return Err(crate::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let fence_create_info = vk::FenceCreateInfo {
@@ -91,7 +91,7 @@ impl CommandBuffer {
 
         let fence = match fence_result {
             Ok(f) => f,
-            Err(e) => return Err(crate::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let semaphore_create_info = vk::SemaphoreCreateInfo {
@@ -104,7 +104,7 @@ impl CommandBuffer {
 
         let semaphore = match semaphore_result {
             Ok(s) => s,
-            Err(e) => return Err(crate::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let s = Self {
@@ -146,7 +146,7 @@ impl CommandBuffer {
 
         match wait_result {
             Ok(_) => Ok(()),
-            Err(e) => return Err(crate::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         }
     }
 
@@ -160,7 +160,7 @@ impl CommandBuffer {
 
         match result {
             Ok(_) => Ok(()),
-            Err(e) => return Err(crate::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         }
     }
 
@@ -181,7 +181,7 @@ impl CommandBuffer {
 
         match wait_result {
             Ok(_) => (),
-            Err(e) => return Err(crate::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         }
 
         self.version += 1;

@@ -141,7 +141,7 @@ impl Device {
         let raw_result = unsafe { instance.raw.create_device(physical, &create_info, None) };
         let raw = match raw_result {
             Ok(r) => r,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let queue = unsafe { raw.get_device_queue(queue_info.queue_family_index, 0) };
@@ -186,7 +186,7 @@ impl Device {
 
             let messenger = match result {
                 Ok(m) => m,
-                Err(e) => return Err(ExplicitError(e).into()),
+                Err(e) => return Err(e.into()),
             };
             Some(messenger)
         } else {
@@ -258,7 +258,7 @@ impl Device {
 
         let pool = match pool_result {
             Ok(p) => p,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let buffer_alloc_info = vk::CommandBufferAllocateInfo {
@@ -273,7 +273,7 @@ impl Device {
 
         let buffer = match buffer_result {
             Ok(b) => b[0],
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let fence_create_info = vk::FenceCreateInfo {
@@ -286,7 +286,7 @@ impl Device {
 
         let fence = match fence_result {
             Ok(f) => f,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let semaphore_create_info = vk::SemaphoreCreateInfo {
@@ -299,7 +299,7 @@ impl Device {
 
         let semaphore = match semaphore_result {
             Ok(s) => s,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         Ok((pool, buffer, fence, semaphore))
@@ -315,7 +315,7 @@ impl Device {
         let physical_devices_result = unsafe { instance.raw.enumerate_physical_devices() };
         let physical_devices = match physical_devices_result {
             Ok(d) => d,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let physical_device = physical_devices
@@ -425,7 +425,7 @@ impl Device {
             unsafe { instance.raw.enumerate_device_extension_properties(physical) };
         let available_extension_names = match available_extension_names_result {
             Ok(n) => n,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
         let available_extension_set = available_extension_names
             .iter()
@@ -456,7 +456,7 @@ impl Device {
         let result = unsafe { self.raw.device_wait_idle() };
         match result {
             Ok(_) => Ok(()),
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         }
     }
 
@@ -492,7 +492,7 @@ impl Device {
 
         match raw {
             Ok(p) => Ok(p.into()),
-            Err(e) => Err(crate::ExplicitError(e).into()),
+            Err(e) => Err(e.into()),
         }
     }
 

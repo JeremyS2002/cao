@@ -62,7 +62,7 @@ pub(crate) fn init_image_layout(
 
     // match begin_result {
     //     Ok(_) => (),
-    //     Err(e) => return Err(ExplicitError(e).into()),
+    //     Err(e) => return Err(e.into()),
     // }
 
     // unsafe {
@@ -98,7 +98,7 @@ pub(crate) fn init_image_layout(
 
     // match end_result {
     //     Ok(_) => (),
-    //     Err(e) => return Err(ExplicitError(e).into()),
+    //     Err(e) => return Err(e.into()),
     // }
 
     // let submit_info = vk::SubmitInfo {
@@ -121,21 +121,21 @@ pub(crate) fn init_image_layout(
 
     // match submit_result {
     //     Ok(_) => (),
-    //     Err(e) => return Err(ExplicitError(e).into()),
+    //     Err(e) => return Err(e.into()),
     // }
 
     let wait_result = unsafe { device.raw.wait_for_fences(&[device.fence], true, !0) };
 
     match wait_result {
         Ok(_) => (),
-        Err(e) => return Err(ExplicitError(e).into()),
+        Err(e) => return Err(e.into()),
     }
 
     let reset_result = unsafe { device.raw.reset_fences(&[device.fence]) };
 
     match reset_result {
         Ok(_) => (),
-        Err(e) => return Err(ExplicitError(e).into()),
+        Err(e) => return Err(e.into()),
     };
 
     Ok(())
@@ -260,7 +260,7 @@ impl Texture {
 
         let raw = match raw_result {
             Ok(r) => r,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let mem_req = unsafe { device.raw.get_image_memory_requirements(raw) };
@@ -280,14 +280,14 @@ impl Texture {
 
         let memory = match memory_result {
             Ok(m) => m,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let bind_result = unsafe { device.raw.bind_image_memory(raw, memory, 0) };
 
         match bind_result {
             Ok(_) => (),
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         }
 
         let s = Self {
@@ -366,7 +366,7 @@ impl Texture {
 
         let view = match view_result {
             Ok(v) => v,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let s = TextureView {
@@ -824,7 +824,7 @@ impl<'a> TextureSlice<'a> {
 
             let p = match p_result {
                 Ok(p) => p,
-                Err(e) => return Err(ExplicitError(e).into()),
+                Err(e) => return Err(e.into()),
             };
 
             self.texture.device.check_errors()?;
@@ -865,7 +865,7 @@ impl<'a> TextureSlice<'a> {
 
             let p = match p_result {
                 Ok(p) => p,
-                Err(e) => return Err(ExplicitError(e).into()),
+                Err(e) => return Err(e.into()),
             };
 
             self.texture.device.check_errors()?;

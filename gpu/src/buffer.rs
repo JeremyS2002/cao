@@ -118,7 +118,7 @@ impl Buffer {
 
         let raw = match raw_result {
             Ok(r) => r,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let mem_req = unsafe { device.raw.get_buffer_memory_requirements(raw) };
@@ -136,14 +136,14 @@ impl Buffer {
 
         let memory = match memory_result {
             Ok(m) => m,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let bind_result = unsafe { device.raw.bind_buffer_memory(raw, memory, 0) };
 
         match bind_result {
             Ok(_) => (),
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         }
 
         let s = Self {
@@ -358,7 +358,7 @@ impl<'a> BufferSlice<'a> {
 
             let p = match p_result {
                 Ok(p) => p,
-                Err(e) => return Err(ExplicitError(e).into()),
+                Err(e) => return Err(e.into()),
             };
 
             self.buffer.device.check_errors()?;
@@ -393,7 +393,7 @@ impl<'a> BufferSlice<'a> {
 
             let p = match p_result {
                 Ok(p) => p,
-                Err(e) => return Err(ExplicitError(e).into()),
+                Err(e) => return Err(e.into()),
             };
 
             self.buffer.device.check_errors()?;

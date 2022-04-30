@@ -84,7 +84,7 @@ impl Surface {
         };
         let raw_formats = match raw_formats_result {
             Ok(f) => f,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
         let formats = raw_formats
             .iter()
@@ -97,7 +97,7 @@ impl Surface {
 
         let raw_present_modes = match raw_present_modes_result {
             Ok(p) => p,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let present_modes = raw_present_modes
@@ -111,7 +111,7 @@ impl Surface {
         };
         let caps = match caps_result {
             Ok(c) => c,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         device.raw.check_errors()?;
@@ -148,7 +148,7 @@ impl Surface {
         let surface_result = xlib_loader.create_xlib_surface(&info, None);
         let surface = match surface_result {
             Ok(s) => s,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
         let loader = khr::Surface::new(&*crate::VK_ENTRY, &**instance.raw);
         Ok(Self {
@@ -173,7 +173,7 @@ impl Surface {
         let surface_result = xcb_loader.create_xcb_surface(&info, None);
         let surface = match surface_result {
             Ok(s) => s,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
         let loader = khr::Surface::new(&*crate::VK_ENTRY, &**instance.raw);
         Ok(Self {
@@ -198,7 +198,7 @@ impl Surface {
         let surface_result = wayland_loader.create_wayland_surface(&info, None);
         let surface = match surface_result {
             Ok(s) => s,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
         let loader = khr::Surface::new(&*crate::VK_ENTRY, &**instance.raw);
         Ok(Self {
@@ -222,7 +222,7 @@ impl Surface {
         let surface_result = a_loader.create_android_surface(&info, None);
         let surface = match surface_result {
             Ok(s) => s,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
         let loader = khr::Surface::new(&*crate::VK_ENTRY, &**instance.raw);
         Ok(Self {
@@ -244,7 +244,7 @@ impl Surface {
         let surface_result = win_loader.create_win32_surface(&info, None);
         let surface = match surface_result {
             Ok(s) => s,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
         let loader = khr::Surface::new(&*crate::VK_ENTRY, &**instance.raw);
         Ok(Self {
@@ -289,7 +289,7 @@ impl Surface {
         let surface_result = macos_surface_loader.create_macos_surface_mvk(&create_info, None);
         let surface = match surface_result {
             Ok(s) => s,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
         let loader = khr::Surface::new(&*crate::VK_ENTRY, &**instance.raw);
         Ok(Self {

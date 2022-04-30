@@ -144,7 +144,7 @@ impl DescriptorLayout {
         let layout_result = unsafe { device.raw.create_descriptor_set_layout(&create_info, None) };
         let layout = match layout_result {
             Ok(l) => l,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
         device
             .raw
@@ -712,7 +712,7 @@ impl DescriptorSet {
 
         let pool = match pool_result {
             Ok(p) => p,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let allocate_info = vk::DescriptorSetAllocateInfo {
@@ -727,7 +727,7 @@ impl DescriptorSet {
 
         let set = match set_result {
             Ok(s) => s[0],
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         Ok((pool, set))

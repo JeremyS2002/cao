@@ -36,7 +36,7 @@ impl std::ops::Deref for RawDevice {
 
 impl RawDevice {
     #[inline]
-    pub fn check_errors(&self) -> Result<(), ValidationError> {
+    pub fn check_errors(&self) -> Result<(), crate::Error> {
         if self.debug_loader.is_some() {
             #[cfg(feature = "parking_lot")]
             let mut errors = self.error.write();
@@ -47,7 +47,7 @@ impl RawDevice {
             } else {
                 let mut new = Vec::new();
                 std::mem::swap(&mut *errors, &mut new);
-                return Err(ValidationError(new));
+                return Err(crate::Error::Validation(new));
             }
         } else {
             Ok(())
@@ -58,7 +58,7 @@ impl RawDevice {
         let result = unsafe { self.device_wait_idle() };
         match result {
             Ok(_) => Ok(()),
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         }
     }
 
@@ -88,7 +88,7 @@ impl RawDevice {
     fn match_result(result: Result<(), vk::Result>) -> Result<(), Error> {
         match result {
             Ok(_) => Ok(()),
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         }
     }
 

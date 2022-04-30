@@ -229,7 +229,7 @@ impl Instance {
         let available_extensions_result = VK_ENTRY.enumerate_instance_extension_properties(None);
         let available_extensions = match available_extensions_result {
             Ok(e) => e,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
         let available_extension_set = available_extensions
             .iter()
@@ -254,7 +254,7 @@ impl Instance {
         let available_validation_result = VK_ENTRY.enumerate_instance_layer_properties();
         let available_validation = match available_validation_result {
             Ok(e) => e,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let available_validation_set = available_validation
@@ -303,7 +303,7 @@ impl Instance {
         let raw = match raw_result {
             Ok(r) => r,
             Err(e) => {
-                return Err(error::ExplicitError(e).into());
+                return Err(e.into());
             }
         };
 
@@ -323,7 +323,7 @@ impl Instance {
         let devices_result = unsafe { self.raw.enumerate_physical_devices() };
         let devices = match devices_result {
             Ok(d) => d,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
         let info = devices
             .iter()
@@ -337,7 +337,7 @@ impl Instance {
         let available_validation_result = VK_ENTRY.enumerate_instance_layer_properties();
         let available_validation = match available_validation_result {
             Ok(e) => e,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let layers = available_validation
@@ -357,7 +357,7 @@ impl Instance {
         let available_extensions_result = VK_ENTRY.enumerate_instance_extension_properties(None);
         let available_extensions = match available_extensions_result {
             Ok(e) => e,
-            Err(e) => return Err(ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let extensions = available_extensions

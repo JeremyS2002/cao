@@ -200,7 +200,7 @@ impl Swapchain {
         };
         let supported_formats = match supported_formats_result {
             Ok(f) => f,
-            Err(e) => return Err(crate::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let format_available = supported_formats.iter().find(|&f| f.format == raw_format);
@@ -219,7 +219,7 @@ impl Swapchain {
 
         let caps = match caps_result {
             Ok(c) => c,
-            Err(e) => return Err(crate::error::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let pre_transform = if caps
@@ -256,7 +256,7 @@ impl Swapchain {
 
         let swapchain = match swapchain_result {
             Ok(s) => s,
-            Err(e) => return Err(crate::error::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         return Ok((swapchain, format, caps.current_extent, pre_transform));
@@ -272,7 +272,7 @@ impl Swapchain {
         let raw_images_result = unsafe { loader.get_swapchain_images(*swapchain) };
         let raw_images = match raw_images_result {
             Ok(i) => i,
-            Err(e) => return Err(crate::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let textures: Vec<crate::Texture> = raw_images
@@ -329,7 +329,7 @@ impl Swapchain {
 
             let semaphore_1 = match semaphore_1_res {
                 Ok(s) => s,
-                Err(e) => return Err(crate::ExplicitError(e).into()),
+                Err(e) => return Err(e.into()),
             };
 
             semaphores_1.push(semaphore_1);
@@ -339,7 +339,7 @@ impl Swapchain {
 
             let semaphore_2 = match semaphore_2_res {
                 Ok(s) => s,
-                Err(e) => return Err(crate::ExplicitError(e).into()),
+                Err(e) => return Err(e.into()),
             };
 
             semaphores_2.push(semaphore_2);
@@ -356,7 +356,7 @@ impl Swapchain {
 
             // let fence = match fence_res {
             //     Ok(f) => f,
-            //     Err(e) => return Err(crate::ExplicitError(e).into())
+            //     Err(e) => return Err(e.into())
             // };
 
             // fences.push(fence);
@@ -392,7 +392,7 @@ impl Swapchain {
 
         let caps = match caps_result {
             Ok(c) => c,
-            Err(e) => return Err(crate::error::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         let create_info = vk::SwapchainCreateInfoKHR {
@@ -420,7 +420,7 @@ impl Swapchain {
 
         let swapchain = match swapchain_result {
             Ok(s) => s,
-            Err(e) => return Err(crate::error::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         self.extent = caps.current_extent;
@@ -455,7 +455,7 @@ impl Swapchain {
 
         let (index, suboptimal) = match result {
             Ok(t) => t,
-            Err(e) => return Err(crate::ExplicitError(e).into()),
+            Err(e) => return Err(e.into()),
         };
 
         // let elapsed = start.elapsed().as_nanos();
@@ -471,7 +471,7 @@ impl Swapchain {
 
         // match wait_result {
         //     Ok(_) => (),
-        //     Err(e) => return Err(crate::ExplicitError(e).into())
+        //     Err(e) => return Err(e.into())
         // }
 
         // let reset_result = unsafe {
@@ -480,7 +480,7 @@ impl Swapchain {
 
         // match reset_result {
         //     Ok(_) => (),
-        //     Err(e) => return Err(crate::ExplicitError(e).into())
+        //     Err(e) => return Err(e.into())
         // }
 
         self.device.check_errors()?;
@@ -525,7 +525,7 @@ impl Swapchain {
 
             match submit_result {
                 Ok(_) => (),
-                Err(e) => return Err(crate::ExplicitError(e).into()),
+                Err(e) => return Err(e.into()),
             }
         }
 
@@ -549,7 +549,7 @@ impl Swapchain {
                 self.frame.set(frame);
                 Ok(b)
             }
-            Err(e) => Err(crate::ExplicitError(e).into()),
+            Err(e) => Err(e.into()),
         }
     }
 

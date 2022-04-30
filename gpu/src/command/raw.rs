@@ -448,7 +448,7 @@ pub(crate) fn begin_primary(
     };
     match result {
         Ok(_) => (),
-        Err(e) => return Err(crate::ExplicitError(e).into()),
+        Err(e) => return Err(e.into()),
     }
     Ok(device.check_errors()?)
 }
@@ -483,7 +483,7 @@ pub(crate) fn begin_primary(
 //     };
 //     match result {
 //         Ok(_) => (),
-//         Err(e) => return Err(crate::ExplicitError(e).into()),
+//         Err(e) => return Err(e.into()),
 //     }
 //     Ok(device.check_errors()?)
 // }
@@ -497,7 +497,7 @@ pub(crate) fn end_recording(
     let result = unsafe { device.end_command_buffer(command_buffer) };
     match result {
         Ok(_) => (),
-        Err(e) => return Err(crate::ExplicitError(e).into()),
+        Err(e) => return Err(e.into()),
     }
     Ok(device.check_errors()?)
 }
@@ -698,7 +698,7 @@ pub(crate) fn raw_framebuffer(
             }
             f
         }
-        Err(e) => return Err(crate::ExplicitError(e).into()),
+        Err(e) => return Err(e.into()),
     };
 
     device.check_errors()?;
@@ -900,7 +900,7 @@ pub(crate) fn submit(
     let reset_result = unsafe { device.reset_fences(&[fence]) };
     match reset_result {
         Ok(_) => (),
-        Err(e) => return Err(crate::ExplicitError(e).into()),
+        Err(e) => return Err(e.into()),
     }
     // get the semaphore of the last command to have been submitted and use it to wait on
     let mut semaphores = device.semaphore.lock();
@@ -983,7 +983,7 @@ pub(crate) fn submit(
 
     match submit_result {
         Ok(_) => (),
-        Err(e) => return Err(crate::ExplicitError(e).into()),
+        Err(e) => return Err(e.into()),
     }
 
     Ok(device.check_errors()?)
