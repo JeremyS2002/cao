@@ -566,6 +566,18 @@ impl Drop for Swapchain {
     fn drop(&mut self) {
         self.device.wait_idle().unwrap();
 
+        for texture in self.textures.drain(..) {
+            drop(texture);
+        }
+
+        for view in self.views.drain(..) {
+            drop(view);
+        }
+
+        unsafe { 
+            self.loader.destroy_swapchain(self.raw, None)      
+        }  
+
         let surface = unsafe { Md::take(&mut self.surface) };
         if let Ok(surface) = Arc::try_unwrap(surface) {
             unsafe {
