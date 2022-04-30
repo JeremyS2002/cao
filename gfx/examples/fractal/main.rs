@@ -299,8 +299,8 @@ impl Fractal {
         }
 
         if let Some(size) = helper.window_resized() {
-            let ration = size.width as f32 / size.height as f32;
-            self.uniform.data.width = ration * self.uniform.data.height;
+            let ratio = size.width as f32 / size.height as f32;
+            self.uniform.data.width = ratio * self.uniform.data.height;
             self.swapchain.recreate(&self.device)?;
         }
 
@@ -371,7 +371,14 @@ fn main() {
         if input_helper.update(&event) {
             match fractal.redraw(&input_helper) {
                 Ok(_) => (),
-                Err(e) => panic!("{}", e),
+                Err(e) => {
+                    if let Some(e) = e.downcast_ref::<gpu::Error>() {
+                        if e.can_continue() {
+                            return
+                        } 
+                    }
+                    panic!("{}", e);
+                },
             }
 
             if input_helper.quit() {

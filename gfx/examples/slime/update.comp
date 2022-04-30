@@ -1,0 +1,108 @@
+#version 450
+
+const float PI = 3.14159265359;
+
+layout(local_size_x = 64) in;
+
+layout(set = 0, binding = 0, r16f) uniform image2D u_trail_map;
+
+layout(set = 0, binding = 1) uniform Data {
+    float move_speed;
+    float dt;
+    float fade_speed;
+    float diffuse_speed;
+    int sensor_size;
+    int sensor_dist;
+    float sensor_spacing;
+    float turn_speed;
+    uint seed;
+} u_data;
+
+struct Agent {
+    float x;
+    float y;
+    float angle;
+};
+
+layout(set = 0, binding = 2) buffer Agents {
+    Agent agents[];
+} u_agents;
+
+uint hash(uint state) {
+    state ^= 2747636419u;
+    state *= 2654435769u;
+    state ^= state >> 16;
+    state *= 2654435769u;
+    state ^= state >> 16;
+    state *= 2654435769u;
+    return state;
+}
+
+float norm(uint random) {
+    return float(random) / 4294967295.0;
+}
+
+float sense(Agent agent, float offset) {
+    int width = imageSize(u_trail_map).x;
+    int height = imageSize(u_trail_map).y;
+
+    float angle = agent.angle + offset;
+    vec2 dir = vec2(cos(angle), sin(angle));
+    ivec2 center = ivec2(agent.x, agent.y) + ivec2(dir * u_data.sensor_dist);
+    float sum = 0.0;
+
+    for (int dx = -u_data.sensor_size; dx <= u_data.sensor_size; dx++) {
+        for (int dy = -u_data.sensor_size; dy <= u_data.sensor_size; dy++) {
+            ivec2 pos = center + ivec2(dx, dy);
+
+            if (pos.x >= 0 && pos.x < width && pos.y >= 0 && pos.y < height) {
+                sum += imageLoad(u_trail_map, pos).x;
+            }
+        }
+    }
+
+    return sum;
+}
+
+void main() {
+    int width = imageSize(u_trail_map).x;
+    int height = imageSize(u_trail_map).y;
+
+    uvec2 id = gl_GlobalInvocationID.xy;
+    if (id.x >= u_agents.agents.length()) { return; }
+
+    Agent agent = u_agents.agents[id.x];
+    uint random = hash(u_data.seed * uint(1000.0 * agent.angle));
+
+    float weight_forward = sense(agent, 0);
+    float weight_left = sense(agent, u_data.sensor_spacing);
+    float weight_right = sense(agent, -u_data.sensor_spacing);
+
+    float rand = norm(random);
+
+    if (weight_forward > weight_left && weight_forward > weight_right) {
+
+    } else if (weight_forward < weight_left && weight_forward < weight_right) {
+        agent.angle += (rand - 0.5) * 2.0 * u_data.turn_speed * u_data.dt;
+    } else if (weight_right > weight_left) {
+        agent.angle -= rand * u_data.turn_speed * u_data.dt;
+    } else if (weight_left > weight_right) {
+        agent.angle += rand * u_data.turn_speed * u_data.dt;
+    }
+    
+    vec2 direction = vec2(cos(agent.angle), sin(agent.angle));
+    vec2 new_pos = vec2(agent.x, agent.y) + direction * u_data.move_speed * u_data.dt;
+
+    if (new_pos.x <= 0.01 || new_pos.x >= float(width) || new_pos.y < 0.01 || new_pos.y >= float(height)) {
+        new_pos.x = min(width-0.01, max(0.01, new_pos.x));
+        new_pos.y = min(height-0.01, max(0.01, new_pos.y));
+        agent.angle = norm(random) * 2 * PI;
+    }
+
+    agent.x = new_pos.x;
+    agent.y = new_pos.y;
+
+    u_agents.agents[id.x] = agent;
+
+    imageStore(u_trail_map, ivec2(new_pos), vec4(1.0));
+}

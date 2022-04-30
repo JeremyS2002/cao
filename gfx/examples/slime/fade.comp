@@ -1,0 +1,50 @@
+#version 450
+
+layout(local_size_x = 1, local_size_y = 1) in;
+
+layout(set = 0, binding = 0, r16f) uniform image2D u_trail_map;
+
+layout(set = 0, binding = 1) uniform Data {
+    float move_speed;
+    float dt;
+    float fade_speed;
+    float diffuse_speed;
+    int sensor_size;
+    int sensor_dist;
+    float sensor_spacing;
+    float turn_speed;
+    uint seed;
+} u_data;
+
+void main() {
+    int width = imageSize(u_trail_map).x;
+    int height = imageSize(u_trail_map).y;
+
+    uvec2 id = gl_GlobalInvocationID.xy;
+
+    if (id.x < 0 || id.x >= width || id.y < 0 || id.y > height) {
+        return;
+    }
+
+    float original = imageLoad(u_trail_map, ivec2(id)).x;
+    
+    float sum = 0.0;
+    int count = 0;
+    for (int dx = -2; dx <= 2; dx++) {
+        for (int dy = -2; dy <= 2; dy++) {
+            int x = int(id.x) + dx;
+            int y = int(id.y) + dy;
+
+            if (x >= 0 && x < width && y >= 0 && y < height) {
+                sum += imageLoad(u_trail_map, ivec2(x, y)).x;
+                count++;
+            }
+        }
+    }
+    float blur = sum / float(count);
+
+    float diffused = mix(original, blur, u_data.diffuse_speed * u_data.dt);
+    float faded = max(0.0, diffused - u_data.fade_speed * u_data.dt);
+
+    imageStore(u_trail_map, ivec2(id), vec4(faded));
+}
