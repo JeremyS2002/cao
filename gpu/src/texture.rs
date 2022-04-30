@@ -391,7 +391,7 @@ impl Texture {
         Ok(s)
     }
 
-    /// Create a new TextureSlice
+    /// Create a new TextureSlice referencing self
     pub fn slice_ref<'a>(&'a self, desc: &TextureSliceDesc) -> TextureSlice<'a> {
         let extent: crate::Extent3D = self.dimension.into();
         if (desc.offset.x as u32 + desc.extent.width) > extent.width
@@ -415,6 +415,18 @@ impl Texture {
             base_mip_level: desc.base_mip_level,
             mip_levels: desc.mip_levels,
         }
+    }
+
+    /// Create a new TextureSlice of the whole texture referencing self
+    pub fn whole_slice_ref<'a>(&'a self) -> TextureSlice<'a> {
+        self.slice_ref(&TextureSliceDesc {
+            offset: crate::Offset3D::ZERO,
+            extent: self.dimension.into(),
+            base_array_layer: 0,
+            array_layers: self.dimension.layers(),
+            base_mip_level: 0,
+            mip_levels: self.mip_levels,
+        })
     }
 
     /// Create a texture slice owning a clone of self
@@ -443,6 +455,18 @@ impl Texture {
         }
     }
 
+    /// Create a new TextureSlice of the whole texture owning a clone of self
+    pub fn whole_slice_owned<'a, 'b>(&'b self) -> TextureSlice<'a> {
+        self.slice_owned(&TextureSliceDesc {
+            offset: crate::Offset3D::ZERO,
+            extent: self.dimension.into(),
+            base_array_layer: 0,
+            array_layers: self.dimension.layers(),
+            base_mip_level: 0,
+            mip_levels: self.mip_levels,
+        })
+    }
+
     /// Create a new TextureSlice owning self
     pub fn into_slice<'a>(self, desc: &TextureSliceDesc) -> TextureSlice<'a> {
         let extent: crate::Extent3D = self.dimension.into();
@@ -467,6 +491,19 @@ impl Texture {
             base_mip_level: desc.base_mip_level,
             mip_levels: desc.mip_levels,
         }
+    }
+
+    /// Create a new TextureSlice of the whole texture owning self
+    pub fn into_whole_slice<'a>(self) -> TextureSlice<'a> {
+        let desc = TextureSliceDesc {
+            offset: crate::Offset3D::ZERO,
+            extent: self.dimension.into(),
+            base_array_layer: 0,
+            array_layers: self.dimension.layers(),
+            base_mip_level: 0,
+            mip_levels: self.mip_levels,
+        };
+        self.into_slice(&desc)
     }
 
     /// Get the usage of the texture
