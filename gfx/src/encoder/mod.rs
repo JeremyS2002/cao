@@ -10,17 +10,15 @@ pub use command::Command;
 
 pub struct CommandEncoder<'a> {
     pub(crate) formatted: bool,
-    pub(crate) features: gpu::DeviceFeatures,
     pub(crate) commands: Vec<Command<'a>>,
 }
 
 impl<'a> CommandEncoder<'a> {
     /// Create a new CommandEncoder
-    pub fn new(device: &'a gpu::Device) -> Self {
+    pub fn new() -> Self {
         Self {
             // device,
             formatted: false,
-            features: device.features(),
             commands: Vec::new(),
         }
     }
@@ -152,22 +150,6 @@ impl<'a> CommandEncoder<'a> {
 
     /// copy the src buffer to the dst buffer taking ownership of the buffers
     pub fn copy_buffer_to_buffer(&mut self, src: gpu::BufferSlice<'a>, dst: gpu::BufferSlice<'a>) {
-        if !self.features.contains(gpu::DeviceFeatures::TRANSFER) {
-            panic!(
-                "ERROR: Device missing features {:?}",
-                gpu::DeviceFeatures::TRANSFER,
-            );
-        } else if !src.buffer().usage().contains(gpu::BufferUsage::COPY_SRC) {
-            panic!(
-                "ERROR: Buffer missing usage {:?}",
-                gpu::BufferUsage::COPY_SRC,
-            );
-        } else if !dst.buffer().usage().contains(gpu::BufferUsage::COPY_DST) {
-            panic!(
-                "ERROR: Buffer missing usage {:?}",
-                gpu::BufferUsage::COPY_DST,
-            );
-        }
         self.push_command(Command::CopyBufferToBuffer { src, dst })
     }
 
@@ -177,32 +159,6 @@ impl<'a> CommandEncoder<'a> {
         src: gpu::TextureSlice<'a>,
         dst: gpu::BufferSlice<'a>,
     ) {
-        let texture_size = src.texture().format().size() as u64
-            * src.extent().width as u64
-            * src.extent().height as u64
-            * src.extent().depth as u64;
-        if !self.features.contains(gpu::DeviceFeatures::TRANSFER) {
-            panic!(
-                "ERROR: Device missing features {:?}",
-                gpu::DeviceFeatures::TRANSFER,
-            );
-        } else if !src.texture().usage().contains(gpu::TextureUsage::COPY_SRC) {
-            panic!(
-                "ERROR: Buffer missing usage {:?}",
-                gpu::TextureUsage::COPY_SRC,
-            );
-        } else if !dst.buffer().usage().contains(gpu::BufferUsage::COPY_DST) {
-            panic!(
-                "ERROR: Buffer missing usage {:?}",
-                gpu::BufferUsage::COPY_DST,
-            );
-        } else if dst.size() < texture_size {
-            panic!(
-                "ERROR: Texture size {} doesn't match buffer size {}",
-                texture_size,
-                dst.size(),
-            );
-        }
         self.push_command(Command::CopyTextureToBuffer {
             src,
             src_layout: gpu::TextureLayout::CopySrcOptimal,
@@ -216,32 +172,6 @@ impl<'a> CommandEncoder<'a> {
         src: gpu::BufferSlice<'a>,
         dst: gpu::TextureSlice<'a>,
     ) {
-        let texture_size = dst.texture().format().size() as u64
-            * dst.extent().width as u64
-            * dst.extent().height as u64
-            * dst.extent().depth as u64;
-        if !self.features.contains(gpu::DeviceFeatures::TRANSFER) {
-            panic!(
-                "ERROR: Device missing features {:?}",
-                gpu::DeviceFeatures::TRANSFER,
-            );
-        } else if !src.buffer().usage().contains(gpu::BufferUsage::COPY_SRC) {
-            panic!(
-                "ERROR: Buffer missing usage {:?}",
-                gpu::BufferUsage::COPY_SRC,
-            );
-        } else if !dst.texture().usage().contains(gpu::TextureUsage::COPY_DST) {
-            panic!(
-                "ERROR: Buffer missing usage {:?}",
-                gpu::TextureUsage::COPY_DST,
-            );
-        } else if src.size() < texture_size {
-            panic!(
-                "ERROR: Buffer size {} doesn't match texture size {}",
-                src.size(),
-                texture_size,
-            );
-        }
         self.push_command(Command::CopyBufferToTexture {
             src,
             dst,
@@ -255,28 +185,6 @@ impl<'a> CommandEncoder<'a> {
         src: gpu::TextureSlice<'a>,
         dst: gpu::TextureSlice<'a>,
     ) {
-        if !self.features.contains(gpu::DeviceFeatures::TRANSFER) {
-            panic!(
-                "ERROR: Device missing features {:?}",
-                gpu::DeviceFeatures::TRANSFER,
-            );
-        } else if !src.texture().usage().contains(gpu::TextureUsage::COPY_SRC) {
-            panic!(
-                "ERROR: Buffer missing usage {:?}",
-                gpu::TextureUsage::COPY_SRC,
-            );
-        } else if !dst.texture().usage().contains(gpu::TextureUsage::COPY_DST) {
-            panic!(
-                "ERROR: Buffer missing usage {:?}",
-                gpu::TextureUsage::COPY_DST,
-            );
-        } else if src.extent() != dst.extent() {
-            panic!(
-                "ERROR: src texture size {:?} doesn't match dst texture size {:?}",
-                src.extent(),
-                dst.extent(),
-            );
-        }
         self.push_command(Command::CopyTextureToTexture {
             src,
             src_layout: gpu::TextureLayout::CopySrcOptimal,
@@ -303,12 +211,6 @@ impl<'a> CommandEncoder<'a> {
         depth_attachment: Option<gpu::Attachment<'a>>,
         pipeline: &'a gpu::GraphicsPipeline,
     ) -> Result<crate::pass::BasicGraphicsPass<'a, 'b>, gpu::Error> {
-        if !self.features.contains(gpu::DeviceFeatures::GRAPHICS) {
-            panic!(
-                "ERROR: Device missing features {:?}",
-                gpu::DeviceFeatures::GRAPHICS,
-            );
-        }
         Ok(crate::pass::BasicGraphicsPass {
             color_attachments: Cow::Borrowed(color_attachments),
             resolve_attachments: Cow::Borrowed(resolve_attachments),
@@ -327,12 +229,6 @@ impl<'a> CommandEncoder<'a> {
         depth_attachment: Option<gpu::Attachment<'a>>,
         pipeline: gpu::GraphicsPipeline,
     ) -> Result<crate::pass::BasicGraphicsPass<'a, 'b>, gpu::Error> {
-        if !self.features.contains(gpu::DeviceFeatures::GRAPHICS) {
-            panic!(
-                "ERROR: Device missing features {:?}",
-                gpu::DeviceFeatures::GRAPHICS,
-            );
-        }
         Ok(crate::pass::BasicGraphicsPass {
             color_attachments: Cow::Owned(Vec::from(color_attachments)),
             resolve_attachments: Cow::Owned(Vec::from(resolve_attachments)),
@@ -348,24 +244,17 @@ impl<'a> CommandEncoder<'a> {
     pub fn graphics_pass_reflected<'b, V: crate::Vertex>(
         &'b mut self,
         device: &gpu::Device,
-        colors: &'a [gpu::Attachment<'a>],
-        resolves: &'a [gpu::Attachment<'a>],
+        colors: &[gpu::Attachment<'a>],
+        resolves: &[gpu::Attachment<'a>],
         depth: Option<gpu::Attachment<'a>>,
         graphics: &crate::reflect::ReflectedGraphics,
     ) -> Result<crate::pass::ReflectedGraphicsPass<'a, 'b, V>, gpu::Error> {
-        if !self.features.contains(gpu::DeviceFeatures::GRAPHICS) {
-            panic!(
-                "ERROR: Device missing features {:?}",
-                gpu::DeviceFeatures::GRAPHICS,
-            );
-        }
-
         let extent = if colors.len() != 0 {
             colors[0].view().extent()
         } else if let Some(d) = depth.as_ref() {
             d.view().extent()
         } else {
-            todo!();
+            panic!("Cannot begin graphics pass with no color or depth attachments");
         };
 
         let viewport = gpu::Viewport {
@@ -438,12 +327,6 @@ impl<'a> CommandEncoder<'a> {
         &'b mut self,
         pipeline: &'a gpu::ComputePipeline,
     ) -> Result<crate::pass::BasicComputePass<'a, 'b>, gpu::Error> {
-        if !self.features.contains(gpu::DeviceFeatures::COMPUTE) {
-            panic!(
-                "ERROR: Device missing features {:?}",
-                gpu::DeviceFeatures::COMPUTE,
-            );
-        }
         Ok(crate::pass::BasicComputePass {
             pipeline: Md::new(Cow::Borrowed(pipeline)),
             commands: Vec::new(),
@@ -456,12 +339,6 @@ impl<'a> CommandEncoder<'a> {
         &'b mut self,
         pipeline: gpu::ComputePipeline,
     ) -> Result<crate::pass::BasicComputePass<'a, 'b>, gpu::Error> {
-        if !self.features.contains(gpu::DeviceFeatures::COMPUTE) {
-            panic!(
-                "ERROR: Device missing features {:?}",
-                gpu::DeviceFeatures::COMPUTE,
-            );
-        }
         Ok(crate::pass::BasicComputePass {
             pipeline: Md::new(Cow::Owned(pipeline)),
             commands: Vec::new(),
@@ -475,13 +352,6 @@ impl<'a> CommandEncoder<'a> {
         &'b mut self,
         compute: &'a crate::reflect::ReflectedCompute,
     ) -> Result<crate::pass::ReflectedComputePass<'a, 'b>, gpu::Error> {
-        if !self.features.contains(gpu::DeviceFeatures::COMPUTE) {
-            panic!(
-                "ERROR: Device missing features {:?}",
-                gpu::DeviceFeatures::COMPUTE,
-            );
-        }
-
         Ok(crate::pass::ReflectedComputePass {
             parent_id: compute.id,
             bundle_needed: compute.bundle_needed(),
@@ -498,13 +368,6 @@ impl<'a> CommandEncoder<'a> {
         &'b mut self,
         compute: &crate::reflect::ReflectedCompute,
     ) -> Result<crate::pass::ReflectedComputePass<'a, 'b>, gpu::Error> {
-        if !self.features.contains(gpu::DeviceFeatures::COMPUTE) {
-            panic!(
-                "ERROR: Device missing features {:?}",
-                gpu::DeviceFeatures::COMPUTE,
-            );
-        }
-
         Ok(crate::pass::ReflectedComputePass {
             parent_id: compute.id,
             bundle_needed: compute.bundle_needed(),

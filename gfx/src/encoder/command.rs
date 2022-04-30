@@ -396,9 +396,9 @@ impl<'a> Command<'a> {
                 pipeline,
                 ..
             } => {
-                for (i, a) in color_attachments.as_ref().iter().enumerate() {
+                for (index, a) in color_attachments.as_ref().iter().enumerate() {
                     let view = a.view();
-                    let c = pipeline.pass().colors()[i];
+                    let c = pipeline.pass().colors()[index];
                     for i in view.base_mip_level()..(view.base_mip_level() + view.mip_levels()) {
                         for j in
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())
@@ -414,9 +414,9 @@ impl<'a> Command<'a> {
                         }
                     }
                 }
-                for (i, a) in resolve_attachments.as_ref().iter().enumerate() {
+                for (index, a) in resolve_attachments.as_ref().iter().enumerate() {
                     let view = a.view();
-                    let c = pipeline.pass().resolves()[i];
+                    let c = pipeline.pass().resolves()[index];
                     for i in view.base_mip_level()..(view.base_mip_level() + view.mip_levels()) {
                         for j in
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())
@@ -434,7 +434,8 @@ impl<'a> Command<'a> {
                 }
                 if let Some(a) = depth_attachment {
                     let view = a.view();
-                    let d = pipeline.pass().depth().unwrap();
+                    let d = pipeline.pass().depth()
+                        .expect("Attempt to use render pass with no depth component description with depth attachment");
                     for i in view.base_mip_level()..(view.base_mip_level() + view.mip_levels()) {
                         for j in
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())

@@ -115,7 +115,7 @@ impl<U: bytemuck::Pod> Uniform<U> {
             memory: gpu::MemoryType::Host,
             usage: gpu::BufferUsage::COPY_DST,
         })?;
-        let mut encoder = crate::CommandEncoder::new(&device);
+        let mut encoder = crate::CommandEncoder::new();
         encoder.copy_buffer_to_buffer(self.buffer.slice_ref(..), staging_buffer.slice_ref(..));
 
         buffer.wait(!0)?;
