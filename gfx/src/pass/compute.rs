@@ -5,9 +5,7 @@ use std::mem::ManuallyDrop as Md;
 
 use smallvec::SmallVec;
 
-#[cfg(feature = "reflect")]
 use crate::reflect::Bundle;
-#[cfg(feature = "reflect")]
 use std::any::TypeId;
 
 /// Represents valid operations to perform during a compute pass
@@ -298,7 +296,6 @@ impl<'a, 'b> Drop for BasicComputePass<'a, 'b> {
 ///
 /// Provides functions to operate on the pass
 /// Will automatically dispatch on drop
-#[cfg(feature = "reflect")]
 pub struct ReflectedComputePass<'a, 'b> {
     pub(crate) parent_id: u64,
     pub(crate) bundle_needed: bool,
@@ -310,27 +307,23 @@ pub struct ReflectedComputePass<'a, 'b> {
     pub(crate) encoder: &'b mut crate::CommandEncoder<'a>,
 }
 
-#[cfg(feature = "reflect")]
 impl std::fmt::Debug for ReflectedComputePass<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "ReflectedComputePass parent id {}", self.parent_id)
     }
 }
 
-#[cfg(feature = "reflect")]
 impl<'a, 'b> ComputePass<'a> for ReflectedComputePass<'a, 'b> {
     fn push_command(&mut self, command: ComputePassCommand<'a>) {
         self.commands.push(command)
     }
 }
 
-#[cfg(feature = "reflect")]
 impl ReflectedComputePass<'_, '_> {
     /// End the compute pass by dropping it and allowing the encoder to be used again
     pub fn finish(self) {}
 }
 
-#[cfg(feature = "reflect")]
 impl<'a, 'b> Drop for ReflectedComputePass<'a, 'b> {
     fn drop(&mut self) {
         self.encoder
@@ -341,7 +334,6 @@ impl<'a, 'b> Drop for ReflectedComputePass<'a, 'b> {
     }
 }
 
-#[cfg(feature = "reflect")]
 impl<'a, 'b> ReflectedComputePass<'a, 'b> {
     /// Returns if the pass needs Descriptors to function
     pub fn bundle_needed(&self) -> bool {
