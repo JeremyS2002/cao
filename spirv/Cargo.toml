@@ -1,0 +1,14 @@
+[package]
+name = "spirv"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rspirv  = "^0.11.0"
+glam    = "^0.12.0"
+slab    = "^0.4.6"
+
+[[example]]
+name = "basic"

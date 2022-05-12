@@ -376,7 +376,6 @@ impl Slime {
             );
         }
 
-
         let (view, _) = self.swapchain.acquire(!0)?;
 
         self.uniform.update_gpu_ref(&mut encoder);
