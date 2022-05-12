@@ -336,13 +336,16 @@ impl CommandBuffer {
 
     /// Begin and end a render pass without doing anything in the pass, to draw use a graphics pass and pipeline
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdBeginRenderPass.html>
-    pub fn empty_pass(
+    pub fn empty_pass<'a, B>(
         &mut self,
-        color_attachments: &[crate::Attachment<'_>],
-        resolve_attachments: &[crate::Attachment<'_>],
-        depth_attachment: Option<crate::Attachment<'_>>,
+        color_attachments: &[B],
+        resolve_attachments: &[B],
+        depth_attachment: Option<B>,
         render_pass: &crate::RenderPass,
-    ) -> Result<(), crate::Error> {
+    ) -> Result<(), crate::Error> 
+    where
+        B: std::borrow::Borrow<crate::Attachment<'a>>,
+    {
         if let Some(swapchain) = raw::begin_render_pass(
             self.buffer,
             &self.device,

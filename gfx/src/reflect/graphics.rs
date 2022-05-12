@@ -15,6 +15,7 @@ use super::error;
 /// afaik this is ok but there is a good chance that i've messed something up
 #[derive(Copy, Clone)]
 pub struct GraphicsPipelineKey {
+    pub pass_hash: u64,
     pub viewport: gpu::Viewport,
     pub vertex_ty: TypeId,
 }
@@ -60,7 +61,6 @@ pub struct PipelineData {
     pub fragment: Option<gpu::ShaderModule>,
     pub geometry: Option<gpu::ShaderModule>,
     pub depth_stencil: Option<gpu::DepthStencilState>,
-    pub pass: gpu::RenderPass,
     pub name: Option<String>,
 }
 
@@ -134,7 +134,6 @@ impl ReflectedGraphics {
         vertex: &[u32],
         fragment: Option<&[u32]>,
         geometry: Option<&[u32]>,
-        pass: gpu::RenderPass,
         rasterizer: gpu::Rasterizer,
         blend_states: &[gpu::BlendState],
         depth_stencil: Option<gpu::DepthStencilState>,
@@ -260,7 +259,6 @@ impl ReflectedGraphics {
                 rasterizer,
                 blend_states: blend_states.to_vec().into(),
                 depth_stencil,
-                pass,
                 name,
             },
         })

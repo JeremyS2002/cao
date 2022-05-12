@@ -3,6 +3,8 @@ use std::any::TypeId;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::mem::ManuallyDrop as Md;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::Hash;
 
 pub mod command;
 
@@ -244,18 +246,62 @@ impl<'a> CommandEncoder<'a> {
     pub fn graphics_pass_reflected<'b, V: crate::Vertex>(
         &'b mut self,
         device: &gpu::Device,
-        colors: &[gpu::Attachment<'a>],
-        resolves: &[gpu::Attachment<'a>],
-        depth: Option<gpu::Attachment<'a>>,
+        colors: &[crate::Attachment<'a>],
+        resolves: &[crate::Attachment<'a>],
+        depth: Option<crate::Attachment<'a>>,
         graphics: &crate::reflect::ReflectedGraphics,
     ) -> Result<crate::pass::ReflectedGraphicsPass<'a, 'b, V>, gpu::Error> {
+        use std::hash::Hasher;
+
         let extent = if colors.len() != 0 {
-            colors[0].view().extent()
+            colors[0].raw.view().extent()
         } else if let Some(d) = depth.as_ref() {
-            d.view().extent()
+            d.raw.view().extent()
         } else {
             panic!("Cannot begin graphics pass with no color or depth attachments");
         };
+
+        let samples = if colors.len() != 0 {
+            colors[0].raw.view().samples()
+        } else if let Some(d) = depth.as_ref() {
+            d.raw.view().samples()
+        } else {
+            panic!("Cannot begin graphics pass with no color or depth attachments");
+        };
+
+        let colors_desc = colors.iter().map(|a| gpu::ColorAttachmentDesc {
+            format: a.raw.view().format(),
+            load: a.load,
+            store: a.store,
+            initial_layout: gpu::TextureLayout::ColorAttachmentOptimal,
+            // for normal textures will just return General but for swapchain will return SwapchainPresent
+            final_layout: a.raw.view().texture().initial_layout(),
+        }).collect::<Vec<_>>();
+
+        let resolves_desc = resolves.iter().map(|a| gpu::ResolveAttachmentDesc {
+            load: a.load,
+            store: a.store,
+            initial_layout: gpu::TextureLayout::ColorAttachmentOptimal,
+            final_layout: a.raw.view().texture().initial_layout(),
+        }).collect::<Vec<_>>();
+
+        let depth_desc = depth.as_ref().map(|a| gpu::DepthAttachmentDesc {
+            format: a.raw.view().format(),
+            load: a.load,
+            store: a.store,
+            initial_layout: if a.raw.view().format().aspects().contains(gpu::TextureAspects::STENCIL) {
+                gpu::TextureLayout::DepthStencilAttachmentOptimal
+            } else {
+                gpu::TextureLayout::DepthAttachmentOptimal
+            },
+            final_layout: a.raw.view().texture().initial_layout(),
+        });
+
+        let mut hasher = DefaultHasher::new();
+        colors_desc.hash(&mut hasher);
+        resolves_desc.hash(&mut hasher);
+        depth_desc.hash(&mut hasher);
+        let pass_hash = hasher.finish();
 
         let viewport = gpu::Viewport {
             x: 0,
@@ -268,12 +314,22 @@ impl<'a> CommandEncoder<'a> {
         let c = graphics.pipeline_map.read();
 
         let key = crate::reflect::GraphicsPipelineKey {
+            pass_hash,
             vertex_ty: TypeId::of::<V>(),
             viewport,
         };
 
         if let None = c.get(&key) {
             drop(c);
+
+            let pass = device.create_render_pass(&gpu::RenderPassDesc {
+                name: None,
+                colors: &colors_desc,
+                resolves: &resolves_desc,
+                depth: depth_desc,
+                samples,
+            })?;
+
             let vertex_state = gpu::VertexState {
                 stride: std::mem::size_of::<V>() as u32,
                 input_rate: gpu::VertexInputRate::Vertex,
@@ -285,7 +341,7 @@ impl<'a> CommandEncoder<'a> {
             let mut desc = gpu::GraphicsPipelineDesc {
                 name: None,
                 layout: &graphics.pipeline_data.layout,
-                pass: &graphics.pipeline_data.pass,
+                pass: &pass,
                 vertex: &graphics.pipeline_data.vertex,
                 tessellation: None,
                 geometry: graphics.pipeline_data.geometry.as_ref(),

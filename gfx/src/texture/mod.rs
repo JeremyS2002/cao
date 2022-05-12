@@ -5,7 +5,7 @@ pub use formats::*;
 pub use traits::*;
 
 /// Iterate over the formats and see if it is compaitble with the dimension and
-pub fn choose_format(
+pub fn choose_format<'a>(
     device: &gpu::Device,
     options: impl IntoIterator<Item = gpu::Format>,
     dimension: gpu::TextureDimension,

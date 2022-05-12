@@ -140,28 +140,28 @@ impl Fractal {
 
         encoder.submit(&mut command, true)?;
 
-        let fractal_pass = device.create_render_pass(&gpu::RenderPassDesc {
-            name: None,
-            colors: &[
-                gpu::ColorAttachmentDesc {
-                    format: target.format(),
-                    load: gpu::LoadOp::DontCare,
-                    store: gpu::StoreOp::Store,
-                    initial_layout: gpu::TextureLayout::ColorAttachmentOptimal,
-                    final_layout: gpu::TextureLayout::ShaderReadOnlyOptimal,
-                }
-            ],
-            resolves: &[],
-            depth: None,
-            samples: gpu::Samples::S1,
-        })?;
+        // let fractal_pass = device.create_render_pass(&gpu::RenderPassDesc {
+        //     name: None,
+        //     colors: &[
+        //         gpu::ColorAttachmentDesc {
+        //             format: target.format(),
+        //             load: gpu::LoadOp::DontCare,
+        //             store: gpu::StoreOp::Store,
+        //             initial_layout: gpu::TextureLayout::ColorAttachmentOptimal,
+        //             final_layout: gpu::TextureLayout::ShaderReadOnlyOptimal,
+        //         }
+        //     ],
+        //     resolves: &[],
+        //     depth: None,
+        //     samples: gpu::Samples::S1,
+        // })?;
 
         let fractal_graphics = gfx::reflect::ReflectedGraphics::new(
             &device,
             &gpu::include_spirv!("vert.spv"),
             Some(&gpu::include_spirv!("fractal_frag.spv")),
             None,
-            fractal_pass,
+            // fractal_pass,
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
@@ -172,28 +172,28 @@ impl Fractal {
             .set_resource_by_location(0, 0, &uniform)?
             .build(&device)?;
 
-        let display_pass = device.create_render_pass(&gpu::RenderPassDesc {
-            name: None,
-            colors: &[
-                gpu::ColorAttachmentDesc {
-                    format: swapchain.format(),
-                    load: gpu::LoadOp::DontCare,
-                    store: gpu::StoreOp::Store,
-                    initial_layout: gpu::TextureLayout::ColorAttachmentOptimal,
-                    final_layout: gpu::TextureLayout::SwapchainPresent,
-                }
-            ],
-            resolves: &[],
-            depth: None,
-            samples: gpu::Samples::S1,
-        })?;
+        // let display_pass = device.create_render_pass(&gpu::RenderPassDesc {
+        //     name: None,
+        //     colors: &[
+        //         gpu::ColorAttachmentDesc {
+        //             format: swapchain.format(),
+        //             load: gpu::LoadOp::DontCare,
+        //             store: gpu::StoreOp::Store,
+        //             initial_layout: gpu::TextureLayout::ColorAttachmentOptimal,
+        //             final_layout: gpu::TextureLayout::SwapchainPresent,
+        //         }
+        //     ],
+        //     resolves: &[],
+        //     depth: None,
+        //     samples: gpu::Samples::S1,
+        // })?;
 
         let display_graphics = gfx::reflect::ReflectedGraphics::new(
             &device,
             &gpu::include_spirv!("vert.spv"),
             Some(&gpu::include_spirv!("display_frag.spv")),
             None,
-            display_pass,
+            // display_pass,
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
@@ -313,10 +313,14 @@ impl Fractal {
         let mut pass = encoder.graphics_pass_reflected(
             &self.device,
             &[
-                gpu::Attachment::View(
-                    &self.target.view, 
-                    gpu::ClearValue::ColorFloat([0.0; 4]),
-                )
+                gfx::Attachment {
+                    raw: gpu::Attachment::View(
+                        &self.target.view, 
+                        gpu::ClearValue::ColorFloat([0.0; 4]),
+                    ),
+                    load: gpu::LoadOp::DontCare,
+                    store: gpu::StoreOp::Store,
+                }
             ],
             &[],
             None,
@@ -330,10 +334,14 @@ impl Fractal {
         let mut pass = encoder.graphics_pass_reflected(
             &self.device,
             &[
-                gpu::Attachment::Swapchain(
-                    &view, 
-                    gpu::ClearValue::ColorFloat([0.0; 4]),
-                )
+                gfx::Attachment {
+                    raw: gpu::Attachment::Swapchain(
+                        &view, 
+                        gpu::ClearValue::ColorFloat([0.0; 4]),
+                    ),
+                    load: gpu::LoadOp::DontCare,
+                    store: gpu::StoreOp::Store,
+                }
             ],
             &[],
             None,
@@ -353,6 +361,8 @@ impl Fractal {
 }
 
 fn main() {
+    env_logger::init();
+    
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("fractal")

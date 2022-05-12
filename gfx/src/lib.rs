@@ -15,15 +15,15 @@ pub use storage::*;
 pub use texture::*;
 pub use uniform::*;
 
-// #[derive(Debug, Copy, Clone, PartialEq)]
-// pub struct Attachment<'a> {
-//     pub raw: gpu::Attachment<'a>,
-//     pub load: gpu::LoadOp,
-//     pub store: gpu::StoreOp,
-// }
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct Attachment<'a> {
+    pub raw: gpu::Attachment<'a>,
+    pub load: gpu::LoadOp,
+    pub store: gpu::StoreOp,
+}
 
-// impl<'a> std::borrow::Borrow<gpu::Attachment<'a>> for Attachment<'a> {
-//     fn borrow(&self) -> &gpu::Attachment<'a> {
-//         &self.raw
-//     }
-// }
+impl<'a> std::borrow::Borrow<gpu::Attachment<'a>> for Attachment<'a> {
+    fn borrow(&self) -> &gpu::Attachment<'a> {
+        &self.raw
+    }
+}

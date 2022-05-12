@@ -484,9 +484,9 @@ pub struct ReflectedGraphicsPass<'a, 'b, V: crate::Vertex> {
     pub(crate) bundle_needed: bool,
     /// Pipeline contained inside a manually drop so that it can be taken an moved into the encoder
     pub(crate) pipeline: Md<Cow<'a, gpu::GraphicsPipeline>>,
-    pub(crate) color_attachments: Vec<gpu::Attachment<'a>>,
-    pub(crate) resolve_attachments: Vec<gpu::Attachment<'a>>,
-    pub(crate) depth_attachment: Option<gpu::Attachment<'a>>,
+    pub(crate) color_attachments: Vec<crate::Attachment<'a>>,
+    pub(crate) resolve_attachments: Vec<crate::Attachment<'a>>,
+    pub(crate) depth_attachment: Option<crate::Attachment<'a>>,
     pub(crate) push_constant_names: Option<HashMap<String, (u32, gpu::ShaderStages, TypeId)>>,
     pub(crate) commands: Vec<GraphicsPassCommand<'a>>,
     /// The encoder that the graphics pass will be recorded into
@@ -520,9 +520,9 @@ impl<'a, 'b, V: crate::Vertex> Drop for ReflectedGraphicsPass<'a, 'b, V> {
         self.encoder
             .push_command(crate::encoder::Command::GraphicsPass {
                 pipeline: unsafe { Md::take(&mut self.pipeline) },
-                color_attachments: self.color_attachments.drain(..).collect(),
-                resolve_attachments: self.resolve_attachments.drain(..).collect(),
-                depth_attachment: self.depth_attachment.take(),
+                color_attachments: self.color_attachments.drain(..).map(|a| a.raw).collect(),
+                resolve_attachments: self.resolve_attachments.drain(..).map(|a| a.raw).collect(),
+                depth_attachment: self.depth_attachment.take().map(|a| a.raw),
                 commands: self.commands.drain(..).collect(),
             });
     }
