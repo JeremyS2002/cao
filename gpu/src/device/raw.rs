@@ -4,6 +4,7 @@ use std::thread::ThreadId;
 
 use ash::extensions::ext;
 use ash::vk;
+use vk::Handle;
 
 use parking_lot::Mutex;
 use parking_lot::RwLock;
@@ -118,7 +119,7 @@ impl RawDevice {
         name: &str,
     ) -> Result<(), Error> {
         self.set_name(
-            unsafe { std::mem::transmute(**module.raw) },
+            module.raw.as_raw(),
             vk::ObjectType::SHADER_MODULE,
             name,
         )
@@ -126,7 +127,7 @@ impl RawDevice {
 
     pub fn set_buffer_name(&self, buffer: &crate::Buffer, name: &str) -> Result<(), Error> {
         self.set_name(
-            unsafe { std::mem::transmute(**buffer.raw) },
+            buffer.raw.as_raw(),
             vk::ObjectType::BUFFER,
             name,
         )
@@ -134,7 +135,7 @@ impl RawDevice {
 
     pub fn set_texture_name(&self, texture: &crate::Texture, name: &str) -> Result<(), Error> {
         self.set_name(
-            unsafe { std::mem::transmute(**texture.raw) },
+            texture.raw.as_raw(),
             vk::ObjectType::IMAGE,
             name,
         )
@@ -146,7 +147,7 @@ impl RawDevice {
         name: &str,
     ) -> Result<(), Error> {
         self.set_name(
-            unsafe { std::mem::transmute(**view.raw) },
+            view.raw.as_raw(),
             vk::ObjectType::IMAGE_VIEW,
             name,
         )
@@ -158,12 +159,12 @@ impl RawDevice {
         name: &str,
     ) -> Result<(), Error> {
         self.set_name(
-            unsafe { std::mem::transmute(buffer.pool) },
+            buffer.pool.as_raw(),
             vk::ObjectType::COMMAND_POOL,
             name,
         )?;
         self.set_name(
-            unsafe { std::mem::transmute(buffer.buffer) },
+            buffer.buffer.as_raw(),
             vk::ObjectType::COMMAND_BUFFER,
             name,
         )
@@ -171,7 +172,7 @@ impl RawDevice {
 
     pub fn set_sampler_name(&self, sampler: &crate::Sampler, name: &str) -> Result<(), Error> {
         self.set_name(
-            unsafe { std::mem::transmute(&**sampler.raw) },
+            sampler.raw.as_raw(),
             vk::ObjectType::SAMPLER,
             name,
         )
@@ -183,12 +184,12 @@ impl RawDevice {
         name: &str,
     ) -> Result<(), Error> {
         self.set_name(
-            unsafe { std::mem::transmute(&**set.pool) },
+            set.pool.as_raw(),
             vk::ObjectType::DESCRIPTOR_POOL,
             name,
         )?;
         self.set_name(
-            unsafe { std::mem::transmute(&**set.set) },
+            set.set.as_raw(),
             vk::ObjectType::DESCRIPTOR_SET,
             name,
         )
@@ -200,7 +201,7 @@ impl RawDevice {
         name: &str,
     ) -> Result<(), Error> {
         self.set_name(
-            unsafe { std::mem::transmute(layout.raw) },
+            layout.raw.as_raw(),
             vk::ObjectType::DESCRIPTOR_SET_LAYOUT,
             name,
         )
@@ -212,7 +213,7 @@ impl RawDevice {
         name: &str,
     ) -> Result<(), Error> {
         self.set_name(
-            unsafe { std::mem::transmute(&**layout.raw) },
+            layout.raw.as_raw(),
             vk::ObjectType::PIPELINE_LAYOUT,
             name,
         )
@@ -220,7 +221,7 @@ impl RawDevice {
 
     pub fn set_render_pass_name(&self, pass: &crate::RenderPass, name: &str) -> Result<(), Error> {
         self.set_name(
-            unsafe { std::mem::transmute(&**pass.raw) },
+            pass.raw.as_raw(),
             vk::ObjectType::RENDER_PASS,
             name,
         )
@@ -232,7 +233,7 @@ impl RawDevice {
         name: &str,
     ) -> Result<(), Error> {
         self.set_name(
-            unsafe { std::mem::transmute(&**pipeline.raw) },
+            pipeline.raw.as_raw(),
             vk::ObjectType::PIPELINE,
             name,
         )
@@ -244,7 +245,7 @@ impl RawDevice {
         name: &str,
     ) -> Result<(), Error> {
         self.set_name(
-            unsafe { std::mem::transmute(&**pipeline.raw) },
+            pipeline.raw.as_raw(),
             vk::ObjectType::PIPELINE,
             name,
         )
