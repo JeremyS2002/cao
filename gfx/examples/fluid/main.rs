@@ -1,4 +1,7 @@
 
+use std::borrow::Cow;
+
+use rand::Rng;
 use winit_input_helper::WinitInputHelper;
 
 use winit::{
@@ -18,7 +21,7 @@ const VELOCITY_DISSIPATION: f32 = 0.01;
 const PRESSURE: f32 = 0.9;
 const PRESSURE_ITERATIONS: u32 = 20;
 const CURL: f32 = 50.0;
-const SPLAT_RADIUS: f32 = 0.00075;
+const SPLAT_RADIUS: f32 = 0.0025;
 const SPLAT_FORCE: f32 = 0.05;
 const COLOR_TIME: f32 = 1.0;
 
@@ -154,9 +157,10 @@ pub struct VorticityParams {
 unsafe impl bytemuck::Zeroable for VorticityParams {}
 unsafe impl bytemuck::Pod for VorticityParams {}
 
+#[allow(dead_code)]
 struct Fluid {
-    _instance: gpu::Instance,
-    _surface: gpu::Surface,
+    instance: gpu::Instance,
+    surface: gpu::Surface,
     device: gpu::Device,
     swapchain: gpu::Swapchain,
     mesh: gfx::IndexedMesh<Vertex>,
@@ -181,6 +185,17 @@ struct Fluid {
     // stores properties of the vector field for updating over time
     curl: gfx::GTexture2D,
     divergence: gfx::GTexture2D,
+
+    width: u32,
+    height: u32,
+
+    vertex_params: gfx::Uniform<VertexParams>,
+    ink_splat_params: gfx::Uniform<SplatParams>,
+    vel_splat_params: gfx::Uniform<SplatParams>,
+    advect_vel_params: gfx::Uniform<AdvectionParams>,
+    advect_ink_params: gfx::Uniform<AdvectionParams>,
+    vorticity_params: gfx::Uniform<VorticityParams>,
+    clear_params: gfx::Uniform<f32>,
 
     sampler: gpu::Sampler,
 
@@ -242,6 +257,10 @@ impl Fluid {
         let mut command = device.create_command_buffer(None)?;
 
         let mut encoder = gfx::CommandEncoder::new();
+
+        // (vector/scalar) fields
+        // =======================================================================
+        // =======================================================================
 
         // some of the fields can work with multiple formats
         let vel_a = gfx::GTexture2D::from_formats(
@@ -327,6 +346,10 @@ impl Fluid {
             ..Default::default()
         })?;
 
+        // mesh
+        // =======================================================================
+        // =======================================================================
+
         let mesh = gfx::IndexedMesh::new(
             &mut encoder,
             &device,
@@ -349,6 +372,19 @@ impl Fluid {
                 },
             ],
             &[0, 1, 2, 2, 3, 0],
+            None,
+        )?;
+
+        // params
+        // =======================================================================
+        // =======================================================================
+
+        let vertex_params = gfx::Uniform::new(
+            &mut encoder,
+            &device,
+            VertexParams {
+                texel_size: [1.0 / SIM_RESOLUTION as f32, 1.0 / SIM_RESOLUTION as f32],
+            },
             None,
         )?;
 
@@ -412,46 +448,676 @@ impl Fluid {
 
         encoder.submit(&mut command, true)?;
 
-        // let basic_vertex = gpu::include_spirv!("basic_vertex.spv");
-        // let splat_fragment = gpu::include_spirv!("splat.spv");
-        // let advection_fragment = gpu::include_spirv!("advection.spv");
-        // let divergence_fragment = gpu::include_spirv!("divergence.spv");
-        // let curl_fragment = gpu::include_spirv!("curl.spv");
-        // let vorticity_fragment = gpu::include_spirv!("vorticity.spv");
-        // let pressure_fragment = gpu::include_spirv!("pressure.spv");
-        // let grad_sub_fragment = gpu::include_spirv!("gradient_sub.spv");
-        // let display_fragment = gpu::include_spirv!("display.spv");
-        // let clear_fragment = gpu::include_spirv!("clear.spv");
+        // include spirv
+        // =======================================================================
+        // =======================================================================
 
-        // let rasterizer = gpu::Rasterizer::default();
-        // let depth_state = None;
+        let basic_vertex = gpu::include_spirv!("basic_vertex.spv");
+        let splat_fragment = gpu::include_spirv!("splat.spv");
+        let advection_fragment = gpu::include_spirv!("advection.spv");
+        let divergence_fragment = gpu::include_spirv!("divergence.spv");
+        let curl_fragment = gpu::include_spirv!("curl.spv");
+        let vorticity_fragment = gpu::include_spirv!("vorticity.spv");
+        let pressure_fragment = gpu::include_spirv!("pressure.spv");
+        let grad_sub_fragment = gpu::include_spirv!("gradient_sub.spv");
+        let display_fragment = gpu::include_spirv!("display.spv");
+        let clear_fragment = gpu::include_spirv!("clear.spv");
 
-        // let update_pass = device.create_render_pass(&gpu::RenderPassDesc {
-        //     name: None,
-        //     colors: &[
-        //         gpu::ColorAttachmentDesc
-        //     ],
-        //     resolves: &[],
-        //     depth: None,
-        //     samples: gpu::Samples::S1,
-        // })?;
+        let rasterizer = gpu::Rasterizer::default();
+        let depth_state = None;
 
-        // let splat_stage = gfx::reflect::ReflectedGraphics::new(
-        //     &device,
-        //     &basic_vertex,
-        //     Some(&splat_fragment),
-        //     None,
-        //     rasterizer,
-        //     &[gpu::BlendState::REPLACE],
-        //     depth_state,
-        //     None,
-        // )?;
+        let splat_stage = gfx::reflect::ReflectedGraphics::new(
+            &device,
+            &basic_vertex,
+            Some(&splat_fragment),
+            None,
+            rasterizer,
+            &[gpu::BlendState::REPLACE],
+            depth_state,
+            None,
+        )?;
 
-        todo!();
+        let ink_splat_bundle_a = splat_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_params", &ink_splat_params)?
+            .set_resource("u_target", &ink_a)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        let ink_splat_bundle_b = splat_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_params", &ink_splat_params)?
+            .set_resource("u_target", &ink_b)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        let vel_splat_bundle_a = splat_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_params", &vel_splat_params)?
+            .set_resource("u_target", &vel_a)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        let vel_splat_bundle_b = splat_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_params", &vel_splat_params)?
+            .set_resource("u_target", &vel_b)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        // advection
+        // =======================================================================
+        // =======================================================================
+
+        let advection_stage = gfx::reflect::ReflectedGraphics::new(
+            &device,
+            &basic_vertex,
+            Some(&advection_fragment),
+            None,
+            rasterizer,
+            &[gpu::BlendState::REPLACE],
+            depth_state,
+            None,
+        )?;
+
+        let advect_vel_bundle_a = advection_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_params", &advect_vel_params)?
+            .set_resource("u_velocity", &vel_a)?
+            .set_resource("u_source", &vel_a)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        let advect_vel_bundle_b = advection_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_params", &advect_vel_params)?
+            .set_resource("u_velocity", &vel_b)?
+            .set_resource("u_source", &vel_b)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        let advect_ink_bundle_a = advection_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_params", &advect_ink_params)?
+            .set_resource("u_velocity", &vel_a)?
+            .set_resource("u_source", &ink_a)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        let advect_ink_bundle_b = advection_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_params", &advect_ink_params)?
+            .set_resource("u_velocity", &vel_b)?
+            .set_resource("u_source", &ink_b)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        // divergence
+        // =======================================================================
+        // =======================================================================
+
+        let divergence_stage = gfx::reflect::ReflectedGraphics::new(
+            &device,
+            &basic_vertex,
+            Some(&divergence_fragment),
+            None,
+            rasterizer,
+            &[gpu::BlendState::REPLACE],
+            depth_state,
+            None,
+        )?;
+
+        let divergence_bundle_a = divergence_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_velocity", &vel_a)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        let divergence_bundle_b = divergence_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_velocity", &vel_b)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        // curl
+        // =======================================================================
+        // =======================================================================
+
+        let curl_stage = gfx::reflect::ReflectedGraphics::new(
+            &device,
+            &basic_vertex,
+            Some(&curl_fragment),
+            None,
+            rasterizer,
+            &[gpu::BlendState::REPLACE],
+            depth_state,
+            None,
+        )?;
+
+        let curl_bundle_a = curl_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_velocity", &vel_a)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        let curl_bundle_b = curl_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_velocity", &vel_b)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        // vorticity
+        // =======================================================================
+        // =======================================================================
+
+        let vorticity_stage = gfx::reflect::ReflectedGraphics::new(
+            &device,
+            &basic_vertex,
+            Some(&vorticity_fragment),
+            None,
+            rasterizer,
+            &[gpu::BlendState::REPLACE],
+            depth_state,
+            None,
+        )?;
+
+        let vorticity_bundle_a = vorticity_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_params", &vorticity_params)?
+            .set_resource("u_velocity", &vel_a)?
+            .set_resource("u_curl", &curl)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        let vorticity_bundle_b = vorticity_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_params", &vorticity_params)?
+            .set_resource("u_velocity", &vel_b)?
+            .set_resource("u_curl", &curl)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        // clear
+        // =======================================================================
+        // =======================================================================
+
+        let clear_stage = gfx::reflect::ReflectedGraphics::new(
+            &device,
+            &basic_vertex,
+            Some(&clear_fragment),
+            None,
+            rasterizer,
+            &[gpu::BlendState::REPLACE],
+            depth_state,
+            None,
+        )?;
+
+        let clear_bundle_a = clear_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_params", &clear_params)?
+            .set_resource("u_pressure", &pressure_a)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        let clear_bundle_b = clear_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_params", &clear_params)?
+            .set_resource("u_pressure", &pressure_b)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        // pressure
+        // =======================================================================
+        // =======================================================================
+
+        let pressure_stage = gfx::reflect::ReflectedGraphics::new(
+            &device,
+            &basic_vertex,
+            Some(&pressure_fragment),
+            None,
+            rasterizer,
+            &[gpu::BlendState::REPLACE],
+            depth_state,
+            None,
+        )?;
+
+        let pressure_bundle_a = pressure_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_pressure", &pressure_a)?
+            .set_resource("u_divergence", &divergence)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        let pressure_bundle_b = pressure_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_pressure", &pressure_b)?
+            .set_resource("u_divergence", &divergence)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        // grad sub
+        // =======================================================================
+        // =======================================================================
+
+        let grad_sub_stage = gfx::reflect::ReflectedGraphics::new(
+            &device,
+            &basic_vertex,
+            Some(&grad_sub_fragment),
+            None,
+            rasterizer,
+            &[gpu::BlendState::REPLACE],
+            depth_state,
+            None,
+        )?;
+
+        let grad_sub_bundle_a = grad_sub_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_velocity", &vel_a)?
+            .set_resource("u_pressure", &pressure_a)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        let grad_sub_bundle_b = grad_sub_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_velocity", &vel_b)?
+            .set_resource("u_pressure", &pressure_b)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        // display
+        // =======================================================================
+        // =======================================================================
+
+        let display_stage = gfx::reflect::ReflectedGraphics::new(
+            &device,
+            &basic_vertex,
+            Some(&display_fragment),
+            None,
+            rasterizer,
+            &[gpu::BlendState::REPLACE],
+            depth_state,
+            None,
+        )?;
+
+        let display_bundle_a = display_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_ink", &ink_a)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        let display_bundle_b = display_stage
+            .bundle()
+            .unwrap()
+            .set_resource("u_vertex_params", &vertex_params)?
+            .set_resource("u_ink", &ink_b)?
+            .set_sampler_ref("u_sampler", &sampler)?
+            .build(&device)?;
+
+        // =======================================================================
+        // =======================================================================
+
+        let extent = swapchain.extent();
+
+        Ok(Self {
+            instance,
+            surface,
+            device,
+            swapchain,
+            mesh,
+            command,
+
+            splat_update_needed: false,
+            start_time: std::time::Instant::now(),
+            prev_time: std::time::Instant::now(),
+            paused: false,
+            rng: rand::thread_rng(),
+            color_change: true,
+
+            width: extent.width,
+            height: extent.height,
+
+            vel_a,
+            vel_b,
+            pressure_a,
+            pressure_b,
+            ink_a,
+            ink_b,
+            curl,
+            divergence,
+
+            vertex_params,
+            ink_splat_params,
+            vel_splat_params,
+            advect_vel_params,
+            advect_ink_params,
+            vorticity_params,
+            clear_params,
+
+            sampler,
+
+            splat_stage,
+            vel_splat_bundle_a,
+            vel_splat_bundle_b,
+            ink_splat_bundle_a,
+            ink_splat_bundle_b,
+
+            advection_stage,
+            advect_vel_bundle_a,
+            advect_vel_bundle_b,
+            advect_ink_bundle_a,
+            advect_ink_bundle_b,
+
+            divergence_stage,
+            divergence_bundle_a,
+            divergence_bundle_b,
+
+            curl_stage,
+            curl_bundle_a,
+            curl_bundle_b,
+
+            vorticity_stage,
+            vorticity_bundle_a,
+            vorticity_bundle_b,
+
+            clear_stage,
+            clear_bundle_a,
+            clear_bundle_b,
+
+            pressure_stage,
+            pressure_bundle_a,
+            pressure_bundle_b,
+
+            grad_sub_stage,
+            grad_sub_bundle_a,
+            grad_sub_bundle_b,
+
+            display_stage,
+            display_bundle_a,
+            display_bundle_b,
+        })
     }
 
-    fn redraw(&mut self, helper: &WinitInputHelper) -> Result<(), anyhow::Error> {
-        todo!();
+    pub fn update_pass<'a>(
+        encoder: &mut gfx::CommandEncoder<'a>,
+        device: &gpu::Device,
+        mesh: &'a gfx::IndexedMesh<Vertex>,
+        graphics: &gfx::reflect::ReflectedGraphics,
+        bundle: &gfx::reflect::Bundle,
+        output: &gpu::TextureView,
+    ) -> Result<(), anyhow::Error> {
+        let mut pass = encoder.graphics_pass_reflected(
+            &device,
+            &[
+                gfx::Attachment {
+                    raw: gpu::Attachment::View(
+                        Cow::Owned(output.clone()), 
+                        gpu::ClearValue::ColorFloat([0.0; 4])
+                    ),
+                    load: gpu::LoadOp::DontCare,
+                    store: gpu::StoreOp::Store,
+                }
+            ],
+            &[],
+            None,
+            graphics,
+        )?;
+        pass.set_bundle_owned(&bundle);
+        pass.draw_mesh_ref(mesh);
+        Ok(())
+    }
+
+    pub fn redraw(&mut self, helper: &WinitInputHelper) -> Result<(), anyhow::Error> {
+        let dt = self.prev_time.elapsed().as_secs_f32();
+        self.prev_time = std::time::Instant::now();
+
+        if helper.key_pressed(VirtualKeyCode::Space) {
+            self.paused = !self.paused;
+        }
+
+        if helper.key_pressed(VirtualKeyCode::Tab) {
+            self.color_change = !self.color_change;
+        }
+
+        if let Some(_) = helper.window_resized() {
+            self.swapchain.recreate(&self.device)?;
+        }
+
+        let (frame, _) = self.swapchain.acquire(!0)?;
+
+        let mut encoder = gfx::CommandEncoder::new();
+
+        self.advect_ink_params.data.dt = dt;
+        self.advect_vel_params.data.dt = dt;
+        self.vorticity_params.data.dt = dt;
+
+        self.advect_ink_params.update_gpu_ref(&mut encoder);
+        self.advect_vel_params.update_gpu_ref(&mut encoder);
+        self.vorticity_params.update_gpu_ref(&mut encoder);
+
+        if self.color_change {
+            if self.start_time.elapsed().as_secs_f32() % COLOR_TIME <= 0.02 {
+                let h = self.rng.gen_range(0.0..1.0);
+                let (r, g, b) = hsv_to_rgb(h, 1.0, 1.0);
+                self.ink_splat_params.data.color = [0.5 * r, 0.5 * g, 0.5 * b];
+            }
+        } else {
+            if helper.mouse_released(0) {
+                let h = self.rng.gen_range(0.0..1.0);
+                let (r, g, b) = hsv_to_rgb(h, 1.0, 1.0);
+                self.ink_splat_params.data.color = [0.5 * r, 0.5 * g, 0.5 * b];
+            }
+        }
+
+        // apply force and color from user input
+        if helper.mouse_held(0) {
+            // get mouse data
+            let (mut dx, mut dy) = helper.mouse_diff();
+            let (mut x, mut y) = helper.mouse().unwrap();
+            // scale to be texture coordinates
+            let w = self.width as f32;
+            let h = self.height as f32;
+            x = x / w;
+            y = y / h;
+            dx = dx / w;
+            dy = dy / h;
+
+            self.vel_splat_params.data.color = [dx * SPLAT_FORCE, dy * SPLAT_FORCE, 0.0];
+            self.vel_splat_params.data.point = [x, y];
+
+            self.ink_splat_params.data.point = [x, y];
+
+            self.ink_splat_params.update_gpu_ref(&mut encoder);
+            self.vel_splat_params.update_gpu_ref(&mut encoder);
+
+            // apply force to velocity
+            Self::update_pass(
+                &mut encoder,
+                &self.device,
+                &self.mesh,
+                &self.splat_stage,
+                &self.vel_splat_bundle_b,
+                &self.vel_a.view,
+            )?;
+
+            swap_vel!(self);
+
+            // apply color into ink
+            Self::update_pass(
+                &mut encoder,
+                &self.device,
+                &self.mesh,
+                &mut self.splat_stage,
+                &self.ink_splat_bundle_b,
+                &self.ink_a.view,
+            )?;
+
+            swap_ink!(self);
+        }
+
+        // integration
+        if !self.paused {
+            // curl
+            Self::update_pass(
+                &mut encoder,
+                &self.device,
+                &self.mesh,
+                &mut self.curl_stage,
+                &self.curl_bundle_a,
+                &self.curl.view,
+            )?;
+
+            // vorticity
+            Self::update_pass(
+                &mut encoder,
+                &self.device,
+                &self.mesh,
+                &mut self.vorticity_stage,
+                &self.vorticity_bundle_b,
+                &self.vel_a.view,
+            )?;
+
+            swap_vel!(self);
+
+            // divergence
+            Self::update_pass(
+                &mut encoder,
+                &self.device,
+                &self.mesh,
+                &mut self.divergence_stage,
+                &self.divergence_bundle_b,
+                &self.divergence.view,
+            )?;
+
+            // clear
+            Self::update_pass(
+                &mut encoder,
+                &self.device,
+                &self.mesh,
+                &mut self.clear_stage,
+                &self.clear_bundle_b,
+                &self.pressure_a.view,
+            )?;
+
+            swap_pressure!(self);
+
+            // pressure
+            for _ in 0..PRESSURE_ITERATIONS {
+                Self::update_pass(
+                    &mut encoder,
+                    &self.device,
+                    &self.mesh,
+                    &self.pressure_stage,
+                    &self.pressure_bundle_b,
+                    &self.pressure_a.view,
+                )?;
+
+                swap_pressure!(self);
+            }
+
+            // grad_sub
+            Self::update_pass(
+                &mut encoder,
+                &self.device,
+                &self.mesh,
+                &mut self.grad_sub_stage,
+                &mut self.grad_sub_bundle_b,
+                &self.vel_a.view,
+            )?;
+
+            swap_vel!(self);
+
+            // advect velocity
+            Self::update_pass(
+                &mut encoder,
+                &self.device,
+                &self.mesh,
+                &self.advection_stage,
+                &mut self.advect_vel_bundle_b,
+                &self.vel_a.view,
+            )?;
+
+            swap_vel!(self);
+
+            // advect ink
+            Self::update_pass(
+                &mut encoder,
+                &self.device,
+                &self.mesh,
+                &mut self.advection_stage,
+                &mut self.advect_ink_bundle_b,
+                &self.ink_a.view,
+            )?;
+
+            swap_ink!(self);
+        }
+        
+        let mut pass = encoder.graphics_pass_reflected(
+            &self.device,
+            &[
+                gfx::Attachment {
+                    raw: gpu::Attachment::Swapchain(
+                        &frame, 
+                        gpu::ClearValue::ColorFloat([0.0; 4]),
+                    ),
+                    load: gpu::LoadOp::DontCare,
+                    store: gpu::StoreOp::Store,
+                }
+            ],
+            &[],
+            None,
+            &mut self.display_stage,
+        )?;
+        pass.set_bundle_owned(&self.display_bundle_a);
+        pass.draw_mesh_ref(&self.mesh);
+        pass.finish();
+
+        encoder.submit(&mut self.command, true)?;
+
+        self.swapchain.present(frame)?;
+
+        Ok(())
     }
 }
 
