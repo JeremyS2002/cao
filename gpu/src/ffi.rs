@@ -49,7 +49,7 @@ pub(crate) unsafe extern "system" fn vulkan_debug_utils_callback(
         _ => (),
     }
 
-    println!("[Debug]{:?}{}{:?}", message_severity, ty, message);
+    //println!("[Debug]{:?}{}{:?}", message_severity, ty, message);
 
     vk::FALSE
 }
