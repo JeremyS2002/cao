@@ -23,7 +23,7 @@ pub(crate) fn parse_vertex_states(
                 if *i.built_in == spirv_headers::BuiltIn::Position {
                     let vertex_format = match i.format {
                         spirv_reflect::types::image::ReflectFormat::R32_SFLOAT => {
-                            gpu::VertexFormat::Float1
+                            gpu::VertexFormat::Float
                         }
                         spirv_reflect::types::image::ReflectFormat::R32G32_SFLOAT => {
                             gpu::VertexFormat::Vec2

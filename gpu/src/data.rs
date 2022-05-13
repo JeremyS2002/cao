@@ -39,15 +39,17 @@ bitflags::bitflags! {
         const SAMPLER_ANISOTROPY    = 0b000000000000000100000000000;
         /// Allows multisampled images to be used as storage images
         const MULTISAMPLE_STORAGE   = 0b000000000000001000000000000;
-        /// Allows usage of 64 bit variables in shaders
-        const SHADER_64             = 0b000000000000010000000000000;
+        /// Allows usage of 64 bit floating point variables in shaders
+        const SHADER_FLOAT_64       = 0b000000000000010000000000000;
+        /// Allows usage of 64 bit integers in shader
+        const SHADER_INT_64         = 0b000000000000100000000000000;
         /// Allows usage of 16 bit variables in shaders
-        const SHADER_16             = 0b000000000000100000000000000;
+        const SHADER_INT_16         = 0b000000000001000000000000000;
         /// Allows the use of depth clamping
         /// (fragments outside the frustrum are clipped to max depth instead of being discarded)
-        const DEPTH_CLAMP           = 0b000000000001000000000000000;
+        const DEPTH_CLAMP           = 0b000000000010000000000000000;
         /// Allows variable rate shading
-        const VARIABLE_RATE_SHADING = 0b000000000010000000000000000;
+        const VARIABLE_RATE_SHADING = 0b000000000100000000000000000;
 
         /// Device supports all types of operations
         const BASE = Self::GRAPHICS.bits | Self::COMPUTE.bits | Self::TRANSFER.bits;
@@ -71,9 +73,9 @@ impl Into<vk::PhysicalDeviceFeatures> for DeviceFeatures {
             shader_storage_image_multisample: self
                 .contains(DeviceFeatures::MULTISAMPLE_STORAGE)
                 .into(),
-            shader_float64: self.contains(DeviceFeatures::SHADER_64).into(),
-            shader_int64: self.contains(DeviceFeatures::SHADER_64).into(),
-            shader_int16: self.contains(DeviceFeatures::SHADER_16).into(),
+            shader_float64: self.contains(DeviceFeatures::SHADER_FLOAT_64).into(),
+            shader_int64: self.contains(DeviceFeatures::SHADER_INT_64).into(),
+            shader_int16: self.contains(DeviceFeatures::SHADER_INT_16).into(),
             depth_clamp: self.contains(DeviceFeatures::DEPTH_CLAMP).into(),
             sample_rate_shading: self.contains(DeviceFeatures::VARIABLE_RATE_SHADING).into(),
             shader_uniform_buffer_array_dynamic_indexing: vk::TRUE,
@@ -1222,7 +1224,11 @@ pub enum VertexFormat {
     /// Input a float
     ///
     /// In glsl looks like `layout(location = _) in float in_f;
-    Float1,
+    Float,
+    // /// Input a double
+    // /// 
+    // /// In glsl looks like `layout(location = _) in double in_d;
+    // Double,
     /// Input a Vec2
     ///
     /// In glsl looks like `layout(location = _) in vec2 in_v2;
@@ -1235,15 +1241,31 @@ pub enum VertexFormat {
     ///
     /// In glsl looks like `layout(location = _) in vec4 in_v4;
     Vec4,
+    // /// Input a dvec2
+    // /// 
+    // /// In glsl looks like `layout(location = _) in dvec2 in_dv2;
+    // DVec2,
+    // /// Input a dvec3
+    // /// 
+    // /// In glsl looks like `layout(location = _) in dvec3 in_dv3;
+    // DVec3,
+    // /// Input a dvec4
+    // /// 
+    // /// In glsl looks like `layout(location = _) in dvec4 in_dv4;
+    // DVec4,
 }
 
 impl Into<vk::Format> for VertexFormat {
     fn into(self) -> vk::Format {
         match self {
-            Self::Float1 => vk::Format::R32_SFLOAT,
+            Self::Float => vk::Format::R32_SFLOAT,
+            // Self::Double => vk::Format::R64_SFLOAT,
             Self::Vec2 => vk::Format::R32G32_SFLOAT,
             Self::Vec3 => vk::Format::R32G32B32_SFLOAT,
             Self::Vec4 => vk::Format::R32G32B32A32_SFLOAT,
+            // Self::DVec2 => vk::Format::R64G64_SFLOAT,
+            // Self::DVec3 => vk::Format::R64G64B64_SFLOAT,
+            // Self::DVec4 => vk::Format::R64G64B64A64_SFLOAT,
         }
     }
 }
