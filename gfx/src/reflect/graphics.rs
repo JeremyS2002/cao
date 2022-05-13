@@ -29,6 +29,7 @@ impl std::cmp::PartialEq for GraphicsPipelineKey {
             && self.viewport.height == other.viewport.height
             && self.viewport.min_depth.to_bits() == other.viewport.min_depth.to_bits()
             && self.viewport.max_depth.to_bits() == other.viewport.max_depth.to_bits()
+            && self.pass_hash == other.pass_hash
     }
 }
 

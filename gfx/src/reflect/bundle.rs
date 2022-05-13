@@ -824,7 +824,7 @@ impl<'a> BundleBuilder<'a> {
                             binding += 1;
                             e.clone()
                         } else {
-                            panic!("ERROR: Call to build on bundle without setting all fields\nMissing set: {} binding: {}", set, binding)
+                            panic!("ERROR: Call to build on bundle from Parent ({} {:?}) without setting all fields\nMissing set: {} binding: {}", self.parent_id, self.parent_name, set, binding)
                         }
                     })
                     .collect::<Vec<_>>();

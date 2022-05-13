@@ -319,8 +319,8 @@ impl<'a> Command<'a> {
                                 .insert((view.texture().clone(), i, j), c.initial_layout)
                             {
                                 panic!(
-                                    "ERROR: GraphicsPass uses texture {:?} as multiple attachments",
-                                    view.texture()
+                                    "ERROR: GraphicsPass {:?} uses texture {:?} as multiple attachments",
+                                    pipeline, view.texture()
                                 );
                             }
                         }
@@ -337,8 +337,8 @@ impl<'a> Command<'a> {
                                 .insert((view.texture().clone(), i, j), c.initial_layout)
                             {
                                 panic!(
-                                    "ERROR: GraphicsPass uses texture {:?} as multiple attachments",
-                                    view.texture()
+                                    "ERROR: GraphicsPass {:?} uses texture {:?} as multiple attachments",
+                                    pipeline, view.texture()
                                 );
                             }
                         }
@@ -356,8 +356,8 @@ impl<'a> Command<'a> {
                                 .insert((view.texture().clone(), i, j), d.initial_layout)
                             {
                                 panic!(
-                                    "ERROR: GraphicsPass uses texture {:?} as multiple attachments",
-                                    view.texture()
+                                    "ERROR: GraphicsPass {:?} uses texture {:?} as multiple attachments",
+                                    pipeline, view.texture()
                                 );
                             }
                         }
@@ -368,7 +368,7 @@ impl<'a> Command<'a> {
                     for (texture, layout) in command.textures() {
                         if let Some(l) = command_map.insert(texture, layout) {
                             if layout != l {
-                                panic!("ERROR: GraphicsPass uses texture with different layouts {:?} and {:?}", layout, l);
+                                panic!("ERROR: GraphicsPass {:?} uses texture with different layouts {:?} and {:?}", pipeline, layout, l);
                             }
                         }
                     }
@@ -376,8 +376,8 @@ impl<'a> Command<'a> {
                 for (texture, layout) in command_map {
                     if let Some(l) = result.insert(texture, layout) {
                         panic!(
-                            "ERROR: GraphicsPass uses texture with different layouts {:?} and {:?}",
-                            layout, l
+                            "ERROR: GraphicsPass {:?} uses texture with different layouts {:?} and {:?}",
+                            pipeline, layout, l
                         );
                     }
                 }

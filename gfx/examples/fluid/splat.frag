@@ -9,15 +9,12 @@ layout(set = 1, binding = 0) uniform SplatParams {
     float radius;
     vec2 point;
     vec3 color;
+    float mul;
 } u_params;
-
-layout(set = 2, binding = 0) uniform texture2D u_target;
-layout(set = 2, binding = 1) uniform sampler u_sampler;
 
 void main() {
     vec2 p = in_uv - u_params.point;
     p.x *= u_params.aspect_ratio;
-    vec3 splat = exp(-dot(p, p) / u_params.radius) * u_params.color;
-    vec3 base = texture(sampler2D(u_target, u_sampler), in_uv).xyz;
-    out_color = base + splat;
+    vec3 splat = u_params.mul * exp(-dot(p, p) / u_params.radius) * u_params.color;
+    out_color = splat;
 }
