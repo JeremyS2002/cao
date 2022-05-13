@@ -303,12 +303,6 @@ impl<'a> CommandEncoder<'a> {
         depth_desc.hash(&mut hasher);
         let pass_hash = hasher.finish();
 
-        for c in &colors_desc {
-            println!("{:?}", c);
-        }
-
-        println!("{}", pass_hash);
-
         let viewport = gpu::Viewport {
             x: 0,
             y: 0,
@@ -327,9 +321,10 @@ impl<'a> CommandEncoder<'a> {
 
         if let None = c.get(&key) {
             drop(c);
+            let pass_name = graphics.pipeline_data.name.as_ref().map(|n| format!("{}_pass_{}", n, pass_hash));
 
             let pass = device.create_render_pass(&gpu::RenderPassDesc {
-                name: None,
+                name: pass_name,
                 colors: &colors_desc,
                 resolves: &resolves_desc,
                 depth: depth_desc,
@@ -344,8 +339,10 @@ impl<'a> CommandEncoder<'a> {
 
             let vertex_states = &[vertex_state];
 
+            let pipeline_name = graphics.pipeline_data.name.as_ref().map(|n| format!("{}_pipeline", n));
+
             let mut desc = gpu::GraphicsPipelineDesc {
-                name: None,
+                name: pipeline_name,
                 layout: &graphics.pipeline_data.layout,
                 pass: &pass,
                 vertex: &graphics.pipeline_data.vertex,

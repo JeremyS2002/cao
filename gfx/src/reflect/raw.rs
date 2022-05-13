@@ -55,6 +55,7 @@ pub(crate) fn parse_vertex_states(
 pub(crate) fn combine_descriptor_set_layouts(
     device: &gpu::Device,
     descriptor_set_layouts: HashMap<u32, HashMap<u32, gpu::DescriptorLayoutEntry>>,
+    name: &Option<String>,
 ) -> Result<(Vec<gpu::DescriptorLayout>, Vec<Vec<super::ResourceType>>), gpu::Error> {
     // sort the hashmaps into ordered vecs
     let mut sorted = descriptor_set_layouts
@@ -113,14 +114,18 @@ pub(crate) fn combine_descriptor_set_layouts(
         })
         .collect::<Vec<_>>();
 
+    let mut i = 0;
     // create descriptor set layouts from the entries
     let descriptor_set_layouts = sorted
         .into_iter()
         .map(|v| {
-            device.create_descriptor_layout(&gpu::DescriptorLayoutDesc {
-                name: None,
+            let layout_name = name.as_ref().map(|n| format!("{}_descriptor_layout_{}", n, i));
+            let l = device.create_descriptor_layout(&gpu::DescriptorLayoutDesc {
+                name: layout_name,
                 entries: &v,
-            })
+            });
+            i += 1;
+            l
         })
         .collect::<Result<Vec<_>, _>>()?;
 

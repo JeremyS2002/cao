@@ -43,6 +43,7 @@ impl std::hash::Hash for GraphicsPipelineKey {
         self.viewport.height.hash(state);
         self.viewport.min_depth.to_bits().hash(state);
         self.viewport.max_depth.to_bits().hash(state);
+        self.pass_hash.hash(state);
     }
 }
 
@@ -152,14 +153,19 @@ impl ReflectedGraphics {
             spirv_reflect::types::variable::ReflectShaderStageFlags::VERTEX,
         )?;
         let vertex_map = super::raw::parse_vertex_states(vertex, &vertex_entry)?;
+
+        let vertex_name = name.as_ref().map(|n| format!("{}_vertex_module", n));
+
         let vertex_module = device.create_shader_module(&gpu::ShaderModuleDesc {
             entries: &[(gpu::ShaderStages::VERTEX, &vertex_entry)],
             spirv: vertex,
-            name: None,
+            name: vertex_name,
         })?;
 
         let geometry_module = if let Some(geometry) = geometry {
             super::raw::check_stage_compatibility(vertex, "vertex", geometry, "geometry")?;
+
+            let geometry_name = name.as_ref().map(|n| format!("{}_geometry_module", n));
 
             let entry = super::raw::parse_spirv(
                 &mut descriptor_set_layouts,
@@ -172,7 +178,7 @@ impl ReflectedGraphics {
             Some(device.create_shader_module(&gpu::ShaderModuleDesc {
                 entries: &[(gpu::ShaderStages::GEOMETRY, &entry)],
                 spirv: geometry,
-                name: None,
+                name: geometry_name,
             })?)
         } else {
             None
@@ -190,6 +196,8 @@ impl ReflectedGraphics {
                 super::raw::check_stage_compatibility(vertex, "vertex", fragment, "fragment")?;
             }
 
+            let fragment_name = name.as_ref().map(|n| format!("{}_fragment_module", n));
+
             let entry = super::raw::parse_spirv(
                 &mut descriptor_set_layouts,
                 &mut descriptor_set_names,
@@ -201,17 +209,19 @@ impl ReflectedGraphics {
             Some(device.create_shader_module(&gpu::ShaderModuleDesc {
                 entries: &[(gpu::ShaderStages::FRAGMENT, &entry)],
                 spirv: fragment,
-                name: None,
+                name: fragment_name,
             })?)
         } else {
             None
         };
 
         let (descriptor_set_layouts, descriptor_set_types) =
-            super::raw::combine_descriptor_set_layouts(device, descriptor_set_layouts)?;
+            super::raw::combine_descriptor_set_layouts(device, descriptor_set_layouts, &name)?;
+
+        let pipeline_layout_name = name.as_ref().map(|n| format!("{}_pipeline_layout", n));
 
         let pipeline_layout = device.create_pipeline_layout(&gpu::PipelineLayoutDesc {
-            name: None,
+            name: pipeline_layout_name,
             descriptor_sets: &descriptor_set_layouts.iter().collect::<Vec<_>>(),
             push_constants: &push_constants,
         })?;

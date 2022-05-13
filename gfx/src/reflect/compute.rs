@@ -30,7 +30,7 @@ impl ReflectedCompute {
     pub fn new(
         device: &gpu::Device,
         compute: &[u32],
-        name: Option<&str>,
+        name: Option<String>,
     ) -> Result<Self, error::ReflectedError> {
         let mut descriptor_set_layouts = HashMap::new();
         let mut descriptor_set_names = HashMap::new();
@@ -44,17 +44,22 @@ impl ReflectedCompute {
             compute,
             spirv_reflect::types::variable::ReflectShaderStageFlags::COMPUTE,
         )?;
+
+        let module_name = name.as_ref().map(|n| format!("{}_shader_module", n));
+
         let module = device.create_shader_module(&gpu::ShaderModuleDesc {
-            name: None,
+            name: module_name,
             entries: &[(gpu::ShaderStages::COMPUTE, &entry)],
             spirv: compute,
         })?;
 
         let (descriptor_set_layouts, descriptor_set_types) =
-            super::raw::combine_descriptor_set_layouts(device, descriptor_set_layouts)?;
+            super::raw::combine_descriptor_set_layouts(device, descriptor_set_layouts, &name)?;
+
+        let pipeline_layout_name = name.as_ref().map(|n| format!("{}_pipeline_layout", n));
 
         let pipeline_layout = device.create_pipeline_layout(&gpu::PipelineLayoutDesc {
-            name: None,
+            name: pipeline_layout_name,
             descriptor_sets: &descriptor_set_layouts.iter().collect::<Vec<_>>(),
             push_constants: &push_constants,
         })?;
