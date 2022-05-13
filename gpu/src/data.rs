@@ -2705,9 +2705,12 @@ pub struct DepthAttachmentDesc {
     pub final_layout: crate::TextureLayout,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Attachment<'a> {
-    View(&'a crate::TextureView, crate::ClearValue),
+    /// Render to a texture view
+    View(Cow<'a, crate::TextureView>, crate::ClearValue),
+    /// Render to the swapchain
+    /// (Doesn't make sense to own the view as then it can't be presented)
     Swapchain(&'a crate::SwapchainView<'a>, crate::ClearValue),
 }
 
@@ -2719,9 +2722,9 @@ impl<'a> Attachment<'a> {
         }
     }
 
-    pub fn view(&self) -> &'a crate::TextureView {
+    pub fn view(&self) -> &crate::TextureView {
         match self {
-            Self::View(v, _) => v,
+            Self::View(v, _) => &*v,
             Self::Swapchain(s, _) => s.view,
         }
     }
