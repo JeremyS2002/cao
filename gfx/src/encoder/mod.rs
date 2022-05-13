@@ -77,7 +77,7 @@ impl<'a> CommandEncoder<'a> {
                     array_layers: 1,
                     base_mip_level: mip,
                     mip_levels: 1,
-                    texture: t,
+                    texture: Cow::Owned(t),
                 }
             })
             .collect::<Vec<_>>();
@@ -303,6 +303,12 @@ impl<'a> CommandEncoder<'a> {
         depth_desc.hash(&mut hasher);
         let pass_hash = hasher.finish();
 
+        for c in &colors_desc {
+            println!("{:?}", c);
+        }
+
+        println!("{}", pass_hash);
+
         let viewport = gpu::Viewport {
             x: 0,
             y: 0,
@@ -476,7 +482,7 @@ impl<'a> CommandEncoder<'a> {
                         for j in texture.base_array_layer
                             ..(texture.base_array_layer + texture.array_layers)
                         {
-                            let key = (texture.texture.clone(), i, j);
+                            let key = ((*texture.texture).clone(), i, j);
                             if let Some((a, s, l)) = forward_texture.get_mut(&key) {
                                 *src_stage |= *s;
                                 texture.src_access = *a;
@@ -542,7 +548,7 @@ impl<'a> CommandEncoder<'a> {
                         for j in texture.base_array_layer
                             ..(texture.base_array_layer + texture.array_layers)
                         {
-                            let key = (texture.texture.clone(), i, j);
+                            let key = ((*texture.texture).clone(), i, j);
                             if let Some((a, s, l)) = back_texture.get_mut(&key) {
                                 *dst_stage |= *s;
                                 texture.dst_access = *a;
@@ -604,7 +610,7 @@ impl<'a> CommandEncoder<'a> {
                             array_layers: 1,
                             base_mip_level: mip,
                             mip_levels: 1,
-                            texture: t.to_owned(),
+                            texture: Cow::Owned(t),
                         })
                     } else {
                         None

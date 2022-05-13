@@ -140,7 +140,7 @@ impl<'a> Command<'a> {
                 command_buffer.begin_graphics_pass(
                     color_attachments,
                     resolve_attachments,
-                    *depth_attachment,
+                    depth_attachment.clone(),
                     pipeline,
                 )?;
                 for command in commands {
@@ -153,7 +153,7 @@ impl<'a> Command<'a> {
     }
 
     /// produces textures and what layout they are in after the call
-    pub fn layout_changes(&self) -> Vec<(Cow<'a, gpu::Texture>, u32, u32, gpu::TextureLayout)> {
+    pub fn layout_changes(&self) -> Vec<(gpu::Texture, u32, u32, gpu::TextureLayout)> {
         let mut result = Vec::new();
         match self {
             Command::GraphicsPass {
@@ -171,7 +171,7 @@ impl<'a> Command<'a> {
                         for j in
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
-                            result.push((Cow::Borrowed(view.texture()), i, j, c.final_layout));
+                            result.push((view.texture().clone(), i, j, c.final_layout));
                         }
                     }
                 }
@@ -184,7 +184,7 @@ impl<'a> Command<'a> {
                         for j in
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
-                            result.push((Cow::Borrowed(view.texture()), i, j, r.final_layout));
+                            result.push((view.texture().clone(), i, j, r.final_layout));
                         }
                     }
                 }
@@ -197,7 +197,7 @@ impl<'a> Command<'a> {
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
                             result.push((
-                                Cow::Borrowed(view.texture()),
+                                view.texture().clone(),
                                 i,
                                 j,
                                 pipeline.pass().depth().unwrap().final_layout,
@@ -213,7 +213,7 @@ impl<'a> Command<'a> {
     }
 
     /// Get all the textures referenced by the command represented by self and the layout they should be in
-    pub fn textures(&self) -> HashMap<(Cow<'a, gpu::Texture>, u32, u32), gpu::TextureLayout> {
+    pub fn textures(&self) -> HashMap<(gpu::Texture, u32, u32), gpu::TextureLayout> {
         let mut result = HashMap::new();
         match self {
             Command::ClearTexture {
@@ -224,14 +224,7 @@ impl<'a> Command<'a> {
                     for j in texture.base_array_layer()
                         ..(texture.base_array_layer() + texture.array_layers())
                     {
-                        match texture.cow_texture() {
-                            Cow::Borrowed(t) => {
-                                result.insert((Cow::Borrowed(*t), i, j), *layout);
-                            }
-                            Cow::Owned(t) => {
-                                result.insert((Cow::Owned(t.clone()), i, j), *layout);
-                            }
-                        }
+                        result.insert((texture.texture().clone(), i, j), *layout);
                     }
                 }
             }
@@ -243,26 +236,12 @@ impl<'a> Command<'a> {
             } => {
                 for i in src.base_mip_level()..(src.base_mip_level() + src.mip_levels()) {
                     for j in src.base_array_layer()..(src.base_array_layer() + src.array_layers()) {
-                        match src.cow_texture() {
-                            Cow::Borrowed(t) => {
-                                result.insert((Cow::Borrowed(*t), i, j), *src_layout);
-                            }
-                            Cow::Owned(t) => {
-                                result.insert((Cow::Owned(t.clone()), i, j), *src_layout);
-                            }
-                        }
+                        result.insert((src.texture().clone(), i, j), *src_layout);
                     }
                 }
                 for i in dst.base_mip_level()..(dst.base_mip_level() + dst.mip_levels()) {
                     for j in dst.base_array_layer()..(dst.base_array_layer() + dst.array_layers()) {
-                        match dst.cow_texture() {
-                            Cow::Borrowed(t) => {
-                                result.insert((Cow::Borrowed(*t), i, j), *dst_layout);
-                            }
-                            Cow::Owned(t) => {
-                                result.insert((Cow::Owned(t.clone()), i, j), *dst_layout);
-                            }
-                        }
+                        result.insert((dst.texture().clone(), i, j), *dst_layout);
                     }
                 }
             }
@@ -275,32 +254,10 @@ impl<'a> Command<'a> {
             } => {
                 // only need to track base mip level as only base will be used for this command
                 for i in src.base_array_layer()..(src.base_array_layer() + src.array_layers()) {
-                    match src.cow_texture() {
-                        Cow::Borrowed(t) => {
-                            result
-                                .insert((Cow::Borrowed(*t), src.base_mip_level(), i), *src_layout);
-                        }
-                        Cow::Owned(t) => {
-                            result.insert(
-                                (Cow::Owned(t.clone()), src.base_mip_level(), i),
-                                *src_layout,
-                            );
-                        }
-                    }
+                    result.insert((src.texture().clone(), src.base_mip_level(), i), *src_layout);
                 }
                 for i in dst.base_array_layer()..(dst.base_array_layer() + dst.array_layers()) {
-                    match dst.cow_texture() {
-                        Cow::Borrowed(t) => {
-                            result
-                                .insert((Cow::Borrowed(*t), dst.base_mip_level(), i), *dst_layout);
-                        }
-                        Cow::Owned(t) => {
-                            result.insert(
-                                (Cow::Owned(t.clone()), dst.base_mip_level(), i),
-                                *dst_layout,
-                            );
-                        }
-                    }
+                    result.insert((dst.texture().clone(), dst.base_mip_level(), i), *dst_layout);
                 }
             }
             Command::CopyTextureToTexture {
@@ -309,34 +266,11 @@ impl<'a> Command<'a> {
                 dst,
                 dst_layout,
             } => {
-                // only need to track base mip level as only base will be used for this command
                 for i in src.base_array_layer()..(src.base_array_layer() + src.array_layers()) {
-                    match src.cow_texture() {
-                        Cow::Borrowed(t) => {
-                            result
-                                .insert((Cow::Borrowed(*t), src.base_mip_level(), i), *src_layout);
-                        }
-                        Cow::Owned(t) => {
-                            result.insert(
-                                (Cow::Owned(t.clone()), src.base_mip_level(), i),
-                                *src_layout,
-                            );
-                        }
-                    }
+                    result.insert((src.texture().clone(), src.base_mip_level(), i), *src_layout);
                 }
                 for i in dst.base_array_layer()..(dst.base_array_layer() + dst.array_layers()) {
-                    match dst.cow_texture() {
-                        Cow::Borrowed(t) => {
-                            result
-                                .insert((Cow::Borrowed(*t), dst.base_mip_level(), i), *dst_layout);
-                        }
-                        Cow::Owned(t) => {
-                            result.insert(
-                                (Cow::Owned(t.clone()), dst.base_mip_level(), i),
-                                *dst_layout,
-                            );
-                        }
-                    }
+                    result.insert((dst.texture().clone(), dst.base_mip_level(), i), *dst_layout);
                 }
             }
             Command::CopyBufferToTexture {
@@ -344,18 +278,7 @@ impl<'a> Command<'a> {
             } => {
                 // only need to track base mip level as only base will be used for this command
                 for i in dst.base_array_layer()..(dst.base_array_layer() + dst.array_layers()) {
-                    match dst.cow_texture() {
-                        Cow::Borrowed(t) => {
-                            result
-                                .insert((Cow::Borrowed(*t), dst.base_mip_level(), i), *dst_layout);
-                        }
-                        Cow::Owned(t) => {
-                            result.insert(
-                                (Cow::Owned(t.clone()), dst.base_mip_level(), i),
-                                *dst_layout,
-                            );
-                        }
-                    }
+                    result.insert((dst.texture().clone(), dst.base_mip_level(), i), *dst_layout);
                 }
             }
             Command::CopyTextureToBuffer {
@@ -363,18 +286,7 @@ impl<'a> Command<'a> {
             } => {
                 // only need to track base mip level as only base will be used for this command
                 for i in src.base_array_layer()..(src.base_array_layer() + src.array_layers()) {
-                    match src.cow_texture() {
-                        Cow::Borrowed(t) => {
-                            result
-                                .insert((Cow::Borrowed(*t), src.base_mip_level(), i), *src_layout);
-                        }
-                        Cow::Owned(t) => {
-                            result.insert(
-                                (Cow::Owned(t.clone()), src.base_mip_level(), i),
-                                *src_layout,
-                            );
-                        }
-                    }
+                    result.insert((src.texture().clone(), src.base_mip_level(), i), *src_layout);
                 }
             }
             Command::ComputePass { commands, .. } => {
@@ -404,7 +316,7 @@ impl<'a> Command<'a> {
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
                             if let Some(_) = result
-                                .insert((Cow::Borrowed(view.texture()), i, j), c.initial_layout)
+                                .insert((view.texture().clone(), i, j), c.initial_layout)
                             {
                                 panic!(
                                     "ERROR: GraphicsPass uses texture {:?} as multiple attachments",
@@ -422,7 +334,7 @@ impl<'a> Command<'a> {
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
                             if let Some(_) = result
-                                .insert((Cow::Borrowed(view.texture()), i, j), c.initial_layout)
+                                .insert((view.texture().clone(), i, j), c.initial_layout)
                             {
                                 panic!(
                                     "ERROR: GraphicsPass uses texture {:?} as multiple attachments",
@@ -441,7 +353,7 @@ impl<'a> Command<'a> {
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
                             if let Some(_) = result
-                                .insert((Cow::Borrowed(view.texture()), i, j), d.initial_layout)
+                                .insert((view.texture().clone(), i, j), d.initial_layout)
                             {
                                 panic!(
                                     "ERROR: GraphicsPass uses texture {:?} as multiple attachments",

@@ -1,4 +1,6 @@
 
+use std::borrow::Cow;
+
 use winit_input_helper::WinitInputHelper;
 
 use winit::{
@@ -315,7 +317,7 @@ impl Fractal {
             &[
                 gfx::Attachment {
                     raw: gpu::Attachment::View(
-                        &self.target.view, 
+                        Cow::Borrowed(&self.target.view), 
                         gpu::ClearValue::ColorFloat([0.0; 4]),
                     ),
                     load: gpu::LoadOp::DontCare,

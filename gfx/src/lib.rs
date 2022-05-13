@@ -15,7 +15,7 @@ pub use storage::*;
 pub use texture::*;
 pub use uniform::*;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Attachment<'a> {
     pub raw: gpu::Attachment<'a>,
     pub load: gpu::LoadOp,

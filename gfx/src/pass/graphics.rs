@@ -162,43 +162,22 @@ impl<'a> GraphicsPassCommand<'a> {
     }
 
     /// Get all the textures referenced by the command represented by self and the layout they should be in
-    pub fn textures(&self) -> HashMap<(Cow<'a, gpu::Texture>, u32, u32), gpu::TextureLayout> {
+    pub fn textures(&self) -> HashMap<(gpu::Texture, u32, u32), gpu::TextureLayout> {
         let mut result = HashMap::new();
         match self {
-            GraphicsPassCommand::BindDescriptorSet { descriptor, .. } => match descriptor {
-                Cow::Borrowed(d) => {
-                    for (texture, layout) in d.textures() {
-                        for i in texture.base_mip_level()
-                            ..(texture.base_mip_level() + texture.mip_levels())
+            GraphicsPassCommand::BindDescriptorSet { descriptor, .. } => {
+                for (texture, layout) in descriptor.textures() {
+                    for i in texture.base_mip_level()
+                        ..(texture.base_mip_level() + texture.mip_levels())
+                    {
+                        for j in texture.base_array_layer()
+                            ..(texture.base_array_layer() + texture.array_layers())
                         {
-                            for j in texture.base_array_layer()
-                                ..(texture.base_array_layer() + texture.array_layers())
+                            if let Some(l) =
+                                result.insert((texture.texture().clone(), i, j), *layout)
                             {
-                                if let Some(l) =
-                                    result.insert((Cow::Borrowed(texture.texture()), i, j), *layout)
-                                {
-                                    if *layout != l {
-                                        panic!("ERROR: GraphicsPassCommand::BindDescriptorSet uses descriptor with texture using different layouts {:?}, {:?}", *layout, l);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Cow::Owned(d) => {
-                    for (texture, layout) in d.textures() {
-                        for i in texture.base_mip_level()
-                            ..(texture.base_mip_level() + texture.mip_levels())
-                        {
-                            for j in texture.base_array_layer()
-                                ..(texture.base_array_layer() + texture.array_layers())
-                            {
-                                if let Some(l) = result
-                                    .insert((Cow::Owned(texture.texture().clone()), i, j), *layout)
-                                {
-                                    if *layout != l {
-                                        panic!("ERROR: GraphicsPassCommand::BindDescriptorSet uses descriptor with texture using different layouts {:?}, {:?}", *layout, l);
-                                    }
+                                if *layout != l {
+                                    panic!("ERROR: GraphicsPassCommand::BindDescriptorSet uses descriptor with texture using different layouts {:?}, {:?}", *layout, l);
                                 }
                             }
                         }
@@ -207,43 +186,19 @@ impl<'a> GraphicsPassCommand<'a> {
             },
             GraphicsPassCommand::BindDescriptorSets { descriptors, .. } => {
                 for descriptor in descriptors.as_ref() {
-                    match descriptor {
-                        Cow::Borrowed(d) => {
-                            for (texture, layout) in d.textures() {
-                                for i in texture.base_mip_level()
-                                    ..(texture.base_mip_level() + texture.mip_levels())
-                                {
-                                    for j in texture.base_array_layer()
-                                        ..(texture.base_array_layer() + texture.array_layers())
-                                    {
-                                        if let Some(l) = result.insert(
-                                            (Cow::Borrowed(texture.texture()), i, j),
-                                            *layout,
-                                        ) {
-                                            if *layout != l {
-                                                panic!("ERROR: GraphicsPassCommand::BindDescriptorSet uses descriptor with texture using different layouts {:?}, {:?}", *layout, l);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        Cow::Owned(d) => {
-                            for (texture, layout) in d.textures() {
-                                for i in texture.base_mip_level()
-                                    ..(texture.base_mip_level() + texture.mip_levels())
-                                {
-                                    for j in texture.base_array_layer()
-                                        ..(texture.base_array_layer() + texture.array_layers())
-                                    {
-                                        if let Some(l) = result.insert(
-                                            (Cow::Owned(texture.texture().clone()), i, j),
-                                            *layout,
-                                        ) {
-                                            if *layout != l {
-                                                panic!("ERROR: GraphicsPassCommand::BindDescriptorSet uses descriptor with texture using different layouts {:?}, {:?}", *layout, l);
-                                            }
-                                        }
+                    for (texture, layout) in descriptor.textures() {
+                        for i in texture.base_mip_level()
+                            ..(texture.base_mip_level() + texture.mip_levels())
+                        {
+                            for j in texture.base_array_layer()
+                                ..(texture.base_array_layer() + texture.array_layers())
+                            {
+                                if let Some(l) = result.insert(
+                                    (texture.texture().clone(), i, j),
+                                    *layout,
+                                ) {
+                                    if *layout != l {
+                                        panic!("ERROR: GraphicsPassCommand::BindDescriptorSet uses descriptor with texture using different layouts {:?}, {:?}", *layout, l);
                                     }
                                 }
                             }
