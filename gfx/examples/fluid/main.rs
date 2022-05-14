@@ -192,7 +192,8 @@ impl Fluid {
             ..Default::default()
         })?;
 
-        let sc_desc = gpu::SwapchainDesc::from_surface(&surface, &device)?;
+        let mut sc_desc = gpu::SwapchainDesc::from_surface(&surface, &device)?;
+        sc_desc.format = gpu::Format::Bgra8Unorm;
         let swapchain = device.create_swapchain(&surface, &sc_desc)?;
 
         let mut onscreen_command = device.create_command_buffer(None)?;
@@ -284,8 +285,6 @@ impl Fluid {
         let sampler = device.create_sampler(&gpu::SamplerDesc {
             wrap_x: gpu::WrapMode::ClampToEdge,
             wrap_y: gpu::WrapMode::ClampToEdge,
-            wrap_z: gpu::WrapMode::ClampToEdge,
-            border: gpu::BorderColor::OpaqueBlack,
             min_filter: gpu::FilterMode::Linear,
             mag_filter: gpu::FilterMode::Linear,
             ..Default::default()
@@ -1037,7 +1036,12 @@ impl Fluid {
     }
 
     pub fn redraw(&mut self, helper: &WinitInputHelper) -> Result<(), anyhow::Error> {
-        let dt = self.prev_time.elapsed().as_secs_f32();
+        let dt = self.prev_time.elapsed();
+        let target = std::time::Duration::from_secs_f64(1.0 / 60.0);
+        if dt < target {
+            let wait = target - dt;
+            std::thread::sleep(wait);
+        }
         self.prev_time = std::time::Instant::now();
 
         if helper.key_pressed(VirtualKeyCode::Space) {
@@ -1061,9 +1065,9 @@ impl Fluid {
 
         let mut encoder = gfx::CommandEncoder::new();
 
-        self.advect_vel_params.data.dt = dt;
-        self.advect_ink_params.data.dt = dt;
-        self.vorticity_params.data.dt = dt;
+        // self.advect_vel_params.data.dt = dt;
+        // self.advect_ink_params.data.dt = dt;
+        // self.vorticity_params.data.dt = dt;
 
         self.advect_vel_params.update_gpu_ref(&mut encoder);
         self.advect_ink_params.update_gpu_ref(&mut encoder);
