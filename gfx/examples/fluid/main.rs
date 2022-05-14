@@ -1,7 +1,6 @@
 
 use std::borrow::Cow;
 
-use rand::Rng;
 use winit_input_helper::WinitInputHelper;
 
 use winit::{
@@ -11,19 +10,19 @@ use winit::{
     event::VirtualKeyCode,
 };
 
-const WIDTH: u32 = 512;
-const HEIGHT: u32 = 512;
+const WIDTH: u32 = 800;
+const HEIGHT: u32 = 800;
 
-const SIM_RESOLUTION: u32 = 1024;
+const SIM_RESOLUTION: u32 = 256;
 const INK_RESOLUTION: u32 = 1024;
 const INK_DISSIPATION: f32 = 1.0;
-const VELOCITY_DISSIPATION: f32 = 0.8;
-const PRESSURE: f32 = 0.7;
+const VELOCITY_DISSIPATION: f32 = 0.2;
+const PRESSURE: f32 = 0.8;
 const PRESSURE_ITERATIONS: u32 = 20;
-const CURL: f32 = 40.0;
+const CURL: f32 = 30.0;
 const SPLAT_RADIUS: f32 = 0.0025;
-const SPLAT_FORCE: f32 = 0.025;
-const COLOR_TIME: f32 = 0.1;
+const SPLAT_FORCE: f32 = 6000.0;
+const COLOR_TIME: f32 = 5.0;
 
 fn hsv_to_rgb(h: f32, s: f32, v: f32) -> (f32, f32, f32) {
     let i = (h * 6.0).floor();
@@ -91,7 +90,7 @@ unsafe impl bytemuck::Pod for SplatParams {}
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct AdvectionParams {
-    pub texel_size: [f32; 2],
+    pub sim_texel_size: [f32; 2],
     pub dissapation: f32,
     pub dt: f32,
 }
@@ -247,8 +246,8 @@ impl Fluid {
         )?.unwrap();
         let ink_a = gfx::GTexture2D::new(
             &device,
-            SIM_RESOLUTION,
-            SIM_RESOLUTION,
+            INK_RESOLUTION,
+            INK_RESOLUTION,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
             1,
             gpu::Format::Rgba32Float,
@@ -256,8 +255,8 @@ impl Fluid {
         )?;
         let ink_b = gfx::GTexture2D::new(
             &device,
-            SIM_RESOLUTION,
-            SIM_RESOLUTION,
+            INK_RESOLUTION,
+            INK_RESOLUTION,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
             1,
             gpu::Format::Rgba32Float,
@@ -283,9 +282,9 @@ impl Fluid {
         )?.unwrap();
 
         let sampler = device.create_sampler(&gpu::SamplerDesc {
-            wrap_x: gpu::WrapMode::ClampToBorder,
-            wrap_y: gpu::WrapMode::ClampToBorder,
-            wrap_z: gpu::WrapMode::ClampToBorder,
+            wrap_x: gpu::WrapMode::ClampToEdge,
+            wrap_y: gpu::WrapMode::ClampToEdge,
+            wrap_z: gpu::WrapMode::ClampToEdge,
             border: gpu::BorderColor::OpaqueBlack,
             min_filter: gpu::FilterMode::Linear,
             mag_filter: gpu::FilterMode::Linear,
@@ -364,7 +363,7 @@ impl Fluid {
             &mut encoder,
             &device,
             AdvectionParams {
-                texel_size: [SIM_RESOLUTION as f32, SIM_RESOLUTION as f32],
+                sim_texel_size: [1.0 / SIM_RESOLUTION as f32, 1.0 / SIM_RESOLUTION as f32],
                 dissapation: VELOCITY_DISSIPATION,
                 dt: 1.0 / 60.0,
             },
@@ -375,7 +374,7 @@ impl Fluid {
             &mut encoder,
             &device,
             AdvectionParams {
-                texel_size: [INK_RESOLUTION as f32, INK_RESOLUTION as f32],
+                sim_texel_size: [1.0 / SIM_RESOLUTION as f32, 1.0 / SIM_RESOLUTION as f32],
                 dissapation: INK_DISSIPATION,
                 dt: 1.0 / 60.0,
             },
@@ -478,7 +477,7 @@ impl Fluid {
             .bundle()
             .unwrap()
             .set_resource("u_vertex_params", &vertex_params)?
-            .set_resource("u_params", &advect_ink_params)?
+            .set_resource("u_params", &advect_vel_params)?
             .set_resource("u_velocity", &vel_a)?
             .set_resource("u_source", &ink_a)?
             .set_sampler_ref("u_sampler", &sampler)?
@@ -488,7 +487,7 @@ impl Fluid {
             .bundle()
             .unwrap()
             .set_resource("u_vertex_params", &vertex_params)?
-            .set_resource("u_params", &advect_ink_params)?
+            .set_resource("u_params", &advect_vel_params)?
             .set_resource("u_velocity", &vel_b)?
             .set_resource("u_source", &ink_b)?
             .set_sampler_ref("u_sampler", &sampler)?
@@ -1052,6 +1051,9 @@ impl Fluid {
         if let Some(size) = helper.window_resized() {
             self.width = size.width;
             self.height = size.height;
+            let ratio = self.width as f32 / self.height as f32;
+            self.vel_splat_params.data.aspect_ratio = ratio;
+            self.ink_splat_params.data.aspect_ratio = ratio;
             self.swapchain.recreate(&self.device)?;
         }
 
@@ -1059,27 +1061,13 @@ impl Fluid {
 
         let mut encoder = gfx::CommandEncoder::new();
 
-        self.advect_ink_params.data.dt = dt;
         self.advect_vel_params.data.dt = dt;
+        self.advect_ink_params.data.dt = dt;
         self.vorticity_params.data.dt = dt;
 
-        self.advect_ink_params.update_gpu_ref(&mut encoder);
         self.advect_vel_params.update_gpu_ref(&mut encoder);
+        self.advect_ink_params.update_gpu_ref(&mut encoder);
         self.vorticity_params.update_gpu_ref(&mut encoder);
-
-        if self.color_change {
-            if self.start_time.elapsed().as_secs_f32() % COLOR_TIME <= 0.02 {
-                let h = self.rng.gen_range(0.0..1.0);
-                let (r, g, b) = hsv_to_rgb(h, 1.0, 1.0);
-                self.ink_splat_params.data.color = [0.5 * r, 0.5 * g, 0.5 * b];
-            }
-        } else {
-            if helper.mouse_released(0) {
-                let h = self.rng.gen_range(0.0..1.0);
-                let (r, g, b) = hsv_to_rgb(h, 1.0, 1.0);
-                self.ink_splat_params.data.color = [0.5 * r, 0.5 * g, 0.5 * b];
-            }
-        }
 
         // apply force and color from user input
         if helper.mouse_held(0) {
@@ -1097,6 +1085,9 @@ impl Fluid {
             self.vel_splat_params.data.color = [dx * SPLAT_FORCE, dy * SPLAT_FORCE, 0.0];
             self.vel_splat_params.data.point = [x, y];
 
+            let h = self.start_time.elapsed().as_secs_f32() % COLOR_TIME;
+            let (r, g, b) = hsv_to_rgb(h, 1.0, 1.0);
+            self.ink_splat_params.data.color = [0.33 * r, 0.33 * g, 0.33 * b];
             self.ink_splat_params.data.point = [x, y];
 
             self.ink_splat_params.data.mul = 1.0;
