@@ -1,12 +1,8 @@
 
 use std::rc::Rc;
 use std::any::Any;
-use std::collections::HashMap;
 
 // If I knew how to write macros properly this wouldn't be here but this is easier than learning proper macros
-use glam::BVec2 as GlamBVec2;
-use glam::BVec3 as GlamBVec3;
-use glam::BVec4 as GlamBVec4;
 use glam::IVec2 as GlamIVec2;
 use glam::IVec3 as GlamIVec3;
 use glam::IVec4 as GlamIVec4;
@@ -32,6 +28,7 @@ pub mod main_builder;
 pub mod condition_builder;
 pub mod loop_builder;
 pub mod var;
+pub mod instruction;
 
 pub(crate) use base_builder::*;
 pub(crate) use var::*;
@@ -39,6 +36,7 @@ pub use fn_builder::*;
 pub use main_builder::*;
 pub use condition_builder::*;
 pub use loop_builder::*;
+pub use instruction::*;
 
 use crate::data::*;
 
@@ -70,9 +68,9 @@ where
 pub trait RawBuilder: AsAny {
     fn push_instruction(&self, instruction: Instruction);
 
-    fn name_var(&self, ty: DataType, id: usize, name: String);
+    fn name_var(&self, ty: PrimitiveType, id: usize, name: String);
 
-    fn get_new_id(&self, ty: DataType) -> usize;
+    fn get_new_id(&self, ty: PrimitiveType) -> usize;
 }
 
 impl dyn RawBuilder {
@@ -96,162 +94,6 @@ impl dyn RawBuilder {
     }
 }
 
-#[allow(dead_code)]
-#[derive(Clone, PartialEq, Debug)]
-pub enum Instruction {
-    Store {
-        /// Declare a constant with this value
-        val: DataVal,
-        /// Store into variable with this id
-        store: (usize, crate::data::DataType),
-    },
-    Add {
-        lhs: (usize, crate::data::DataType),
-        rhs: (usize, crate::data::DataType),
-        res: (usize, crate::data::DataType),
-    },
-    Sub {
-        lhs: (usize, crate::data::DataType),
-        rhs: (usize, crate::data::DataType),
-        res: (usize, crate::data::DataType),
-    },
-    Mul {
-        lhs: (usize, crate::data::DataType),
-        rhs: (usize, crate::data::DataType),
-        res: (usize, crate::data::DataType),
-    },
-    Div {
-        lhs: (usize, crate::data::DataType),
-        rhs: (usize, crate::data::DataType),
-        res: (usize, crate::data::DataType),
-    },
-    BitAnd {
-        lhs: (usize, crate::data::DataType),
-        rhs: (usize, crate::data::DataType),
-        res: (usize, crate::data::DataType),
-    },
-    BitOr {
-        lhs: (usize, crate::data::DataType),
-        rhs: (usize, crate::data::DataType),
-        res: (usize, crate::data::DataType),
-    },
-    BitXor {
-        lhs: (usize, crate::data::DataType),
-        rhs: (usize, crate::data::DataType),
-        res: (usize, crate::data::DataType),
-    },
-    IfChain {
-        conditions: Vec<usize>,
-        instructions: Vec<Vec<Instruction>>,
-    },
-    Loop {
-        condition: usize,
-        body: Vec<Instruction>,
-    },
-    Break,
-    Continue,
-    FnCall {
-        fn_id: usize,
-        store_id: usize,
-        arguments: Vec<(usize, crate::data::DataType)>,
-    },
-    Return {
-        id: usize,
-    }
-}
-
-impl Instruction {
-    pub fn process(&self, builder: &mut rspirv::dr::Builder, function_map: &HashMap<usize, usize>) {
-        match self {
-            Instruction::Store { 
-                val, 
-                store 
-            } => {
-                
-            },
-            Instruction::Add { 
-                lhs, 
-                rhs, 
-                res 
-            } => {
-                
-            },
-            Instruction::Sub { 
-                lhs, 
-                rhs, 
-                res 
-            } => {
-                
-            },
-            Instruction::Mul { 
-                lhs, 
-                rhs, 
-                res 
-            } => {
-                
-            },
-            Instruction::Div { 
-                lhs, 
-                rhs, 
-                res 
-            } => {
-                
-            },
-            Instruction::BitAnd { 
-                lhs, 
-                rhs, 
-                res 
-            } => {
-                
-            },
-            Instruction::BitOr { 
-                lhs, 
-                rhs, 
-                res 
-            } => {
-                
-            },
-            Instruction::BitXor { 
-                lhs, 
-                rhs, 
-                res 
-            } => {
-                
-            },
-            Instruction::IfChain { 
-                conditions, 
-                instructions 
-            } => {
-                
-            },
-            Instruction::Loop { 
-                condition, 
-                body 
-            } => {
-                
-            },
-            Instruction::Break => {
-                
-            },
-            Instruction::Continue => {
-                
-            },
-            Instruction::FnCall { 
-                fn_id, 
-                store_id, 
-                arguments 
-            } => {
-                
-            },
-            Instruction::Return { 
-                id 
-            } => {
-                
-            },
-        }
-    }
-}
-
 #[macro_export]
 macro_rules! gen_get_types {
     ($($name:ident,)*) => {
@@ -263,9 +105,6 @@ macro_rules! gen_get_types {
                     new_int, Int, i32,
                     new_uint, UInt, u32,
                     new_double, Double, f64,
-                    new_bvec2, BVec2, GlamBVec2,
-                    new_bvec3, BVec3, GlamBVec3,
-                    new_bvec4, BVec4, GlamBVec4,
                     new_ivec2, IVec2, GlamIVec2,
                     new_ivec3, IVec3, GlamIVec3,
                     new_ivec4, IVec4, GlamIVec4,
@@ -295,10 +134,10 @@ macro_rules! gen_get_type {
     ($($f:ident, $t:ident, $rust:ident,)*) => {
         $(
             pub fn $f(&self, v: $rust) -> crate::data::$t {
-                let id = self.raw.get_new_id(crate::data::DataType::$t);
+                let id = self.raw.get_new_id(crate::data::PrimitiveType::$t);
                 self.raw.push_instruction(Instruction::Store {
-                    val: crate::data::DataVal::$t(v),
-                    store: (id, crate::data::DataType::$t),
+                    val: crate::data::PrimitiveVal::$t(v),
+                    store: id,
                 });
                 $t {
                     id,
@@ -347,13 +186,13 @@ macro_rules! gen_intrinsics {
                     self.raw.push_instruction(Instruction::Continue);
                 }
 
-                pub fn spv_return(&self, val: impl crate::data::AsData) {
+                pub fn spv_return(&self, val: impl crate::data::AsPrimitive) {
                     self.raw.push_instruction(Instruction::Return {
                         id: val.id(&*self.raw)
                     })
                 }
 
-                pub fn spv_call<R: AsDataType + FromId>(&self, f: crate::Function<R>, args: &[&dyn AsData]) -> R {
+                pub fn call<R: AsPrimitiveType + FromId>(&self, f: crate::function::Function<R>, args: &[&dyn AsPrimitive]) -> R {
                     let store_id = self.raw.get_new_id(R::TY);
 
                     self.raw.push_instruction(Instruction::FnCall {
@@ -365,14 +204,46 @@ macro_rules! gen_intrinsics {
                     R::from_id(store_id)
                 }
 
-                pub fn spv_store<Rhs: AsDataType, T: SpvStore<Rhs>>(&self, lhs: T, rhs: Rhs) {
+                pub fn load_in<T: crate::data::IsPrimitive + FromId>(&self, input: crate::interface::In<T>) -> T {
+                    let store = self.raw.get_new_id(T::TY);
+                    self.raw.push_instruction(Instruction::LoadIn {
+                        index: input.index,
+                        ty: T::TY,
+                        store,
+                    });
+                    T::from_id(store)
+                }
+
+                pub fn store_out<T, S>(&self, output: crate::interface::Out<T>, store: S) 
+                where
+                    T: crate::IsPrimitive + crate::data::SpvRustEq<S>,
+                    S: AsPrimitive,
+                {
+                    self.raw.push_instruction(Instruction::StoreOut {
+                        index: output.index,
+                        ty: T::TY,
+                        read: crate::data::AsPrimitive::id(&store, &*self.raw),
+                    })
+                }
+
+                pub fn vector_shuffle<V: AsPrimitiveType + FromId>(&self, s: VectorShuffle<V>) -> V {
+                    let new_id = self.raw.get_new_id(V::TY);
+                    self.raw.push_instruction(Instruction::VectorShuffle {
+                        src: (s.src, s.src_ty),
+                        dst: (new_id, V::TY),
+                        components: s.components
+                    });
+                    V::from_id(new_id)
+                }
+
+                pub fn store<Rhs: AsPrimitiveType, T: SpvStore<Rhs>>(&self, lhs: T, rhs: Rhs) {
                     self.raw.push_instruction(Instruction::Store {
-                        store: (lhs.id(&*self.raw), T::TY),
+                        store: lhs.id(&*self.raw),
                         val: T::val(rhs),
                     })
                 }
 
-                pub fn spv_add<Rhs: AsDataType + AsData, T: SpvAdd<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
+                pub fn add<Rhs: AsPrimitiveType + AsPrimitive, T: SpvAdd<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
                     let new_id = self.raw.get_new_id(T::Output::TY);
                     self.raw.push_instruction(Instruction::Add {
                         lhs: (lhs.id(&*self.raw), T::TY),
@@ -382,7 +253,7 @@ macro_rules! gen_intrinsics {
                     T::Output::from_id(new_id)
                 }
 
-                pub fn spv_sub<Rhs: AsDataType + AsData, T: SpvSub<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
+                pub fn sub<Rhs: AsPrimitiveType + AsPrimitive, T: SpvSub<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
                     let new_id = self.raw.get_new_id(T::Output::TY);
                     self.raw.push_instruction(Instruction::Sub {
                         lhs: (lhs.id(&*self.raw), T::TY),
@@ -392,7 +263,7 @@ macro_rules! gen_intrinsics {
                     T::Output::from_id(new_id)
                 }
 
-                pub fn spv_div<Rhs: AsDataType + AsData, T: SpvDiv<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
+                pub fn div<Rhs: AsPrimitiveType + AsPrimitive, T: SpvDiv<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
                     let new_id = self.raw.get_new_id(T::Output::TY);
                     self.raw.push_instruction(Instruction::Div {
                         lhs: (lhs.id(&*self.raw), T::TY),
@@ -402,7 +273,7 @@ macro_rules! gen_intrinsics {
                     T::Output::from_id(new_id)
                 }
 
-                pub fn spv_mul<Rhs: AsDataType + AsData, T: SpvMul<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
+                pub fn mul<Rhs: AsPrimitiveType + AsPrimitive, T: SpvMul<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
                     let new_id = self.raw.get_new_id(T::Output::TY);
                     self.raw.push_instruction(Instruction::Mul {
                         lhs: (lhs.id(&*self.raw), T::TY),
@@ -410,6 +281,85 @@ macro_rules! gen_intrinsics {
                         res: (new_id, T::Output::TY),
                     });
                     T::Output::from_id(new_id)
+                }
+
+                pub fn add_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvAddAssign<Rhs>>(&self, lhs: &mut T, rhs: Rhs) {
+                    self.raw.push_instruction(Instruction::AddAssign {
+                        lhs: (lhs.id(&*self.raw), T::TY),
+                        rhs: (rhs.id(&*self.raw), Rhs::TY),
+                    })
+                }
+
+                pub fn sub_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvSubAssign<Rhs>>(&self, lhs: &mut T, rhs: Rhs) {
+                    self.raw.push_instruction(Instruction::SubAssign {
+                        lhs: (lhs.id(&*self.raw), T::TY),
+                        rhs: (rhs.id(&*self.raw), Rhs::TY),
+                    })
+                }
+
+                pub fn mul_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvMulAssign<Rhs>>(&self, lhs: &mut T, rhs: Rhs) {
+                    self.raw.push_instruction(Instruction::MulAssign {
+                        lhs: (lhs.id(&*self.raw), T::TY),
+                        rhs: (rhs.id(&*self.raw), Rhs::TY),
+                    })
+                }
+
+                pub fn div_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvDivAssign<Rhs>>(&self, lhs: &mut T, rhs: Rhs) {
+                    self.raw.push_instruction(Instruction::DivAssign {
+                        lhs: (lhs.id(&*self.raw), T::TY),
+                        rhs: (rhs.id(&*self.raw), Rhs::TY),
+                    })
+                }
+
+                pub fn bit_and<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitAnd<Rhs>>(&self, lhs: T, rhs: T) -> T::Output {
+                    let new_id = self.raw.get_new_id(T::Output::TY);
+                    self.raw.push_instruction(Instruction::BitAnd {
+                        lhs: (lhs.id(&*self.raw), T::TY),
+                        rhs: (rhs.id(&*self.raw), Rhs::TY),
+                        res: (new_id, T::Output::TY),
+                    });
+                    T::Output::from_id(new_id)
+                }
+
+                pub fn bit_or<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitOr<Rhs>>(&self, lhs: T, rhs: T) -> T::Output {
+                    let new_id = self.raw.get_new_id(T::Output::TY);
+                    self.raw.push_instruction(Instruction::BitOr {
+                        lhs: (lhs.id(&*self.raw), T::TY),
+                        rhs: (rhs.id(&*self.raw), Rhs::TY),
+                        res: (new_id, T::Output::TY),
+                    });
+                    T::Output::from_id(new_id)
+                }
+
+                pub fn bit_xor<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitXor<Rhs>>(&self, lhs: T, rhs: T) -> T::Output {
+                    let new_id = self.raw.get_new_id(T::Output::TY);
+                    self.raw.push_instruction(Instruction::BitXor {
+                        lhs: (lhs.id(&*self.raw), T::TY),
+                        rhs: (rhs.id(&*self.raw), Rhs::TY),
+                        res: (new_id, T::Output::TY),
+                    });
+                    T::Output::from_id(new_id)
+                }
+
+                pub fn bit_and_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitAnd<Rhs>>(&self, lhs: &mut T, rhs: T) {
+                    self.raw.push_instruction(Instruction::BitAndAssign {
+                        lhs: (lhs.id(&*self.raw), T::TY),
+                        rhs: (rhs.id(&*self.raw), Rhs::TY),
+                    });
+                }
+
+                pub fn bit_or_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitOr<Rhs>>(&self, lhs: &mut T, rhs: T) {
+                    self.raw.push_instruction(Instruction::BitOrAssign {
+                        lhs: (lhs.id(&*self.raw), T::TY),
+                        rhs: (rhs.id(&*self.raw), Rhs::TY),
+                    });
+                }
+
+                pub fn bit_xor_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitXor<Rhs>>(&self, lhs: &mut T, rhs: T) {
+                    self.raw.push_instruction(Instruction::BitXorAssign {
+                        lhs: (lhs.id(&*self.raw), T::TY),
+                        rhs: (rhs.id(&*self.raw), Rhs::TY),
+                    });
                 }
             }
         )*

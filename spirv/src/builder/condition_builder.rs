@@ -25,11 +25,11 @@ impl RawBuilder for RawConditionBuilder {
         self.instructions.borrow_mut().last_mut().unwrap().push(instruction);
     }
 
-    fn get_new_id(&self, ty: DataType) -> usize {
+    fn get_new_id(&self, ty: PrimitiveType) -> usize {
         self.builder.get_new_id(ty)
     }
 
-    fn name_var(&self, ty: DataType, id: usize, name: String) {
+    fn name_var(&self, ty: PrimitiveType, id: usize, name: String) {
         self.builder.name_var(ty, id, name)
     }
 }

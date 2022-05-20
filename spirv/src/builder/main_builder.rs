@@ -16,11 +16,11 @@ impl RawBuilder for RawMainBuilder {
         self.instructions.borrow_mut().push(instruction);
     }
 
-    fn get_new_id(&self, ty: DataType) -> usize {
+    fn get_new_id(&self, ty: PrimitiveType) -> usize {
         self.variables.borrow_mut().get_new_id(ty)
     }
 
-    fn name_var(&self, ty: DataType, id: usize, name: String) {
+    fn name_var(&self, ty: PrimitiveType, id: usize, name: String) {
         self.variables.borrow_mut().name_var(ty, id, name);
     }
 }
