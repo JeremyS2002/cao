@@ -30,6 +30,10 @@ impl RawBuilder for RawLoopBuilder {
     fn name_var(&self, ty: PrimitiveType, id: usize, name: String) {
         self.builder.name_var(ty, id, name)
     }
+
+    fn in_loop(&self) -> bool {
+        true
+    }
 }
 
 impl Drop for RawLoopBuilder {

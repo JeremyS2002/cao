@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::VecDeque;
 
 use crate::data::{PrimitiveVal, PrimitiveType};
 
@@ -26,8 +27,9 @@ pub enum Instruction {
     BitXorAssign { lhs: (usize, PrimitiveType), rhs: (usize, PrimitiveType) },
     VectorShuffle { src: (usize, PrimitiveType), dst: (usize, PrimitiveType), components: [u32; 4] },
     IfChain {
-        conditions: Vec<usize>,
-        instructions: Vec<Vec<Instruction>>,
+        conditions: VecDeque<usize>,
+        instructions: VecDeque<Vec<Instruction>>,
+        else_instructions: Option<Vec<Instruction>>,
     },
     Loop {
         condition: usize,
@@ -58,12 +60,14 @@ pub enum Instruction {
 
 impl Instruction {
     pub fn process(
-        &self, 
+        &mut self, 
         builder: &mut rspirv::dr::Builder, 
         var_map: &mut HashMap<usize, u32>,
         function_map: &HashMap<usize, usize>,
         inputs: &[u32],
         outputs: &[u32],
+        break_target: Option<u32>,
+        continue_target: Option<u32>,
     ) {
         match self {
             Instruction::Store { 
@@ -87,24 +91,21 @@ impl Instruction {
             Instruction::BitAndAssign { lhs, rhs, } => process_bit_op_assign(var_map, lhs, builder, rhs, rspirv::dr::Builder::bitwise_and),
             Instruction::BitOrAssign { lhs, rhs, } => process_bit_op_assign(var_map, lhs, builder, rhs,  rspirv::dr::Builder::bitwise_or),
             Instruction::BitXorAssign { lhs, rhs, } => process_bit_op_assign(var_map, lhs, builder, rhs, rspirv::dr::Builder::bitwise_xor),
-            Instruction::IfChain { 
+            Instruction::IfChain { conditions, instructions, else_instructions } => process_if_chain(
                 conditions, 
-                instructions 
-            } => {
-                
-            },
-            Instruction::Loop { 
-                condition, 
-                body 
-            } => {
-                
-            },
-            Instruction::Break => {
-                
-            },
-            Instruction::Continue => {
-                
-            },
+                instructions, 
+                else_instructions, 
+                var_map, 
+                builder, 
+                function_map, 
+                inputs, 
+                outputs,
+                break_target,
+                continue_target,
+            ),
+            Instruction::Loop { condition, body } => process_loop(builder, var_map, condition, body, function_map, inputs, outputs),
+            Instruction::Break => builder.branch(break_target.unwrap()).unwrap(),
+            Instruction::Continue => builder.branch(continue_target.unwrap()).unwrap(),
             Instruction::FnCall { 
                 fn_id, 
                 store_id, 
@@ -148,6 +149,85 @@ impl Instruction {
             Instruction::VectorShuffle { src, dst, components } => process_vector_shuffle(var_map, builder, src, dst, *components),
         }
     }
+}
+
+fn process_loop(builder: &mut rspirv::dr::Builder, var_map: &mut HashMap<usize, u32>, condition: &mut usize, body: &mut Vec<Instruction>, function_map: &HashMap<usize, usize>, inputs: &[u32], outputs: &[u32]) {
+    let start = builder.id();
+    builder.branch(start).unwrap();
+    builder.begin_block(Some(start)).unwrap();
+    let merge_block = builder.id();
+    let condition_block = builder.id();
+    let continue_target = builder.id();
+    let block = builder.selected_block().unwrap();
+    builder.loop_merge(merge_block, continue_target, rspirv::spirv::LoopControl::NONE, None).unwrap();
+    builder.select_block(Some(block)).unwrap();
+    builder.branch(condition_block).unwrap();
+    builder.begin_block(Some(condition_block)).unwrap();
+    let condition_var = *var_map.get(condition).unwrap();
+    let condition_type = builder.type_bool();
+    let condition_obj = builder.load(condition_type, None, condition_var, None, None).unwrap();
+    let body_block = builder.id();
+    builder.branch_conditional(condition_obj, body_block, merge_block, None).unwrap();
+    builder.begin_block(Some(body_block)).unwrap();
+    for instruction in body {
+        instruction.process(builder, var_map, function_map, inputs, outputs, Some(merge_block), Some(continue_target));
+    }
+    builder.branch(continue_target).unwrap();
+    builder.begin_block(Some(continue_target)).unwrap();
+    builder.branch(start).unwrap();
+    builder.begin_block(Some(merge_block)).unwrap();
+}
+
+fn process_if_chain(conditions: &mut VecDeque<usize>, 
+    instructions: &mut VecDeque<Vec<Instruction>>, 
+    else_instructions: &mut Option<Vec<Instruction>>, 
+    var_map: &mut HashMap<usize, 
+    u32>, 
+    builder: &mut rspirv::dr::Builder, 
+    function_map: &HashMap<usize, usize>, 
+    inputs: &[u32], 
+    outputs: &[u32], 
+    break_target: Option<u32>,
+    continue_target: Option<u32>,
+) {
+    if conditions.len() == 0 {
+        if let Some(else_instructions) = else_instructions {
+            for instruction in else_instructions {
+                instruction.process(builder, var_map, function_map, inputs, outputs, break_target, continue_target);
+            }
+        }
+        return
+    }
+    
+    let condition = conditions.pop_front().unwrap();
+    
+    let condition_var = *var_map.get(&condition).unwrap();
+    let condition_type = builder.type_bool();
+    let condition_obj = builder.load(condition_type, None, condition_var, None, None).unwrap();
+
+    let true_label = builder.id();
+    let false_label = builder.id();
+    let end_label = builder.id();
+
+    let block = builder.selected_block().unwrap();
+    builder.selection_merge(end_label, rspirv::spirv::SelectionControl::NONE).unwrap();
+    builder.select_block(Some(block)).unwrap();
+    builder.branch_conditional(condition_obj, true_label, false_label, None).unwrap();
+
+    builder.begin_block(Some(true_label)).unwrap();
+
+    for mut instruction in instructions.pop_front().unwrap() {
+        instruction.process(builder, var_map, function_map, inputs, outputs, break_target, continue_target);
+    }
+
+    builder.branch(end_label).unwrap();
+
+    builder.begin_block(Some(false_label)).unwrap();
+
+    process_if_chain(conditions, instructions, else_instructions, var_map, builder, function_map, inputs, outputs, break_target, continue_target);
+
+    builder.branch(end_label).unwrap();
+    builder.begin_block(Some(end_label)).unwrap();
 }
 
 fn process_vector_shuffle(var_map: &mut HashMap<usize, u32>, builder: &mut rspirv::dr::Builder, src: &(usize, PrimitiveType), dst: &(usize, PrimitiveType), components: [u32; 4]) {

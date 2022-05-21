@@ -71,6 +71,8 @@ pub trait RawBuilder: AsAny {
     fn name_var(&self, ty: PrimitiveType, id: usize, name: String);
 
     fn get_new_id(&self, ty: PrimitiveType) -> usize;
+
+    fn in_loop(&self) -> bool;
 }
 
 impl dyn RawBuilder {
@@ -158,9 +160,10 @@ macro_rules! gen_intrinsics {
     ($($name:ident,)*) => {
         $(
             impl $name {
-                pub fn spv_if<F: FnOnce(&ConditionBuilder)>(&self, b: &Bool, f: F) -> ConditionBuilder {                
+                /// Adds an if condition to the current function
+                pub fn spv_if<F: FnOnce(&ConditionBuilder)>(&self, b: impl crate::data::SpvRustEq<Bool>, f: F) -> ConditionBuilder {                
                     let b = ConditionBuilder {
-                        raw: RawConditionBuilder::new(Rc::clone(&self.raw), b.id),
+                        raw: RawConditionBuilder::new(Rc::clone(&self.raw), b.id(&*self.raw)),
                     };
     
                     f(&b);
@@ -168,9 +171,13 @@ macro_rules! gen_intrinsics {
                     b
                 }
     
-                pub fn spv_while<F: FnOnce(&LoopBuilder)>(&self, b: &Bool, f: F) {
+                /// Adds a while loop to the current function
+                /// 
+                /// Note that the boolean condition must be updated by calling spv_store or it will always 
+                /// store the same condition and if it is initially true the loop will never terminate
+                pub fn spv_while<F: FnOnce(&LoopBuilder)>(&self, b: impl crate::data::SpvRustEq<Bool>, f: F) {
                     let b = LoopBuilder {
-                        raw: RawLoopBuilder::new(Rc::clone(&self.raw), b.id),
+                        raw: RawLoopBuilder::new(Rc::clone(&self.raw), b.id(&*self.raw)),
                     };
 
                     f(&b);
@@ -178,11 +185,23 @@ macro_rules! gen_intrinsics {
                     drop(b);
                 }
 
+                /// Adds a break instruction to the current function
+                /// 
+                /// panics if the builder called on doesn't descend from a loop builder
                 pub fn spv_break(&self) {
+                    if !self.raw.in_loop() {
+                        panic!("Cannot call spv_break not in loop");
+                    }
                     self.raw.push_instruction(Instruction::Break);
                 }
 
+                /// Adds a continue instruction to the current function
+                /// 
+                /// panics if the builder called on doesn't descend from a loop builder
                 pub fn spv_continue(&self) {
+                    if !self.raw.in_loop() {
+                        panic!("Cannot call spv_continue in loop")
+                    }
                     self.raw.push_instruction(Instruction::Continue);
                 }
 

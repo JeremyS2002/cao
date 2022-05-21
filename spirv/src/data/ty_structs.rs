@@ -22,7 +22,6 @@ use glam::DMat2 as GlamDMat2;
 use glam::DMat3 as GlamDMat3;
 use glam::DMat4 as GlamDMat4;
 
-use super::AsDataType;
 use super::PrimitiveType;
 
 macro_rules! gen_types {
@@ -92,6 +91,8 @@ macro_rules! gen_as_data {
             impl SpvRustEq<$name> for $name { }
 
             impl SpvRustEq<$rust> for $name { }
+
+            impl SpvRustEq<$name> for $rust { }
 
             impl SpvStore<$rust> for $name { 
                 fn val(rhs: $rust) -> crate::data::PrimitiveVal {

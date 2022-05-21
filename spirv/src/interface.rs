@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 
 use crate::data::{IsPrimitive, AsDataType};
 use std::marker::PhantomData;

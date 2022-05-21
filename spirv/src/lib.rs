@@ -125,20 +125,22 @@ impl<T: specialisation::ShaderTY> Builder<T> {
 
     pub fn uniform<D: AsDataType>(&self) -> Uniform<D> {
         self.raw.uniforms.borrow_mut().push(D::TY);
-        Uniform {
-            set: todo!(),
-            binding: todo!(),
-            _marker: PhantomData,
-        }
+        // Uniform {
+        //     set: todo!(),
+        //     binding: todo!(),
+        //     _marker: PhantomData,
+        // }
+        todo!();
     }
 
-    pub fn storage<D: AsDataType>(&self, desc: StorageAccessDesc) -> Storage<D> {
+    pub fn storage<D: AsDataType>(&self, _desc: StorageAccessDesc) -> Storage<D> {
         self.raw.storages.borrow_mut().push(D::TY);
-        Storage {
-            set: todo!(),
-            binding: todo!(),
-            _marker: PhantomData,
-        }
+        // Storage {
+        //     set: todo!(),
+        //     binding: todo!(),
+        //     _marker: PhantomData,
+        // }
+        todo!();
     }
 
     pub fn main<F: FnOnce(&builder::MainBuilder) -> ()>(&self, f: F) {
@@ -156,7 +158,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
     pub fn compile(self) -> Vec<u32> {
         let mut builder = rspirv::dr::Builder::new();
 
-        let ext = builder.ext_inst_import("GLSL.std.450");
+        let _ext = builder.ext_inst_import("GLSL.std.450");
         builder.set_version(1, 0);
         builder.capability(rspirv::spirv::Capability::Shader);  
         builder.memory_model(rspirv::spirv::AddressingModel::Logical, rspirv::spirv::MemoryModel::GLSL450);
@@ -246,13 +248,15 @@ impl<T: specialisation::ShaderTY> Builder<T> {
 
         builder.begin_block(None).unwrap();
 
-        for instruction in self.instructions() {
+        for mut instruction in self.instructions() {
             instruction.process(
                 &mut builder, 
                 &mut var_map, 
                 &function_map,
                 &inputs,
                 &outputs,
+                None,
+                None,
             );
         }
 

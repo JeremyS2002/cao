@@ -25,6 +25,10 @@ impl super::RawBuilder for RawFnBuilder {
     fn name_var(&self, ty: PrimitiveType, id: usize, name: String) {
         self.variables.borrow_mut().name_var(ty, id, name)
     }
+
+    fn in_loop(&self) -> bool {
+        false
+    }
 }
 
 impl Drop for RawFnBuilder {

@@ -6,7 +6,7 @@ use crate::builder::RawBaseBuilder;
 use super::AsDataType;
 
 pub struct SpvArray<T: AsDataType> {
-    builder: Rc<RawBaseBuilder>,
-    _marker: PhantomData<T>,
+    pub(crate) builder: Rc<RawBaseBuilder>,
+    pub(crate) _marker: PhantomData<T>,
 }
 

@@ -9,8 +9,6 @@ pub use as_ty::*;
 pub use ty_structs::*;
 pub use ops::*;
 
-use self::spv_struct::StructDesc;
-
 pub trait DataRef {
     fn ty(&self) -> PrimitiveType;
 }
