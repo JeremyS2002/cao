@@ -1,6 +1,7 @@
 
 use std::rc::Rc;
 use std::any::Any;
+use std::marker::PhantomData;
 
 // If I knew how to write macros properly this wouldn't be here but this is easier than learning proper macros
 use glam::IVec2 as GlamIVec2;
@@ -68,9 +69,9 @@ where
 pub trait RawBuilder: AsAny {
     fn push_instruction(&self, instruction: Instruction);
 
-    fn name_var(&self, ty: PrimitiveType, id: usize, name: String);
+    fn name_var(&self, id: usize, name: String);
 
-    fn get_new_id(&self, ty: PrimitiveType) -> usize;
+    fn get_new_id(&self) -> usize;
 
     fn in_loop(&self) -> bool;
 }
@@ -94,6 +95,24 @@ impl dyn RawBuilder {
             false => Err(self)
         }
     }
+}
+
+#[macro_export]
+macro_rules! gen_get_type {
+    ($($f:ident, $t:ident, $rust:ident,)*) => {
+        $(
+            pub fn $f(&self, v: $rust) -> crate::data::$t {
+                let id = self.raw.get_new_id();
+                self.raw.push_instruction(Instruction::Store {
+                    val: crate::data::PrimitiveVal::$t(v),
+                    store: id,
+                });
+                $t {
+                    id,
+                }
+            }
+        )*
+    };
 }
 
 #[macro_export]
@@ -126,24 +145,6 @@ macro_rules! gen_get_types {
                     new_dmat3, DMat3, GlamDMat3,
                     new_dmat4, DMat4, GlamDMat4,
                 );
-            }
-        )*
-    };
-}
-
-#[macro_export]
-macro_rules! gen_get_type {
-    ($($f:ident, $t:ident, $rust:ident,)*) => {
-        $(
-            pub fn $f(&self, v: $rust) -> crate::data::$t {
-                let id = self.raw.get_new_id(crate::data::PrimitiveType::$t);
-                self.raw.push_instruction(Instruction::Store {
-                    val: crate::data::PrimitiveVal::$t(v),
-                    store: id,
-                });
-                $t {
-                    id,
-                }
             }
         )*
     };
@@ -212,7 +213,7 @@ macro_rules! gen_intrinsics {
                 }
 
                 pub fn call<R: AsPrimitiveType + FromId>(&self, f: crate::function::Function<R>, args: &[&dyn AsPrimitive]) -> R {
-                    let store_id = self.raw.get_new_id(R::TY);
+                    let store_id = self.raw.get_new_id();
 
                     self.raw.push_instruction(Instruction::FnCall {
                         fn_id: f.id,
@@ -224,7 +225,7 @@ macro_rules! gen_intrinsics {
                 }
 
                 pub fn load_in<T: crate::data::IsPrimitive + FromId>(&self, input: crate::interface::In<T>) -> T {
-                    let store = self.raw.get_new_id(T::TY);
+                    let store = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::LoadIn {
                         index: input.index,
                         ty: T::TY,
@@ -246,7 +247,7 @@ macro_rules! gen_intrinsics {
                 }
 
                 pub fn vector_shuffle<V: AsPrimitiveType + FromId>(&self, s: VectorShuffle<V>) -> V {
-                    let new_id = self.raw.get_new_id(V::TY);
+                    let new_id = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::VectorShuffle {
                         src: (s.src, s.src_ty),
                         dst: (new_id, V::TY),
@@ -263,7 +264,7 @@ macro_rules! gen_intrinsics {
                 }
 
                 pub fn add<Rhs: AsPrimitiveType + AsPrimitive, T: SpvAdd<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
-                    let new_id = self.raw.get_new_id(T::Output::TY);
+                    let new_id = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::Add {
                         lhs: (lhs.id(&*self.raw), T::TY),
                         rhs: (rhs.id(&*self.raw), Rhs::TY),
@@ -273,7 +274,7 @@ macro_rules! gen_intrinsics {
                 }
 
                 pub fn sub<Rhs: AsPrimitiveType + AsPrimitive, T: SpvSub<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
-                    let new_id = self.raw.get_new_id(T::Output::TY);
+                    let new_id = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::Sub {
                         lhs: (lhs.id(&*self.raw), T::TY),
                         rhs: (rhs.id(&*self.raw), Rhs::TY),
@@ -283,7 +284,7 @@ macro_rules! gen_intrinsics {
                 }
 
                 pub fn div<Rhs: AsPrimitiveType + AsPrimitive, T: SpvDiv<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
-                    let new_id = self.raw.get_new_id(T::Output::TY);
+                    let new_id = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::Div {
                         lhs: (lhs.id(&*self.raw), T::TY),
                         rhs: (rhs.id(&*self.raw), Rhs::TY),
@@ -293,7 +294,7 @@ macro_rules! gen_intrinsics {
                 }
 
                 pub fn mul<Rhs: AsPrimitiveType + AsPrimitive, T: SpvMul<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
-                    let new_id = self.raw.get_new_id(T::Output::TY);
+                    let new_id = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::Mul {
                         lhs: (lhs.id(&*self.raw), T::TY),
                         rhs: (rhs.id(&*self.raw), Rhs::TY),
@@ -331,7 +332,7 @@ macro_rules! gen_intrinsics {
                 }
 
                 pub fn bit_and<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitAnd<Rhs>>(&self, lhs: T, rhs: T) -> T::Output {
-                    let new_id = self.raw.get_new_id(T::Output::TY);
+                    let new_id = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::BitAnd {
                         lhs: (lhs.id(&*self.raw), T::TY),
                         rhs: (rhs.id(&*self.raw), Rhs::TY),
@@ -341,7 +342,7 @@ macro_rules! gen_intrinsics {
                 }
 
                 pub fn bit_or<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitOr<Rhs>>(&self, lhs: T, rhs: T) -> T::Output {
-                    let new_id = self.raw.get_new_id(T::Output::TY);
+                    let new_id = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::BitOr {
                         lhs: (lhs.id(&*self.raw), T::TY),
                         rhs: (rhs.id(&*self.raw), Rhs::TY),
@@ -351,7 +352,7 @@ macro_rules! gen_intrinsics {
                 }
 
                 pub fn bit_xor<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitXor<Rhs>>(&self, lhs: T, rhs: T) -> T::Output {
-                    let new_id = self.raw.get_new_id(T::Output::TY);
+                    let new_id = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::BitXor {
                         lhs: (lhs.id(&*self.raw), T::TY),
                         rhs: (rhs.id(&*self.raw), Rhs::TY),
@@ -379,6 +380,52 @@ macro_rules! gen_intrinsics {
                         lhs: (lhs.id(&*self.raw), T::TY),
                         rhs: (rhs.id(&*self.raw), Rhs::TY),
                     });
+                }
+
+                pub fn new_array<const N: usize, S, T>(&self, data: [S; N]) -> SpvArray<N, T> 
+                where
+                    S: SpvRustEq<T> + AsPrimitive,
+                    T: AsPrimitiveType + AsPrimitive,
+                {
+                    let id = self.raw.get_new_id();
+                    self.raw.push_instruction(Instruction::ConstArray {
+                        store: id,
+                        ty: T::TY,
+                        data: data.iter().map(|e| e.id(&*self.raw)).collect::<Vec<_>>(),
+                    });
+                    SpvArray {
+                        id,
+                        _marker: PhantomData,
+                    }
+                }
+
+                pub fn array_store<const N: usize, S, T>(&self, array: SpvArray<N, T>, index: usize, data: S) 
+                where
+                    S: SpvRustEq<T> + AsPrimitive,
+                    T: AsPrimitiveType + AsPrimitive,
+                {
+                    assert!(index < N);
+                    self.raw.push_instruction(Instruction::ArrayStore { 
+                        array: array.id, 
+                        index, 
+                        data: data.id(&*self.raw),
+                        element_ty: T::TY,
+                    });
+                }
+
+                pub fn array_read<const N: usize, T>(&self, array: SpvArray<N, T>, index: usize) -> T 
+                where
+                    T: AsPrimitiveType + AsPrimitive + FromId,
+                {
+                    assert!(index < N);
+                    let id = self.raw.get_new_id();
+                    self.raw.push_instruction(Instruction::ArrayRead { 
+                        array: array.id, 
+                        index,
+                        store: id,
+                        element_ty: T::TY,
+                    });
+                    T::from_id(id)
                 }
             }
         )*

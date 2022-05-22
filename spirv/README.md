@@ -7,7 +7,8 @@ cargo run --example basic
 ```
 
 # TODO
-- Control Flow
+- For Loops
+- More intuitive loops (allow b.spv_while(x < 3, |b| { .. }) syntax)
 - Struct creation
 - Array creation
 - Push constants

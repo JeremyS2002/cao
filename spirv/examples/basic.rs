@@ -6,11 +6,8 @@ fn main() {
         #version 450
 
         void main() {
-            bool b = true;
-            float x = 0.0;
-            while(b) {
-                x = x + 1.0;
-            }
+            float x[3] = { 1.0, 2.0, 3.0 };
+            x[0] = 2.0;
         }
     ";
 
@@ -80,30 +77,30 @@ fn main() {
     // ===================================================================
     // ===================================================================
 
-    let vertex = {
-        let builder = spirv::VertexBuilder::new();
+    // let vertex = {
+    //     let builder = spirv::VertexBuilder::new();
     
-        let position = builder.position();
+    //     let position = builder.position();
 
-        builder.main(|b| {
-            // b.spv_if(true, |b| {
-            //     b.store_out(position, glam::vec4(0.0, 0.0, 0.0, 0.0));
-            // }).spv_else_if(true, |b| {
-            //     b.store_out(position, glam::vec4(1.0, 1.0, 1.0, 0.0))
-            // });
+    //     builder.main(|b| {
+    //         // b.spv_if(true, |b| {
+    //         //     b.store_out(position, glam::vec4(0.0, 0.0, 0.0, 0.0));
+    //         // }).spv_else_if(true, |b| {
+    //         //     b.store_out(position, glam::vec4(1.0, 1.0, 1.0, 0.0))
+    //         // });
 
             
-            b.spv_while(true, |b| {
+    //         b.spv_while(true, |b| {
                  
-            });
-        });
+    //         });
+    //     });
     
-        builder.compile()
-    };
+    //     builder.compile()
+    // };
 
-    let mut loader = rspirv::dr::Loader::new();
-    rspirv::binary::parse_words(vertex, &mut loader).unwrap();
-    let module = loader.module();
+    // let mut loader = rspirv::dr::Loader::new();
+    // rspirv::binary::parse_words(vertex, &mut loader).unwrap();
+    // let module = loader.module();
 
-    println!("{}", module.disassemble());
+    // println!("{}", module.disassemble());
 }

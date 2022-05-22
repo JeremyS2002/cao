@@ -124,7 +124,7 @@ macro_rules! gen_as_data {
 
             impl AsPrimitive for $rust {
                 fn id(&self, b: &dyn RawBuilder) -> usize {
-                    let id = b.get_new_id(crate::data::PrimitiveType::$name);
+                    let id = b.get_new_id();
                     b.push_instruction(crate::builder::Instruction::Store {
                         val: crate::data::PrimitiveVal::$name(*self),
                         store: id,

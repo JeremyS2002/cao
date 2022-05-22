@@ -8,6 +8,8 @@ pub mod spv_struct;
 pub use as_ty::*;
 pub use ty_structs::*;
 pub use ops::*;
+pub use spv_array::*;
+pub use spv_struct::*;
 
 pub trait DataRef {
     fn ty(&self) -> PrimitiveType;
@@ -281,7 +283,7 @@ impl From<PrimitiveVal> for PrimitiveType {
 }
 
 impl PrimitiveVal {
-    fn set_constant(&self, b: &mut rspirv::dr::Builder) -> (u32, u32) {
+    pub(crate) fn set_constant(&self, b: &mut rspirv::dr::Builder) -> (u32, u32) {
         match self {
             PrimitiveVal::Bool(v) => {
                 let ty = PrimitiveType::from(*self).raw_ty(b);
@@ -485,4 +487,82 @@ pub enum DataType {
     Primitive(PrimitiveType),
     Array(PrimitiveType, usize),
     Struct(&'static [&'static str], &'static [DataType]),
+}
+
+impl DataType {
+    pub fn raw_ty(&self, b: &mut rspirv::dr::Builder) -> u32 {
+        match self {
+            Self::Primitive(ty) => ty.raw_ty(b),
+            Self::Array(ty, n) => {
+                let p = ty.raw_ty(b);
+                b.type_array(p, *n as u32)
+            },
+            Self::Struct(_, _) => {
+                todo!();
+            }
+        }
+    }
+}
+
+impl From<DataVal> for DataType {
+    fn from(v: DataVal) -> Self {
+        match v {
+            DataVal::Primitive(p) => Self::Primitive(PrimitiveType::from(p)),
+            DataVal::Array(a) => Self::Array(PrimitiveType::from(a[0]), a.len()),
+            DataVal::Struct(_, _) => todo!(),
+        }
+    }
+}
+
+impl From<&'_ DataVal> for DataType {
+    fn from(v: &'_ DataVal) -> Self {
+        match v {
+            DataVal::Primitive(p) => Self::Primitive(PrimitiveType::from(*p)),
+            DataVal::Array(a) => Self::Array(PrimitiveType::from(a[0]), a.len()),
+            DataVal::Struct(_, _) => todo!(),
+        }
+    }
+}
+
+
+pub enum DataVal {
+    Primitive(PrimitiveVal),
+    Array(Vec<PrimitiveVal>),
+    Struct(&'static [&'static str], Vec<DataVal>),
+}
+
+impl DataVal {
+    pub(crate) fn set_constant(&self, b: &mut rspirv::dr::Builder) -> (u32, u32) {
+        match self {
+            DataVal::Primitive(p) => p.set_constant(b),
+            DataVal::Array(v) => {
+                let ty = DataType::from(self).raw_ty(b);
+                let components = v
+                    .iter()
+                    .map(|c| {
+                        c.set_constant(b).0
+                    })
+                    .collect::<Vec<_>>();
+                (b.constant_composite(ty, components), ty)
+            },
+            DataVal::Struct(_, _) => todo!(),
+        }
+    }
+
+    pub fn set(&self, b: &mut rspirv::dr::Builder) -> u32 {
+        let (c, ty) = self.set_constant(b);
+        let p_ty = b.type_pointer(
+            None, 
+            rspirv::spirv::StorageClass::Function,
+            ty,
+        );
+        let var = b.variable(
+            p_ty, 
+            None, 
+            rspirv::spirv::StorageClass::Function,
+            None,
+        );
+        b.store(var, c, None, None).unwrap();
+        var
+    }
 }

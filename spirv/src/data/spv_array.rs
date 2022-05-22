@@ -1,12 +1,16 @@
 
-use std::{marker::PhantomData, rc::Rc};
+use std::marker::PhantomData;
 
-use crate::builder::RawBaseBuilder;
+use crate::AsPrimitiveType;
 
 use super::AsDataType;
 
-pub struct SpvArray<T: AsDataType> {
-    pub(crate) builder: Rc<RawBaseBuilder>,
+#[derive(Clone, Copy, Debug)]
+pub struct SpvArray<const N: usize, T: AsPrimitiveType> {
+    pub(crate) id: usize,
     pub(crate) _marker: PhantomData<T>,
 }
 
+impl<const N: usize, T: AsPrimitiveType> AsDataType for SpvArray<N, T> {
+    const TY: crate::data::DataType = crate::data::DataType::Array(T::TY, N);
+}

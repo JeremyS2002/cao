@@ -55,6 +55,23 @@ pub enum Instruction {
     },
     Return {
         id: usize,
+    },
+    ConstArray {
+        store: usize,
+        ty: PrimitiveType,
+        data: Vec<usize>,
+    },
+    ArrayStore {
+        array: usize,
+        index: usize,
+        data: usize,
+        element_ty: PrimitiveType,
+    },
+    ArrayRead {
+        array: usize,
+        index: usize,
+        store: usize,
+        element_ty: PrimitiveType,
     }
 }
 
@@ -147,6 +164,54 @@ impl Instruction {
             Instruction::LoadStorage {  } => todo!(),
             Instruction::StoreStorage {  } => todo!(),
             Instruction::VectorShuffle { src, dst, components } => process_vector_shuffle(var_map, builder, src, dst, *components),
+            Instruction::ConstArray { store, ty, data } => {
+                let len = PrimitiveVal::UInt(data.len() as u32).set_constant(builder).0;
+                let element_ty = ty.raw_ty(builder);
+                let spv_ty = builder.type_array(element_ty, len);
+                let pointer_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, spv_ty);
+                let var = builder.variable(pointer_ty, None, rspirv::spirv::StorageClass::Function, None);
+
+                let elements = data
+                    .iter()
+                    .map(|e| *var_map.get(e).unwrap())
+                    .collect::<Vec<_>>();
+
+                let spv_obj = builder.constant_composite(spv_ty, elements);
+                builder.store(var, spv_obj, None, None).unwrap();
+                var_map.insert(*store, var);
+            },
+            Instruction::ArrayStore { 
+                array, 
+                index, 
+                data,
+                element_ty,
+            } => {
+                let index_obj = PrimitiveVal::UInt(*index as u32).set_constant(builder).0;
+                let array_obj = *var_map.get(array).unwrap();
+                let spv_element_ty = element_ty.raw_ty(builder);
+                let index_p = builder.access_chain(spv_element_ty, None, array_obj, [index_obj]).unwrap();
+                
+                let data_var = *var_map.get(data).unwrap();
+                let data_obj = builder.load(spv_element_ty, None, data_var, None, None).unwrap();
+
+                builder.store(index_p, data_obj, None, None).unwrap();
+            },
+            Instruction::ArrayRead { 
+                array, 
+                index, 
+                store, 
+                element_ty,
+            } => {
+                let index_obj = PrimitiveVal::UInt(*index as u32).set_constant(builder).0;
+                let array_obj = *var_map.get(array).unwrap();
+                let spv_element_ty = element_ty.raw_ty(builder);
+                let index_p = builder.access_chain(spv_element_ty, None, array_obj, [index_obj]).unwrap();
+
+                let index_obj = builder.load(spv_element_ty, None, index_p, None, None).unwrap();
+
+                let store_var = *var_map.get(store).unwrap();
+                builder.store(store_var, index_obj, None, None).unwrap();
+            },
         }
     }
 }

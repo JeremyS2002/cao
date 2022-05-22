@@ -23,12 +23,12 @@ impl RawBuilder for RawLoopBuilder {
         self.instructions.borrow_mut().push(instruction);
     }
 
-    fn get_new_id(&self, ty: PrimitiveType) -> usize {
-        self.builder.get_new_id(ty)
+    fn get_new_id(&self) -> usize {
+        self.builder.get_new_id()
     }
 
-    fn name_var(&self, ty: PrimitiveType, id: usize, name: String) {
-        self.builder.name_var(ty, id, name)
+    fn name_var(&self, id: usize, name: String) {
+        self.builder.name_var(id, name)
     }
 
     fn in_loop(&self) -> bool {

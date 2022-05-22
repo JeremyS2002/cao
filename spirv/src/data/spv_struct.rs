@@ -1,7 +1,5 @@
 
-use std::{marker::PhantomData, rc::Rc};
-
-use crate::builder::RawBaseBuilder;
+use std::marker::PhantomData;
 
 use super::PrimitiveType;
 
@@ -15,6 +13,6 @@ pub struct StructDesc<const N: usize> {
 }
 
 pub struct SpvStruct<const N: usize, S: AsSpvStruct<N>> {
-    pub(crate) builder: Rc<RawBaseBuilder>,
+    pub(crate) id: usize,
     pub(crate) _marker: PhantomData<S>,
 }

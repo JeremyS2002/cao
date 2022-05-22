@@ -18,12 +18,12 @@ impl super::RawBuilder for RawFnBuilder {
         self.instructions.borrow_mut().push(instruction);
     }
 
-    fn get_new_id(&self, ty: PrimitiveType) -> usize {
-        self.variables.borrow_mut().get_new_id(ty)
+    fn get_new_id(&self) -> usize {
+        self.variables.borrow_mut().get_new_id()
     }
 
-    fn name_var(&self, ty: PrimitiveType, id: usize, name: String) {
-        self.variables.borrow_mut().name_var(ty, id, name)
+    fn name_var(&self, id: usize, name: String) {
+        self.variables.borrow_mut().name_var(id, name)
     }
 
     fn in_loop(&self) -> bool {
