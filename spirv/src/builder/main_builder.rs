@@ -1,7 +1,6 @@
-
-use std::rc::Rc;
-use super::{RawBuilder, RawBaseBuilder, Variables};
+use super::{RawBaseBuilder, RawBuilder, Variables};
 use std::cell::RefCell;
+use std::rc::Rc;
 
 pub(crate) struct RawMainBuilder {
     // Always BaseBuilder
@@ -40,6 +39,4 @@ pub struct MainBuilder {
     pub(crate) raw: Rc<dyn RawBuilder>,
 }
 
-impl MainBuilder {
-    
-}
+impl MainBuilder {}

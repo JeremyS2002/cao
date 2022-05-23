@@ -1,6 +1,5 @@
-
-use std::cell::RefCell;
 use super::*;
+use std::cell::RefCell;
 
 pub(crate) struct RawLoopBuilder {
     pub(crate) builder: Rc<dyn RawBuilder>,
@@ -38,13 +37,13 @@ impl RawBuilder for RawLoopBuilder {
 
 impl Drop for RawLoopBuilder {
     fn drop(&mut self) {
-        self.builder.push_instruction(super::Instruction::Loop { 
-            condition: self.condition, 
-            body: self.instructions.borrow_mut().drain(..).collect(), 
+        self.builder.push_instruction(super::Instruction::Loop {
+            condition: self.condition,
+            body: self.instructions.borrow_mut().drain(..).collect(),
         })
     }
 }
 
 pub struct LoopBuilder {
-    pub(crate) raw: Rc<dyn RawBuilder>
+    pub(crate) raw: Rc<dyn RawBuilder>,
 }

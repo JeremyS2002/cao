@@ -1,7 +1,6 @@
-
 use std::marker::PhantomData;
 
-use crate::{AsPrimitiveType, AsData};
+use crate::{AsData, AsPrimitiveType};
 
 use super::AsDataType;
 

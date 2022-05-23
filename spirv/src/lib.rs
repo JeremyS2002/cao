@@ -4,13 +4,13 @@
 //!     // a.inputs(&[Vec2, Vec2])
 //!     // let x: Vec2 = a.input(0).unwrap();
 //!     // let y: Vec2 = a.input(1).unwrap();
-//! 
+//!
 //!     let t = x + y;
 //!     
 //!     return!(a, t);
 //!     // a.ret(&t: &dyn Data);
 //! });
-//! 
+//!
 //! b.spv_main(|m| {
 //!     spv_if!(m, (bool1) {
 //!         // code1
@@ -25,40 +25,36 @@
 //!     //      condition_builder.else_if(bool4, // code3);
 //!     //      condition_builder.end_if();
 //!     // }
-//! 
+//!
 //!     let a = b.vec2([0.0, 1.0]);
 //!     let b = b.vec2([1.0, 0.0]);
 //!     let c = f.call(&[&a, &b]);
 //! });
-//! 
+//!
 
 use data::{AsDataType, IsPrimitiveType};
-use interface::{Uniform, Out, In, StorageAccessDesc, Storage};
-use rspirv::binary::Assemble;
 use either::*;
+use interface::{In, Out, Storage, StorageAccessDesc, Uniform};
+use rspirv::binary::Assemble;
 
-use std::rc::Rc;
-use std::marker::PhantomData;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::marker::PhantomData;
+use std::rc::Rc;
 
-use builder::{RawBaseBuilder, Instruction};
+use builder::{Instruction, RawBaseBuilder};
 pub use glam;
 
 pub mod builder;
 pub mod data;
-pub mod texture;
-pub mod interface;
 pub mod function;
+pub mod interface;
 pub mod specialisation;
+pub mod texture;
 
 pub use specialisation::{
+    ComputeBuilder, FragmentBuilder, GeometryBuilder, TessControlBuilder, TessEvalBuilder,
     VertexBuilder,
-    FragmentBuilder,
-    TessControlBuilder,
-    TessEvalBuilder,
-    GeometryBuilder,
-    ComputeBuilder,
 };
 
 pub use data::ty_structs::*;
@@ -85,21 +81,24 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         (*self.raw.functions.borrow()).clone()
     }
 
-    pub fn spv_fn<R: data::DataRef, F: FnOnce(&builder::FnBuilder) -> () + 'static>(&self, f: F) -> function::Function<R> {
+    pub fn spv_fn<R: data::DataRef, F: FnOnce(&builder::FnBuilder) -> () + 'static>(
+        &self,
+        f: F,
+    ) -> function::Function<R> {
         let id = 0;
-        
+
         let b = builder::FnBuilder {
             raw: Rc::new(builder::RawFnBuilder {
                 builder: Rc::clone(&self.raw),
                 id,
                 instructions: RefCell::new(Vec::new()),
-                variables: RefCell::default()
-            })
+                variables: RefCell::default(),
+            }),
         };
 
         f(&b);
 
-        function::Function { 
+        function::Function {
             id,
             _marker: PhantomData,
         }
@@ -107,7 +106,10 @@ impl<T: specialisation::ShaderTY> Builder<T> {
 
     pub fn input<P: IsPrimitiveType>(&self, location: u32, name: Option<&'static str>) -> In<P> {
         let index = self.raw.inputs.borrow().len();
-        self.raw.inputs.borrow_mut().push((P::TY, Left(location), name));
+        self.raw
+            .inputs
+            .borrow_mut()
+            .push((P::TY, Left(location), name));
         In {
             index,
             _marker: PhantomData,
@@ -116,10 +118,13 @@ impl<T: specialisation::ShaderTY> Builder<T> {
 
     pub fn output<P: IsPrimitiveType>(&self, location: u32, name: Option<&'static str>) -> Out<P> {
         let index = self.raw.inputs.borrow().len();
-        self.raw.outputs.borrow_mut().push((P::TY, Left(location), name));
-        Out { 
-            index, 
-            _marker: PhantomData
+        self.raw
+            .outputs
+            .borrow_mut()
+            .push((P::TY, Left(location), name));
+        Out {
+            index,
+            _marker: PhantomData,
         }
     }
 
@@ -149,7 +154,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
                 builder: Rc::clone(&self.raw),
                 instructions: RefCell::new(Vec::new()),
                 variables: RefCell::default(),
-            })
+            }),
         };
 
         f(&b)
@@ -160,30 +165,32 @@ impl<T: specialisation::ShaderTY> Builder<T> {
 
         let _ext = builder.ext_inst_import("GLSL.std.450");
         builder.set_version(1, 0);
-        builder.capability(rspirv::spirv::Capability::Shader);  
-        builder.memory_model(rspirv::spirv::AddressingModel::Logical, rspirv::spirv::MemoryModel::GLSL450);
+        builder.capability(rspirv::spirv::Capability::Shader);
+        builder.memory_model(
+            rspirv::spirv::AddressingModel::Logical,
+            rspirv::spirv::MemoryModel::GLSL450,
+        );
 
         // map from my function id to rspirv function id
         let function_map = HashMap::new();
         let mut struct_map = HashMap::new();
 
         // for (_, function) in self.functions() {
-            
+
         // }
 
         let mut var_map = HashMap::new();
 
         let void = builder.type_void();
         let void_f = builder.type_function(void, []);
-        let main = builder.begin_function(
-            void, 
-            None, 
-            rspirv::spirv::FunctionControl::empty(),
-            void_f
-        ).unwrap();
+        let main = builder
+            .begin_function(void, None, rspirv::spirv::FunctionControl::empty(), void_f)
+            .unwrap();
         builder.name(main, "main");
 
-        let inputs = self.raw.inputs
+        let inputs = self
+            .raw
+            .inputs
             .borrow()
             .iter()
             .map(|(v, t, name)| {
@@ -191,18 +198,18 @@ impl<T: specialisation::ShaderTY> Builder<T> {
                 let ty = v.raw_ty(&mut builder);
                 let pointer_ty = builder.type_pointer(None, storage, ty);
                 let variable = builder.variable(pointer_ty, None, storage, None);
-                
+
                 match t {
                     Left(location) => builder.decorate(
                         variable,
                         rspirv::spirv::Decoration::Location,
-                        [rspirv::dr::Operand::LiteralInt32(*location)]
+                        [rspirv::dr::Operand::LiteralInt32(*location)],
                     ),
                     Right(built_in) => builder.decorate(
                         variable,
                         rspirv::spirv::Decoration::BuiltIn,
-                        [rspirv::dr::Operand::BuiltIn(*built_in)]
-                    )
+                        [rspirv::dr::Operand::BuiltIn(*built_in)],
+                    ),
                 }
 
                 if let Some(name) = name {
@@ -212,7 +219,9 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             })
             .collect::<Vec<_>>();
 
-        let outputs = self.raw.outputs
+        let outputs = self
+            .raw
+            .outputs
             .borrow()
             .iter()
             .map(|(v, t, name)| {
@@ -220,18 +229,18 @@ impl<T: specialisation::ShaderTY> Builder<T> {
                 let ty = v.raw_ty(&mut builder);
                 let pointer_ty = builder.type_pointer(None, storage, ty);
                 let variable = builder.variable(pointer_ty, None, storage, None);
-                
+
                 match t {
                     Left(location) => builder.decorate(
                         variable,
                         rspirv::spirv::Decoration::Location,
-                        [rspirv::dr::Operand::LiteralInt32(*location)]
+                        [rspirv::dr::Operand::LiteralInt32(*location)],
                     ),
                     Right(built_in) => builder.decorate(
                         variable,
                         rspirv::spirv::Decoration::BuiltIn,
-                        [rspirv::dr::Operand::BuiltIn(*built_in)]
-                    )
+                        [rspirv::dr::Operand::BuiltIn(*built_in)],
+                    ),
                 }
 
                 if let Some(name) = name {
@@ -250,8 +259,8 @@ impl<T: specialisation::ShaderTY> Builder<T> {
 
         for mut instruction in self.instructions() {
             instruction.process(
-                &mut builder, 
-                &mut var_map, 
+                &mut builder,
+                &mut var_map,
                 &function_map,
                 &mut struct_map,
                 &inputs,

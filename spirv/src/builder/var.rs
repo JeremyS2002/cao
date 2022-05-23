@@ -1,4 +1,3 @@
-
 use slab::Slab;
 
 #[derive(Default, Clone, Debug)]

@@ -1,5 +1,4 @@
-use rspirv::binary::{Disassemble, Assemble};
-
+use rspirv::binary::{Assemble, Disassemble};
 
 fn main() {
     let src = "
@@ -18,11 +17,9 @@ fn main() {
     ";
 
     let compiler = shaderc::Compiler::new().unwrap();
-    let spv = compiler.compile_into_spirv(
-        src, 
-        shaderc::ShaderKind::Vertex,
-        "", "main", None,
-    ).unwrap();
+    let spv = compiler
+        .compile_into_spirv(src, shaderc::ShaderKind::Vertex, "", "main", None)
+        .unwrap();
 
     let mut loader = rspirv::dr::Loader::new();
     rspirv::binary::parse_words(spv.as_binary(), &mut loader).unwrap();
@@ -30,11 +27,9 @@ fn main() {
 
     println!("{}", module.disassemble());
 
-
     // ===================================================================
     // ===================================================================
     // ===================================================================
-
 
     // let mut builder = rspirv::dr::Builder::new();
 
@@ -50,7 +45,7 @@ fn main() {
 
     // builder.entry_point(
     //     rspirv::spirv::ExecutionModel::Vertex,
-    //     main, 
+    //     main,
     //     "main",
     //     [],
     // );
@@ -78,14 +73,13 @@ fn main() {
     // //let code = builder.module().assemble();
     // println!("{}", builder.module().disassemble());
 
-    
     // ===================================================================
     // ===================================================================
     // ===================================================================
 
     // let vertex = {
     //     let builder = spirv::VertexBuilder::new();
-    
+
     //     let position = builder.position();
 
     //     builder.main(|b| {
@@ -95,12 +89,11 @@ fn main() {
     //         //     b.store_out(position, glam::vec4(1.0, 1.0, 1.0, 0.0))
     //         // });
 
-            
     //         b.spv_while(true, |b| {
-                 
+
     //         });
     //     });
-    
+
     //     builder.compile()
     // };
 

@@ -1,26 +1,25 @@
-
 use std::marker::PhantomData;
 
 use crate::builder::RawBuilder;
 
+use glam::DMat2 as GlamDMat2;
+use glam::DMat3 as GlamDMat3;
+use glam::DMat4 as GlamDMat4;
+use glam::DVec2 as GlamDVec2;
+use glam::DVec3 as GlamDVec3;
+use glam::DVec4 as GlamDVec4;
 use glam::IVec2 as GlamIVec2;
 use glam::IVec3 as GlamIVec3;
 use glam::IVec4 as GlamIVec4;
+use glam::Mat2 as GlamMat2;
+use glam::Mat3 as GlamMat3;
+use glam::Mat4 as GlamMat4;
 use glam::UVec2 as GlamUVec2;
 use glam::UVec3 as GlamUVec3;
 use glam::UVec4 as GlamUVec4;
 use glam::Vec2 as GlamVec2;
 use glam::Vec3 as GlamVec3;
 use glam::Vec4 as GlamVec4;
-use glam::DVec2 as GlamDVec2;
-use glam::DVec3 as GlamDVec3;
-use glam::DVec4 as GlamDVec4;
-use glam::Mat2 as GlamMat2;
-use glam::Mat3 as GlamMat3;
-use glam::Mat4 as GlamMat4;
-use glam::DMat2 as GlamDMat2;
-use glam::DMat3 as GlamDMat3;
-use glam::DMat4 as GlamDMat4;
 
 use super::PrimitiveType;
 
@@ -36,32 +35,11 @@ macro_rules! gen_types {
 }
 
 gen_types!(
-    Bool,
-    Int,
-    UInt,
-    Float,
-    Double,
-    IVec2,
-    IVec3,
-    IVec4,
-    UVec2,
-    UVec3,
-    UVec4,
-    Vec2,
-    Vec3,
-    Vec4,
-    DVec2,
-    DVec3,
-    DVec4,
-    Mat2,
-    Mat3,
-    Mat4,
-    DMat2,
-    DMat3,
-    DMat4,
+    Bool, Int, UInt, Float, Double, IVec2, IVec3, IVec4, UVec2, UVec3, UVec4, Vec2, Vec3, Vec4,
+    DVec2, DVec3, DVec4, Mat2, Mat3, Mat4, DMat2, DMat3, DMat4,
 );
 
-pub trait SpvRustEq<T: AsPrimitive>: AsPrimitive { }
+pub trait SpvRustEq<T: AsPrimitive>: AsPrimitive {}
 
 pub trait AsPrimitiveType {
     const TY: crate::data::PrimitiveType;
@@ -95,7 +73,7 @@ pub trait FromId {
     fn from_id(id: usize) -> Self;
 }
 
-pub trait SpvStore<Rhs: AsPrimitiveType>: AsPrimitiveType + AsPrimitive { 
+pub trait SpvStore<Rhs: AsPrimitiveType>: AsPrimitiveType + AsPrimitive {
     fn val(rhs: Rhs) -> crate::data::PrimitiveVal;
 }
 
@@ -108,7 +86,7 @@ macro_rules! gen_as_data {
 
             impl SpvRustEq<$name> for $rust { }
 
-            impl SpvStore<$rust> for $name { 
+            impl SpvStore<$rust> for $name {
                 fn val(rhs: $rust) -> crate::data::PrimitiveVal {
                     crate::data::PrimitiveVal::$name(rhs)
                 }
@@ -198,29 +176,10 @@ macro_rules! gen_as_data {
 }
 
 gen_as_data!(
-    Bool, bool,
-    Int, i32,
-    UInt, u32,
-    Float, f32,
-    Double, f64,
-    IVec2, GlamIVec2,
-    IVec3, GlamIVec3,
-    IVec4, GlamIVec4,
-    UVec2, GlamUVec2,
-    UVec3, GlamUVec3,
-    UVec4, GlamUVec4,
-    Vec2, GlamVec2,
-    Vec3, GlamVec3,
-    Vec4, GlamVec4,
-    DVec2, GlamDVec2,
-    DVec3, GlamDVec3,
-    DVec4, GlamDVec4,
-    Mat2, GlamMat2,
-    Mat3, GlamMat3,
-    Mat4, GlamMat4,
-    DMat2, GlamDMat2,
-    DMat3, GlamDMat3,
-    DMat4, GlamDMat4,
+    Bool, bool, Int, i32, UInt, u32, Float, f32, Double, f64, IVec2, GlamIVec2, IVec3, GlamIVec3,
+    IVec4, GlamIVec4, UVec2, GlamUVec2, UVec3, GlamUVec3, UVec4, GlamUVec4, Vec2, GlamVec2, Vec3,
+    GlamVec3, Vec4, GlamVec4, DVec2, GlamDVec2, DVec3, GlamDVec3, DVec4, GlamDVec4, Mat2, GlamMat2,
+    Mat3, GlamMat3, Mat4, GlamMat4, DMat2, GlamDMat2, DMat3, GlamDMat3, DMat4, GlamDMat4,
 );
 
 pub struct VectorShuffle<T: AsPrimitiveType> {
@@ -309,10 +268,10 @@ macro_rules! impl_vector_shuffle {
                         xx, 0, 0,
                         xy, 0, 1,
                         yx, 1, 0,
-                        yy, 1, 1, 
+                        yy, 1, 1,
                     ]
                 );
-                
+
                 impl_vec3_shuffle!(
                     $vec2, $vec3 : [
                         xxx, 0, 0, 0,
@@ -351,7 +310,7 @@ macro_rules! impl_vector_shuffle {
             impl $vec3 {
                 impl_unit_shuffle!(
                     $vec3, $unit : [
-                        x, 0, 
+                        x, 0,
                         y, 1,
                         z, 2,
                     ]
@@ -399,7 +358,7 @@ macro_rules! impl_vector_shuffle {
                         zyz, 2, 1, 2,
                         zzx, 2, 2, 0,
                         zzy, 2, 2, 1,
-                        zzz, 2, 2, 2,               
+                        zzz, 2, 2, 2,
                     ]
                 );
 
@@ -856,10 +815,8 @@ macro_rules! impl_vector_shuffle {
 }
 
 impl_vector_shuffle!(
-    Float, Vec2, Vec3, Vec4,
-    Int, IVec2, IVec3, IVec4,
-    UInt, UVec2, UVec3, UVec4,
-    Double, DVec2, DVec3, DVec4,
+    Float, Vec2, Vec3, Vec4, Int, IVec2, IVec3, IVec4, UInt, UVec2, UVec3, UVec4, Double, DVec2,
+    DVec3, DVec4,
 );
 
 // macro_rules! impl_vector_shuffle {
@@ -1029,7 +986,7 @@ impl_vector_shuffle!(
 //                 }
 //             }
 //         }
-        
+
 //         // name &rust
 //         impl std::ops::$op<&'_ $rust> for $name {
 //             type Output = $name;
@@ -1246,7 +1203,6 @@ impl_vector_shuffle!(
 //     DMat4, GlamDMat4,
 // );
 
-
 // macro_rules! gen_vec_mat_ops {
 //     ($($mat:ident, $rust_mat:ident, $vec:ident, $rust_vec:ident,)*) => {
 //         $(
@@ -1321,8 +1277,6 @@ impl_vector_shuffle!(
 //                     }
 //                 }
 //             }
-
-
 
 //             // mat rust_vec
 //             impl std::ops::Mul<$rust_vec> for $mat {
@@ -1416,8 +1370,6 @@ impl_vector_shuffle!(
 //                 }
 //             }
 
-
-
 //             // rust_mat vec
 //             impl std::ops::Mul<$vec> for $rust_mat {
 //                 type Output = $vec;
@@ -1510,7 +1462,7 @@ impl_vector_shuffle!(
 //                 }
 //             }
 //         )*
-        
+
 //     };
 // }
 

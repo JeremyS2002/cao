@@ -1,42 +1,41 @@
-
-use either::*;
 use crate::data::*;
+use either::*;
 
-pub trait ShaderTY { 
+pub trait ShaderTY {
     const TY: rspirv::spirv::ExecutionModel;
 }
 
-pub struct Vertex { }
+pub struct Vertex {}
 
 impl ShaderTY for Vertex {
     const TY: rspirv::spirv::ExecutionModel = rspirv::spirv::ExecutionModel::Vertex;
 }
 
-pub struct Fragment { }
+pub struct Fragment {}
 
 impl ShaderTY for Fragment {
     const TY: rspirv::spirv::ExecutionModel = rspirv::spirv::ExecutionModel::Fragment;
 }
 
-pub struct Geometry { }
+pub struct Geometry {}
 
 impl ShaderTY for Geometry {
     const TY: rspirv::spirv::ExecutionModel = rspirv::spirv::ExecutionModel::Geometry;
 }
 
-pub struct TessControl { }
+pub struct TessControl {}
 
 impl ShaderTY for TessControl {
     const TY: rspirv::spirv::ExecutionModel = rspirv::spirv::ExecutionModel::TessellationControl;
 }
 
-pub struct TessEval { }
+pub struct TessEval {}
 
 impl ShaderTY for TessEval {
     const TY: rspirv::spirv::ExecutionModel = rspirv::spirv::ExecutionModel::TessellationEvaluation;
 }
 
-pub struct Compute { }
+pub struct Compute {}
 
 impl ShaderTY for Compute {
     const TY: rspirv::spirv::ExecutionModel = rspirv::spirv::ExecutionModel::GLCompute;
@@ -50,11 +49,11 @@ pub type TessEvalBuilder = super::Builder<TessEval>;
 pub type ComputeBuilder = super::Builder<Compute>;
 
 macro_rules! impl_specialisation {
-    ($($name:ident: 
-        [ 
-            $($spec_in:ident, $ty_in:ident, $built_in_a:ident,)* 
-        ], [ 
-            $($spec_out:ident, $ty_out:ident, $built_in_b:ident,)* 
+    ($($name:ident:
+        [
+            $($spec_in:ident, $ty_in:ident, $built_in_a:ident,)*
+        ], [
+            $($spec_out:ident, $ty_out:ident, $built_in_b:ident,)*
         ],
     )*) => {
         $(
@@ -63,9 +62,9 @@ macro_rules! impl_specialisation {
                     pub fn $spec_in(&self) -> crate::interface::In<$ty_in> {
                         let index = self.raw.outputs.borrow().len();
                         self.raw.outputs.borrow_mut().push((
-                            crate::data::PrimitiveType::$ty_in, 
-                            Right(rspirv::spirv::BuiltIn::$built_in_a), 
-                            Some(stringify!($spec_in)), 
+                            crate::data::PrimitiveType::$ty_in,
+                            Right(rspirv::spirv::BuiltIn::$built_in_a),
+                            Some(stringify!($spec_in)),
                         ));
                         crate::interface::In {
                             index,
@@ -78,9 +77,9 @@ macro_rules! impl_specialisation {
                     pub fn $spec_out(&self) -> crate::interface::Out<$ty_out> {
                         let index = self.raw.outputs.borrow().len();
                         self.raw.outputs.borrow_mut().push((
-                            crate::data::PrimitiveType::$ty_out, 
-                            Right(rspirv::spirv::BuiltIn::$built_in_b), 
-                            Some(stringify!($spec_out)), 
+                            crate::data::PrimitiveType::$ty_out,
+                            Right(rspirv::spirv::BuiltIn::$built_in_b),
+                            Some(stringify!($spec_out)),
                         ));
                         crate::interface::Out {
                             index,

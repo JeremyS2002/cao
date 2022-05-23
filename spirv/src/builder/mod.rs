@@ -1,49 +1,48 @@
-
-use std::rc::Rc;
 use std::any::Any;
 use std::marker::PhantomData;
+use std::rc::Rc;
 
 // If I knew how to write macros properly this wouldn't be here but this is easier than learning proper macros
+use glam::DMat2 as GlamDMat2;
+use glam::DMat3 as GlamDMat3;
+use glam::DMat4 as GlamDMat4;
+use glam::DVec2 as GlamDVec2;
+use glam::DVec3 as GlamDVec3;
+use glam::DVec4 as GlamDVec4;
 use glam::IVec2 as GlamIVec2;
 use glam::IVec3 as GlamIVec3;
 use glam::IVec4 as GlamIVec4;
+use glam::Mat2 as GlamMat2;
+use glam::Mat3 as GlamMat3;
+use glam::Mat4 as GlamMat4;
 use glam::UVec2 as GlamUVec2;
 use glam::UVec3 as GlamUVec3;
 use glam::UVec4 as GlamUVec4;
 use glam::Vec2 as GlamVec2;
 use glam::Vec3 as GlamVec3;
 use glam::Vec4 as GlamVec4;
-use glam::DVec2 as GlamDVec2;
-use glam::DVec3 as GlamDVec3;
-use glam::DVec4 as GlamDVec4;
-use glam::Mat2 as GlamMat2;
-use glam::Mat3 as GlamMat3;
-use glam::Mat4 as GlamMat4;
-use glam::DMat2 as GlamDMat2;
-use glam::DMat3 as GlamDMat3;
-use glam::DMat4 as GlamDMat4;
 
 pub mod base_builder;
-pub mod fn_builder;
-pub mod main_builder;
 pub mod condition_builder;
-pub mod loop_builder;
-pub mod var;
+pub mod fn_builder;
 pub mod instruction;
+pub mod loop_builder;
+pub mod main_builder;
+pub mod var;
 
 pub(crate) use base_builder::*;
-pub(crate) use var::*;
-pub use fn_builder::*;
-pub use main_builder::*;
 pub use condition_builder::*;
-pub use loop_builder::*;
+pub use fn_builder::*;
 pub use instruction::*;
+pub use loop_builder::*;
+pub use main_builder::*;
+pub(crate) use var::*;
 
 use crate::data::*;
 
 pub trait AsAny {
     fn as_any_ref(&self) -> &dyn Any;
-    
+
     fn as_any_mut(&mut self) -> &mut dyn Any;
 
     fn as_any_box(self: Box<Self>) -> Box<dyn Any>;
@@ -89,10 +88,10 @@ impl dyn RawBuilder {
     #[allow(dead_code)]
     fn downcast<T: Any>(self: Box<Self>) -> Result<Box<T>, Box<Self>> {
         use std::ops::Deref;
-        
+
         match self.deref().as_any_ref().type_id() == ::std::any::TypeId::of::<T>() {
             true => Ok(self.as_any_box().downcast().unwrap()),
-            false => Err(self)
+            false => Err(self),
         }
     }
 }
@@ -150,31 +149,26 @@ macro_rules! gen_get_types {
     };
 }
 
-gen_get_types!(
-    FnBuilder,
-    ConditionBuilder,
-    LoopBuilder,
-    MainBuilder,
-);
+gen_get_types!(FnBuilder, ConditionBuilder, LoopBuilder, MainBuilder,);
 
 macro_rules! gen_intrinsics {
     ($($name:ident,)*) => {
         $(
             impl $name {
                 /// Adds an if condition to the current function
-                pub fn spv_if<F: FnOnce(&ConditionBuilder)>(&self, b: impl crate::data::SpvRustEq<Bool>, f: F) -> ConditionBuilder {                
+                pub fn spv_if<F: FnOnce(&ConditionBuilder)>(&self, b: impl crate::data::SpvRustEq<Bool>, f: F) -> ConditionBuilder {
                     let b = ConditionBuilder {
                         raw: RawConditionBuilder::new(Rc::clone(&self.raw), b.id(&*self.raw)),
                     };
-    
+
                     f(&b);
-    
+
                     b
                 }
-    
+
                 /// Adds a while loop to the current function
-                /// 
-                /// Note that the boolean condition must be updated by calling spv_store or it will always 
+                ///
+                /// Note that the boolean condition must be updated by calling spv_store or it will always
                 /// store the same condition and if it is initially true the loop will never terminate
                 pub fn spv_while<F: FnOnce(&LoopBuilder)>(&self, b: impl crate::data::SpvRustEq<Bool>, f: F) {
                     let b = LoopBuilder {
@@ -187,7 +181,7 @@ macro_rules! gen_intrinsics {
                 }
 
                 /// Adds a break instruction to the current function
-                /// 
+                ///
                 /// panics if the builder called on doesn't descend from a loop builder
                 pub fn spv_break(&self) {
                     if !self.raw.in_loop() {
@@ -197,7 +191,7 @@ macro_rules! gen_intrinsics {
                 }
 
                 /// Adds a continue instruction to the current function
-                /// 
+                ///
                 /// panics if the builder called on doesn't descend from a loop builder
                 pub fn spv_continue(&self) {
                     if !self.raw.in_loop() {
@@ -234,7 +228,7 @@ macro_rules! gen_intrinsics {
                     T::from_id(store)
                 }
 
-                pub fn store_out<T, S>(&self, output: crate::interface::Out<T>, store: S) 
+                pub fn store_out<T, S>(&self, output: crate::interface::Out<T>, store: S)
                 where
                     T: crate::IsPrimitiveType + crate::data::SpvRustEq<S>,
                     S: AsPrimitive,
@@ -382,7 +376,7 @@ macro_rules! gen_intrinsics {
                     });
                 }
 
-                pub fn logical_and<B1, B2>(&self, lhs: B1, rhs: B2) -> Bool 
+                pub fn logical_and<B1, B2>(&self, lhs: B1, rhs: B2) -> Bool
                 where
                     B1: SpvRustEq<Bool> + AsPrimitive,
                     B2: SpvRustEq<Bool> + AsPrimitive,
@@ -397,7 +391,7 @@ macro_rules! gen_intrinsics {
                     Bool::from_id(new_id)
                 }
 
-                pub fn logical_or<B1, B2>(&self, lhs: B1, rhs: B2) -> Bool 
+                pub fn logical_or<B1, B2>(&self, lhs: B1, rhs: B2) -> Bool
                 where
                     B1: SpvRustEq<Bool> + AsPrimitive,
                     B2: SpvRustEq<Bool> + AsPrimitive,
@@ -412,7 +406,7 @@ macro_rules! gen_intrinsics {
                     Bool::from_id(new_id)
                 }
 
-                pub fn logical_equal<B1, B2>(&self, lhs: B1, rhs: B2) -> Bool 
+                pub fn logical_equal<B1, B2>(&self, lhs: B1, rhs: B2) -> Bool
                 where
                     B1: SpvRustEq<Bool> + AsPrimitive,
                     B2: SpvRustEq<Bool> + AsPrimitive,
@@ -427,7 +421,7 @@ macro_rules! gen_intrinsics {
                     Bool::from_id(new_id)
                 }
 
-                pub fn logical_not<B>(&self, var: B) -> Bool 
+                pub fn logical_not<B>(&self, var: B) -> Bool
                 where
                     B: SpvRustEq<Bool> + AsPrimitive,
                 {
@@ -455,7 +449,7 @@ macro_rules! gen_intrinsics {
                     }
                 }
 
-                pub fn struct_store<T, S>(&self, s: SpvStruct<S>, field: &str, data: T) 
+                pub fn struct_store<T, S>(&self, s: SpvStruct<S>, field: &str, data: T)
                 where
                     S: AsSpvStruct,
                     T: AsData,
@@ -470,7 +464,7 @@ macro_rules! gen_intrinsics {
                     })
                 }
 
-                pub fn struct_load<T, S>(&self, s: SpvStruct<S>, field: &str) -> T 
+                pub fn struct_load<T, S>(&self, s: SpvStruct<S>, field: &str) -> T
                 where
                     S: AsSpvStruct,
                     T: AsData + AsDataType + FromId,
@@ -487,7 +481,7 @@ macro_rules! gen_intrinsics {
                     T::from_id(new_id)
                 }
 
-                pub fn new_array<const N: usize, T>(&self, data: [&dyn SpvRustEq<T>; N]) -> SpvArray<N, T> 
+                pub fn new_array<const N: usize, T>(&self, data: [&dyn SpvRustEq<T>; N]) -> SpvArray<N, T>
                 where
                     T: AsPrimitiveType + AsPrimitive,
                 {
@@ -503,28 +497,28 @@ macro_rules! gen_intrinsics {
                     }
                 }
 
-                pub fn array_store<const N: usize, S, T>(&self, array: SpvArray<N, T>, index: usize, data: S) 
+                pub fn array_store<const N: usize, S, T>(&self, array: SpvArray<N, T>, index: usize, data: S)
                 where
                     S: SpvRustEq<T> + AsPrimitive,
                     T: AsPrimitiveType + AsPrimitive,
                 {
                     assert!(index < N);
-                    self.raw.push_instruction(Instruction::ArrayStore { 
-                        array: array.id, 
-                        index, 
+                    self.raw.push_instruction(Instruction::ArrayStore {
+                        array: array.id,
+                        index,
                         data: data.id(&*self.raw),
                         element_ty: T::TY,
                     });
                 }
 
-                pub fn array_load<const N: usize, T>(&self, array: SpvArray<N, T>, index: usize) -> T 
+                pub fn array_load<const N: usize, T>(&self, array: SpvArray<N, T>, index: usize) -> T
                 where
                     T: AsPrimitiveType + AsPrimitive + FromId,
                 {
                     assert!(index < N);
                     let id = self.raw.get_new_id();
-                    self.raw.push_instruction(Instruction::ArrayLoad { 
-                        array: array.id, 
+                    self.raw.push_instruction(Instruction::ArrayLoad {
+                        array: array.id,
                         index,
                         store: id,
                         element_ty: T::TY,
@@ -536,9 +530,4 @@ macro_rules! gen_intrinsics {
     };
 }
 
-gen_intrinsics!(
-    FnBuilder,
-    ConditionBuilder,
-    LoopBuilder,
-    MainBuilder,
-);
+gen_intrinsics!(FnBuilder, ConditionBuilder, LoopBuilder, MainBuilder,);

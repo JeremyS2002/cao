@@ -1,8 +1,7 @@
-
-use std::rc::Rc;
 use super::RawBuilder;
 use crate::data::*;
 use std::cell::RefCell;
+use std::rc::Rc;
 
 pub(crate) struct RawConditionBuilder {
     pub(crate) builder: Rc<dyn RawBuilder>,
@@ -27,7 +26,11 @@ impl RawBuilder for RawConditionBuilder {
         if let Some(else_instructions) = &mut *self.else_instructions.borrow_mut() {
             else_instructions.push(instruction);
         } else {
-            self.instructions.borrow_mut().last_mut().unwrap().push(instruction);
+            self.instructions
+                .borrow_mut()
+                .last_mut()
+                .unwrap()
+                .push(instruction);
         }
     }
 
@@ -46,7 +49,7 @@ impl RawBuilder for RawConditionBuilder {
 
 impl Drop for RawConditionBuilder {
     fn drop(&mut self) {
-        self.builder.push_instruction(super::Instruction::IfChain { 
+        self.builder.push_instruction(super::Instruction::IfChain {
             conditions: self.conditions.borrow_mut().drain(..).collect(),
             instructions: self.instructions.borrow_mut().drain(..).collect(),
             else_instructions: self.else_instructions.borrow_mut().take(),
@@ -56,14 +59,18 @@ impl Drop for RawConditionBuilder {
 
 pub struct ConditionBuilder {
     /// Always a RawConditionBuilder
-    pub(crate) raw: Rc<dyn RawBuilder>
+    pub(crate) raw: Rc<dyn RawBuilder>,
 }
 
 impl ConditionBuilder {
-    pub fn spv_else_if<F: FnOnce(&ConditionBuilder)>(&self, b: impl crate::data::SpvRustEq<Bool>, f: F) {
+    pub fn spv_else_if<F: FnOnce(&ConditionBuilder)>(
+        &self,
+        b: impl crate::data::SpvRustEq<Bool>,
+        f: F,
+    ) {
         let t = self.raw.downcast_ref::<RawConditionBuilder>().unwrap();
         // Important. The id needs to be declared in the super context otherwise the branch
-        // instruction can't 
+        // instruction can't
         let id = b.id(&*t.builder);
         t.instructions.borrow_mut().push(Vec::new());
         t.conditions.borrow_mut().push(id);
@@ -78,5 +85,7 @@ impl ConditionBuilder {
         f(&self);
     }
 
-    pub fn end_condition(self) { drop(self) }
+    pub fn end_condition(self) {
+        drop(self)
+    }
 }

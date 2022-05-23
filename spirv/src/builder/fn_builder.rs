@@ -1,17 +1,15 @@
-
-use std::rc::Rc;
-use std::cell::RefCell;
-use super::{RawBuilder, RawBaseBuilder, Variables};
+use super::{RawBaseBuilder, RawBuilder, Variables};
 use crate::data::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub(crate) struct RawFnBuilder {
     /// Always BaseBuilder
     pub(crate) builder: Rc<RawBaseBuilder>,
     pub(crate) id: usize,
     pub(crate) instructions: RefCell<Vec<super::Instruction>>,
-    pub(crate) variables: RefCell<Variables>
+    pub(crate) variables: RefCell<Variables>,
 }
-
 
 impl super::RawBuilder for RawFnBuilder {
     fn push_instruction(&self, instruction: super::Instruction) {
@@ -33,10 +31,10 @@ impl super::RawBuilder for RawFnBuilder {
 
 impl Drop for RawFnBuilder {
     fn drop(&mut self) {
-        self.builder.functions.borrow_mut().insert(
-            self.id,
-            self.instructions.borrow_mut().drain(..).collect()
-        );
+        self.builder
+            .functions
+            .borrow_mut()
+            .insert(self.id, self.instructions.borrow_mut().drain(..).collect());
     }
 }
 

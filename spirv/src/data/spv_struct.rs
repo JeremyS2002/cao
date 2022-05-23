@@ -1,24 +1,26 @@
-
 use std::marker::PhantomData;
 
-use crate::{AsData, builder::Instruction};
+use crate::{builder::Instruction, AsData};
 
-use super::{DataType};
+use super::DataType;
 
+/// Describes a struct that can be used in shaders
 pub struct StructDesc {
+    /// The names of the structs fields in order of declaration
     pub names: &'static [&'static str],
+    /// The types of the structs fields in order of declaration
     pub fields: &'static [DataType],
 }
 
 /// Marks a type as being available to be used in a shader
-/// 
+///
 /// The rust compiler can re-order fields, to prevent this types that
 /// implement the AsSpvStruct should be marked repr(C)
-/// 
+///
 /// The declaration of the type in rust must match the DESC
 /// and the fields method should return the fields in order of declaration
-/// 
-/// If the type is going to be used as a uniform or storage type then 
+///
+/// If the type is going to be used as a uniform or storage type then
 /// it should also match padding requirements by the spir-v specicifation
 pub unsafe trait AsSpvStruct {
     const DESC: StructDesc;
@@ -33,7 +35,7 @@ impl<T: AsSpvStruct> AsData for T {
         b.push_instruction(Instruction::NewStruct {
             data,
             store: id,
-            ty: DataType::Struct(Self::DESC.names, Self::DESC.fields)
+            ty: DataType::Struct(Self::DESC.names, Self::DESC.fields),
         });
         id
     }
