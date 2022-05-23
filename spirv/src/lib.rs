@@ -32,7 +32,7 @@
 //! });
 //! 
 
-use data::{AsDataType, IsPrimitive};
+use data::{AsDataType, IsPrimitiveType};
 use interface::{Uniform, Out, In, StorageAccessDesc, Storage};
 use rspirv::binary::Assemble;
 use either::*;
@@ -105,7 +105,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         }
     }
 
-    pub fn input<P: IsPrimitive>(&self, location: u32, name: Option<&'static str>) -> In<P> {
+    pub fn input<P: IsPrimitiveType>(&self, location: u32, name: Option<&'static str>) -> In<P> {
         let index = self.raw.inputs.borrow().len();
         self.raw.inputs.borrow_mut().push((P::TY, Left(location), name));
         In {
@@ -114,7 +114,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         }
     }
 
-    pub fn output<P: IsPrimitive>(&self, location: u32, name: Option<&'static str>) -> Out<P> {
+    pub fn output<P: IsPrimitiveType>(&self, location: u32, name: Option<&'static str>) -> Out<P> {
         let index = self.raw.inputs.borrow().len();
         self.raw.outputs.borrow_mut().push((P::TY, Left(location), name));
         Out { 
@@ -165,7 +165,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
 
         // map from my function id to rspirv function id
         let function_map = HashMap::new();
-
+        let mut struct_map = HashMap::new();
 
         // for (_, function) in self.functions() {
             
@@ -253,6 +253,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
                 &mut builder, 
                 &mut var_map, 
                 &function_map,
+                &mut struct_map,
                 &inputs,
                 &outputs,
                 None,

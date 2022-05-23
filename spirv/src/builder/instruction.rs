@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
+use crate::data::DataType;
 use crate::data::{PrimitiveVal, PrimitiveType};
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Debug)]
 pub enum Instruction {
     Store {
         /// Declare a constant with this value
@@ -25,6 +26,10 @@ pub enum Instruction {
     BitAndAssign { lhs: (usize, PrimitiveType), rhs: (usize, PrimitiveType) },
     BitOrAssign { lhs: (usize, PrimitiveType), rhs: (usize, PrimitiveType) },
     BitXorAssign { lhs: (usize, PrimitiveType), rhs: (usize, PrimitiveType) },
+    LogicalAnd { lhs: usize, rhs: usize, res: usize },
+    LogicalOr { lhs: usize, rhs: usize, res: usize },
+    LogicalEqual { lhs: usize, rhs: usize, res: usize },
+    LogicalNot { lhs: usize, res: usize },
     VectorShuffle { src: (usize, PrimitiveType), dst: (usize, PrimitiveType), components: [u32; 4] },
     IfChain {
         conditions: VecDeque<usize>,
@@ -48,31 +53,14 @@ pub enum Instruction {
     },
     Break,
     Continue,
-    FnCall {
-        fn_id: usize,
-        store_id: usize,
-        arguments: Vec<(usize, PrimitiveType)>,
-    },
-    Return {
-        id: usize,
-    },
-    ConstArray {
-        store: usize,
-        ty: PrimitiveType,
-        data: Vec<usize>,
-    },
-    ArrayStore {
-        array: usize,
-        index: usize,
-        data: usize,
-        element_ty: PrimitiveType,
-    },
-    ArrayRead {
-        array: usize,
-        index: usize,
-        store: usize,
-        element_ty: PrimitiveType,
-    }
+    FnCall { fn_id: usize, store_id: usize, arguments: Vec<(usize, DataType)> },
+    Return { id: usize },
+    NewArray { store: usize, ty: PrimitiveType, data: Vec<usize> },
+    ArrayStore { array: usize, index: usize, data: usize, element_ty: PrimitiveType },
+    ArrayLoad { array: usize, index: usize, store: usize, element_ty: PrimitiveType },
+    NewStruct { store: usize, ty: DataType, data: Vec<usize> },
+    StructStore { struct_id: usize, field: usize, ty: DataType, data: usize, },
+    StructLoad { struct_id: usize, field: usize, ty: DataType, store: usize, }
 }
 
 impl Instruction {
@@ -81,6 +69,7 @@ impl Instruction {
         builder: &mut rspirv::dr::Builder, 
         var_map: &mut HashMap<usize, u32>,
         function_map: &HashMap<usize, usize>,
+        struct_map: &mut HashMap<(usize, usize), u32>,
         inputs: &[u32],
         outputs: &[u32],
         break_target: Option<u32>,
@@ -115,12 +104,13 @@ impl Instruction {
                 var_map, 
                 builder, 
                 function_map, 
+                struct_map,
                 inputs, 
                 outputs,
                 break_target,
                 continue_target,
             ),
-            Instruction::Loop { condition, body } => process_loop(builder, var_map, condition, body, function_map, inputs, outputs),
+            Instruction::Loop { condition, body } => process_loop(builder, var_map, condition, body, function_map, struct_map, inputs, outputs),
             Instruction::Break => builder.branch(break_target.unwrap()).unwrap(),
             Instruction::Continue => builder.branch(continue_target.unwrap()).unwrap(),
             Instruction::FnCall { 
@@ -164,7 +154,7 @@ impl Instruction {
             Instruction::LoadStorage {  } => todo!(),
             Instruction::StoreStorage {  } => todo!(),
             Instruction::VectorShuffle { src, dst, components } => process_vector_shuffle(var_map, builder, src, dst, *components),
-            Instruction::ConstArray { store, ty, data } => {
+            Instruction::NewArray { store, ty, data } => {
                 let len = PrimitiveVal::UInt(data.len() as u32).set_constant(builder).0;
                 let element_ty = ty.raw_ty(builder);
                 let spv_ty = builder.type_array(element_ty, len);
@@ -196,7 +186,7 @@ impl Instruction {
 
                 builder.store(index_p, data_obj, None, None).unwrap();
             },
-            Instruction::ArrayRead { 
+            Instruction::ArrayLoad { 
                 array, 
                 index, 
                 store, 
@@ -212,11 +202,96 @@ impl Instruction {
                 let store_var = *var_map.get(store).unwrap();
                 builder.store(store_var, index_obj, None, None).unwrap();
             },
+            Instruction::LogicalAnd { lhs, rhs, res } => process_logical(builder, var_map, lhs, rhs, res, rspirv::dr::Builder::logical_and),
+            Instruction::LogicalOr { lhs, rhs, res } => process_logical(builder, var_map, lhs, rhs, res, rspirv::dr::Builder::logical_or),
+            Instruction::LogicalEqual { lhs, rhs, res } => process_logical(builder, var_map, lhs, rhs, res, rspirv::dr::Builder::logical_equal),
+            Instruction::LogicalNot { lhs, res } => {
+                let ty = PrimitiveType::Bool.raw_ty(builder);
+                let lhs_pointer = *var_map.get(lhs).unwrap();
+                let lhs_obj = builder.load(ty, None, lhs_pointer, None, None).unwrap();
+                let res_obj = builder.logical_not(ty, None, lhs_obj).unwrap();
+                let p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, ty);
+                let res_variable = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Function, None);
+                builder.store(res_variable, res_obj, None, None).unwrap();
+                var_map.insert(*res, res_variable);
+            },
+            Instruction::NewStruct { store, ty, data } => {
+                let spv_ty = ty.raw_ty(builder, struct_map);
+                let p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, spv_ty);
+                let variable = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Function, None);
+                
+                let types = if let DataType::Struct(_, types) = ty {
+                    types
+                } else {
+                    unreachable!();
+                };
+
+                for i in 0..data.len() {
+                    let f_ty = types.get(i).unwrap();
+                    let f_spv_ty = f_ty.raw_ty(builder, struct_map);
+                    let f_spv_p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, f_spv_ty);
+                    let f_obj = *var_map.get(data.get(i).unwrap()).unwrap();
+
+                    let index = PrimitiveVal::UInt(i as u32).set_constant(builder).0;
+
+                    let pointer = builder.access_chain(f_spv_p_ty, None, variable, [index]).unwrap();
+                    builder.store(pointer, f_obj, None, None).unwrap();
+                }
+
+                var_map.insert(*store, variable);
+            },
+            Instruction::StructStore { struct_id, field, ty, data } => {
+                let base_pointer = *var_map.get(struct_id).unwrap();
+                let f_spv_ty = ty.raw_ty(builder, struct_map);
+                let f_spv_p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, f_spv_ty);
+
+                let f_obj = *var_map.get(data).unwrap();
+
+                let index = PrimitiveVal::UInt(*field as u32).set_constant(builder).0;
+
+                let pointer = builder.access_chain(f_spv_p_ty, None, base_pointer, [index]).unwrap();
+                builder.store(pointer, f_obj, None, None).unwrap();
+            },
+            Instruction::StructLoad { struct_id, field, ty, store } => {
+                let base_pointer = *var_map.get(struct_id).unwrap();
+                let f_spv_ty = ty.raw_ty(builder, struct_map);
+                let f_spv_p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, f_spv_ty);
+
+                let index = PrimitiveVal::UInt(*field as u32).set_constant(builder).0;
+
+                let pointer = builder.access_chain(f_spv_p_ty, None, base_pointer, [index]).unwrap();
+                let res_spv_obj = builder.load(f_spv_ty, None, pointer, None, None).unwrap();
+
+                var_map.insert(*store, res_spv_obj);
+            },
         }
     }
 }
 
-fn process_loop(builder: &mut rspirv::dr::Builder, var_map: &mut HashMap<usize, u32>, condition: &mut usize, body: &mut Vec<Instruction>, function_map: &HashMap<usize, usize>, inputs: &[u32], outputs: &[u32]) {
+fn process_logical(builder: &mut rspirv::dr::Builder, var_map: &mut HashMap<usize, u32>, lhs: &usize, rhs: &usize, res: &usize, f: fn(&mut rspirv::dr::Builder, u32, Option<u32>, u32, u32) -> Result<u32, rspirv::dr::Error>) {
+    let ty = PrimitiveType::Bool.raw_ty(builder);
+    let lhs_pointer = *var_map.get(lhs).unwrap();
+    let lhs_obj = builder.load(ty, None, lhs_pointer, None, None).unwrap();
+    let rhs_pointer = *var_map.get(rhs).unwrap();
+    let rhs_obj = builder.load(ty, None, rhs_pointer, None, None).unwrap();
+    let res_obj = f(builder, ty, None, lhs_obj, rhs_obj).unwrap();
+    let p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, ty);
+    let res_variable = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Function, None);
+    
+    builder.store(res_variable, res_obj, None, None).unwrap();
+    var_map.insert(*res, res_variable);
+}
+
+fn process_loop(
+    builder: &mut rspirv::dr::Builder, 
+    var_map: &mut HashMap<usize, u32>, 
+    condition: &mut usize, 
+    body: &mut Vec<Instruction>, 
+    function_map: &HashMap<usize, usize>, 
+    struct_map: &mut HashMap<(usize, usize), u32>, 
+    inputs: &[u32], 
+    outputs: &[u32]
+) {
     let start = builder.id();
     builder.branch(start).unwrap();
     builder.begin_block(Some(start)).unwrap();
@@ -235,7 +310,7 @@ fn process_loop(builder: &mut rspirv::dr::Builder, var_map: &mut HashMap<usize, 
     builder.branch_conditional(condition_obj, body_block, merge_block, None).unwrap();
     builder.begin_block(Some(body_block)).unwrap();
     for instruction in body {
-        instruction.process(builder, var_map, function_map, inputs, outputs, Some(merge_block), Some(continue_target));
+        instruction.process(builder, var_map, function_map, struct_map, inputs, outputs, Some(merge_block), Some(continue_target));
     }
     builder.branch(continue_target).unwrap();
     builder.begin_block(Some(continue_target)).unwrap();
@@ -250,6 +325,7 @@ fn process_if_chain(conditions: &mut VecDeque<usize>,
     u32>, 
     builder: &mut rspirv::dr::Builder, 
     function_map: &HashMap<usize, usize>, 
+    struct_map: &mut HashMap<(usize, usize), u32>,
     inputs: &[u32], 
     outputs: &[u32], 
     break_target: Option<u32>,
@@ -258,7 +334,7 @@ fn process_if_chain(conditions: &mut VecDeque<usize>,
     if conditions.len() == 0 {
         if let Some(else_instructions) = else_instructions {
             for instruction in else_instructions {
-                instruction.process(builder, var_map, function_map, inputs, outputs, break_target, continue_target);
+                instruction.process(builder, var_map, function_map, struct_map, inputs, outputs, break_target, continue_target);
             }
         }
         return
@@ -282,14 +358,14 @@ fn process_if_chain(conditions: &mut VecDeque<usize>,
     builder.begin_block(Some(true_label)).unwrap();
 
     for mut instruction in instructions.pop_front().unwrap() {
-        instruction.process(builder, var_map, function_map, inputs, outputs, break_target, continue_target);
+        instruction.process(builder, var_map, function_map, struct_map, inputs, outputs, break_target, continue_target);
     }
 
     builder.branch(end_label).unwrap();
 
     builder.begin_block(Some(false_label)).unwrap();
 
-    process_if_chain(conditions, instructions, else_instructions, var_map, builder, function_map, inputs, outputs, break_target, continue_target);
+    process_if_chain(conditions, instructions, else_instructions, var_map, builder, function_map, struct_map, inputs, outputs, break_target, continue_target);
 
     builder.branch(end_label).unwrap();
     builder.begin_block(Some(end_label)).unwrap();

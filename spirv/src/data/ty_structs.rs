@@ -73,8 +73,22 @@ pub trait AsPrimitive {
     fn ty(&self) -> crate::data::PrimitiveType;
 }
 
-pub trait IsPrimitive {
+pub trait IsPrimitiveType {
     const TY: crate::data::PrimitiveType;
+}
+
+pub trait AsDataType {
+    const TY: crate::data::DataType;
+}
+
+pub trait AsData {
+    fn id(&self, b: &dyn RawBuilder) -> usize;
+
+    fn ty(&self) -> crate::data::DataType;
+}
+
+pub trait IsDataType {
+    const TY: crate::data::DataType;
 }
 
 pub trait FromId {
@@ -104,7 +118,7 @@ macro_rules! gen_as_data {
                 const TY: crate::data::PrimitiveType = crate::data::PrimitiveType::$name;
             }
 
-            impl IsPrimitive for $name {
+            impl IsPrimitiveType for $name {
                 const TY: crate::data::PrimitiveType = crate::data::PrimitiveType::$name;
             }
 
@@ -133,7 +147,44 @@ macro_rules! gen_as_data {
                 }
 
                 fn ty(&self) -> crate::data::PrimitiveType {
-                    Self::TY
+                    <Self as AsPrimitiveType>::TY
+                }
+            }
+
+            impl AsDataType for $name {
+                const TY: crate::data::DataType = crate::data::DataType::Primitive(crate::data::PrimitiveType::$name);
+            }
+
+            impl IsDataType for $name {
+                const TY: crate::data::DataType = crate::data::DataType::Primitive(crate::data::PrimitiveType::$name);
+            }
+
+            impl AsData for $name {
+                fn id(&self, _: &dyn RawBuilder) -> usize {
+                    self.id
+                }
+
+                fn ty(&self) -> crate::data::DataType {
+                    <Self as AsDataType>::TY
+                }
+            }
+
+            impl AsDataType for $rust {
+                const TY: crate::data::DataType = crate::data::DataType::Primitive(crate::data::PrimitiveType::$name);
+            }
+
+            impl AsData for $rust {
+                fn id(&self, b: &dyn RawBuilder) -> usize {
+                    let id = b.get_new_id();
+                    b.push_instruction(crate::builder::Instruction::Store {
+                        val: crate::data::PrimitiveVal::$name(*self),
+                        store: id,
+                    });
+                    id
+                }
+
+                fn ty(&self) -> crate::data::DataType {
+                    <Self as AsDataType>::TY
                 }
             }
 

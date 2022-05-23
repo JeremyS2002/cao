@@ -5,9 +5,15 @@ fn main() {
     let src = "
         #version 450
 
+        struct T {
+            mat2 a;
+            float b;
+        };
+
         void main() {
-            float x[3] = { 1.0, 2.0, 3.0 };
-            x[0] = 2.0;
+            T t;
+            t.a = mat2(1);
+            t.b = 1.0;
         }
     ";
 

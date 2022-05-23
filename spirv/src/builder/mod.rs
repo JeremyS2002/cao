@@ -212,7 +212,7 @@ macro_rules! gen_intrinsics {
                     })
                 }
 
-                pub fn call<R: AsPrimitiveType + FromId>(&self, f: crate::function::Function<R>, args: &[&dyn AsPrimitive]) -> R {
+                pub fn call<R: AsPrimitiveType + FromId>(&self, f: crate::function::Function<R>, args: &[&dyn AsData]) -> R {
                     let store_id = self.raw.get_new_id();
 
                     self.raw.push_instruction(Instruction::FnCall {
@@ -224,7 +224,7 @@ macro_rules! gen_intrinsics {
                     R::from_id(store_id)
                 }
 
-                pub fn load_in<T: crate::data::IsPrimitive + FromId>(&self, input: crate::interface::In<T>) -> T {
+                pub fn load_in<T: crate::data::IsPrimitiveType + FromId>(&self, input: crate::interface::In<T>) -> T {
                     let store = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::LoadIn {
                         index: input.index,
@@ -236,7 +236,7 @@ macro_rules! gen_intrinsics {
 
                 pub fn store_out<T, S>(&self, output: crate::interface::Out<T>, store: S) 
                 where
-                    T: crate::IsPrimitive + crate::data::SpvRustEq<S>,
+                    T: crate::IsPrimitiveType + crate::data::SpvRustEq<S>,
                     S: AsPrimitive,
                 {
                     self.raw.push_instruction(Instruction::StoreOut {
@@ -382,13 +382,117 @@ macro_rules! gen_intrinsics {
                     });
                 }
 
-                pub fn new_array<const N: usize, S, T>(&self, data: [S; N]) -> SpvArray<N, T> 
+                pub fn logical_and<B1, B2>(&self, lhs: B1, rhs: B2) -> Bool 
                 where
-                    S: SpvRustEq<T> + AsPrimitive,
+                    B1: SpvRustEq<Bool> + AsPrimitive,
+                    B2: SpvRustEq<Bool> + AsPrimitive,
+                {
+                    let new_id = self.raw.get_new_id();
+                    self.raw.push_instruction(Instruction::LogicalAnd {
+                        lhs: lhs.id(&*self.raw),
+                        rhs: rhs.id(&*self.raw),
+                        res: new_id,
+                    });
+
+                    Bool::from_id(new_id)
+                }
+
+                pub fn logical_or<B1, B2>(&self, lhs: B1, rhs: B2) -> Bool 
+                where
+                    B1: SpvRustEq<Bool> + AsPrimitive,
+                    B2: SpvRustEq<Bool> + AsPrimitive,
+                {
+                    let new_id = self.raw.get_new_id();
+                    self.raw.push_instruction(Instruction::LogicalOr {
+                        lhs: lhs.id(&*self.raw),
+                        rhs: rhs.id(&*self.raw),
+                        res: new_id,
+                    });
+
+                    Bool::from_id(new_id)
+                }
+
+                pub fn logical_equal<B1, B2>(&self, lhs: B1, rhs: B2) -> Bool 
+                where
+                    B1: SpvRustEq<Bool> + AsPrimitive,
+                    B2: SpvRustEq<Bool> + AsPrimitive,
+                {
+                    let new_id = self.raw.get_new_id();
+                    self.raw.push_instruction(Instruction::LogicalEqual {
+                        lhs: lhs.id(&*self.raw),
+                        rhs: rhs.id(&*self.raw),
+                        res: new_id,
+                    });
+
+                    Bool::from_id(new_id)
+                }
+
+                pub fn logical_not<B>(&self, var: B) -> Bool 
+                where
+                    B: SpvRustEq<Bool> + AsPrimitive,
+                {
+                    let new_id = self.raw.get_new_id();
+                    self.raw.push_instruction(Instruction::LogicalNot {
+                        lhs: var.id(&*self.raw),
+                        res: new_id,
+                    });
+
+                    Bool::from_id(new_id)
+                }
+
+                pub fn new_struct<S: AsSpvStruct>(&self, data: &[&dyn AsData]) -> SpvStruct<S> {
+                    let id = self.raw.get_new_id();
+                    let data = data.iter().map(|d| d.id(&*self.raw)).collect::<Vec<_>>();
+                    self.raw.push_instruction(Instruction::NewStruct {
+                        data,
+                        store: id,
+                        ty: DataType::Struct(S::DESC.names, S::DESC.fields)
+                    });
+
+                    SpvStruct {
+                        id,
+                        _marker: PhantomData,
+                    }
+                }
+
+                pub fn struct_store<T, S>(&self, s: SpvStruct<S>, field: &str, data: T) 
+                where
+                    S: AsSpvStruct,
+                    T: AsData,
+                {
+                    let index = S::DESC.names.iter().position(|&name| name.eq(field)).expect(&format!("No field {} on struct", field));
+                    assert_eq!(data.ty(), S::DESC.fields[index]);
+                    self.raw.push_instruction(Instruction::StructStore {
+                        struct_id: s.id,
+                        field: index,
+                        ty: data.ty(),
+                        data: data.id(&*self.raw),
+                    })
+                }
+
+                pub fn struct_load<T, S>(&self, s: SpvStruct<S>, field: &str) -> T 
+                where
+                    S: AsSpvStruct,
+                    T: AsData + AsDataType + FromId,
+                {
+                    let new_id = self.raw.get_new_id();
+                    let index = S::DESC.names.iter().position(|&name| name.eq(field)).expect(&format!("Not field {} on struct", field));
+                    self.raw.push_instruction(Instruction::StructLoad {
+                        struct_id: s.id,
+                        field: index,
+                        ty: T::TY,
+                        store: new_id,
+                    });
+
+                    T::from_id(new_id)
+                }
+
+                pub fn new_array<const N: usize, T>(&self, data: [&dyn SpvRustEq<T>; N]) -> SpvArray<N, T> 
+                where
                     T: AsPrimitiveType + AsPrimitive,
                 {
                     let id = self.raw.get_new_id();
-                    self.raw.push_instruction(Instruction::ConstArray {
+                    self.raw.push_instruction(Instruction::NewArray {
                         store: id,
                         ty: T::TY,
                         data: data.iter().map(|e| e.id(&*self.raw)).collect::<Vec<_>>(),
@@ -413,13 +517,13 @@ macro_rules! gen_intrinsics {
                     });
                 }
 
-                pub fn array_read<const N: usize, T>(&self, array: SpvArray<N, T>, index: usize) -> T 
+                pub fn array_load<const N: usize, T>(&self, array: SpvArray<N, T>, index: usize) -> T 
                 where
                     T: AsPrimitiveType + AsPrimitive + FromId,
                 {
                     assert!(index < N);
                     let id = self.raw.get_new_id();
-                    self.raw.push_instruction(Instruction::ArrayRead { 
+                    self.raw.push_instruction(Instruction::ArrayLoad { 
                         array: array.id, 
                         index,
                         store: id,

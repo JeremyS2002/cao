@@ -1,4 +1,6 @@
 
+use std::collections::HashMap;
+
 pub mod as_ty;
 pub mod ty_structs;
 pub mod ops;
@@ -479,10 +481,7 @@ impl PrimitiveVal {
     }
 }
 
-pub trait AsDataType {
-    const TY: DataType;
-}
-
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DataType {
     Primitive(PrimitiveType),
     Array(PrimitiveType, usize),
@@ -490,15 +489,31 @@ pub enum DataType {
 }
 
 impl DataType {
-    pub fn raw_ty(&self, b: &mut rspirv::dr::Builder) -> u32 {
+    pub fn raw_ty(&self, b: &mut rspirv::dr::Builder, struct_map: &mut HashMap<(usize, usize), u32>) -> u32 {
         match self {
             Self::Primitive(ty) => ty.raw_ty(b),
             Self::Array(ty, n) => {
                 let p = ty.raw_ty(b);
                 b.type_array(p, *n as u32)
             },
-            Self::Struct(_, _) => {
-                todo!();
+            Self::Struct(names, types) => {
+                // Future me, probably don't change this unless you know what you're doing
+                let names_p = (*names).as_ptr() as usize;
+                let types_p = (&types).as_ptr() as usize;
+                if let Some(spv_type_object) = struct_map.get(&(names_p, types_p)) {
+                    *spv_type_object
+                } else {
+                    let spv_types = types
+                        .iter()
+                        .map(|t| {
+                            t.raw_ty(b, struct_map)
+                        })
+                        .collect::<Vec<_>>();
+            
+                    let spv_ty_object = b.type_struct(spv_types);
+
+                    spv_ty_object
+                }
             }
         }
     }
@@ -525,6 +540,7 @@ impl From<&'_ DataVal> for DataType {
 }
 
 
+#[derive(Clone, Debug)]
 pub enum DataVal {
     Primitive(PrimitiveVal),
     Array(Vec<PrimitiveVal>),
@@ -532,11 +548,11 @@ pub enum DataVal {
 }
 
 impl DataVal {
-    pub(crate) fn set_constant(&self, b: &mut rspirv::dr::Builder) -> (u32, u32) {
+    pub(crate) fn set_constant(&self, b: &mut rspirv::dr::Builder, struct_map: &mut HashMap<(usize, usize), u32>) -> (u32, u32) {
         match self {
             DataVal::Primitive(p) => p.set_constant(b),
             DataVal::Array(v) => {
-                let ty = DataType::from(self).raw_ty(b);
+                let ty = DataType::from(self).raw_ty(b, struct_map);
                 let components = v
                     .iter()
                     .map(|c| {
@@ -549,8 +565,8 @@ impl DataVal {
         }
     }
 
-    pub fn set(&self, b: &mut rspirv::dr::Builder) -> u32 {
-        let (c, ty) = self.set_constant(b);
+    pub fn set(&self, b: &mut rspirv::dr::Builder, struct_map: &mut HashMap<(usize, usize), u32>) -> u32 {
+        let (c, ty) = self.set_constant(b, struct_map);
         let p_ty = b.type_pointer(
             None, 
             rspirv::spirv::StorageClass::Function,

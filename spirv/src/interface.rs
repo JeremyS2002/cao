@@ -1,17 +1,17 @@
 #![allow(dead_code)]
 
-use crate::data::{IsPrimitive, AsDataType};
+use crate::data::{IsPrimitiveType, AsDataType};
 use std::marker::PhantomData;
 
 
 #[derive(Clone, Copy, Debug)]
-pub struct In<T: IsPrimitive> {
+pub struct In<T: IsPrimitiveType> {
     pub(crate) index: usize,
     pub(crate) _marker: PhantomData<T>,
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Out<T: IsPrimitive> {
+pub struct Out<T: IsPrimitiveType> {
     pub(crate) index: usize,
     pub(crate) _marker: PhantomData<T>,
 }
