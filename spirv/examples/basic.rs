@@ -4,15 +4,17 @@ fn main() {
     let src = "
         #version 450
 
-        struct T {
-            mat2 a;
-            float b;
+        struct Data {
+            vec3 a;
+            vec4 b;
         };
 
+        layout(set = 0, binding = 0) uniform U {
+            Data d;
+        } in_data;
+
         void main() {
-            T t;
-            t.a = mat2(1);
-            t.b = 1.0;
+            
         }
     ";
 

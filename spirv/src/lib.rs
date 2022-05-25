@@ -60,6 +60,34 @@ pub use specialisation::{
 pub use data::ty_structs::*;
 
 pub struct Builder<T> {
+    /// Well well well, look who wants implement more features and can't remember how this works. 
+    /// 
+    /// Overview:
+    ///     - stage 1. build a vector of [`Instruction`] for each function
+    ///     - stage 2. iterate over the instructions to compile a spir-v module
+    /// 
+    /// Stage 1 and 2 should be combined and done at the same time. There is no reason not to do this other than
+    /// I got confused and it would be alot of work to change it now.
+    /// 
+    /// Stage 1.
+    ///     - Each variable (Primitives, Structs and Arrays) is represented by a unique usize
+    ///     - There are multiple Builder types to make creating instructions easier
+    ///         - MainBuilder : used to create the main function (TODO implement as a wrapper around FunctionBuilder<Void>)
+    ///         - FunctionBuilder : used to create arbitrary functions
+    ///         - ConditionBuilder : used to create IfChain instructions
+    ///         - LoopBuilder : used to create Loop instructions
+    ///     - Each builder type implements the same instruction set (implemented via a macro that duplicates the same code on each builder)
+    ///     - Each builder has a RawBuilder inside that points to the previous builder
+    ///         - MainBuilder and FunctionBuilder both point to RawBaseBuilder
+    ///         - ConditionBuilder and LoopBuilder can point to any other builder
+    ///     - RawBuilders provide an interface to push instructions and get new id's
+    /// 
+    /// Stage 2.
+    ///     - basically just ```for instruction in instructions { instruction.process(..) }```
+    ///     - maps store relation between my (usize) variables id's and rspirv (u32) variable ids
+    ///     - all data is stored as spri-v variables behind function local pointers
+    ///     - map from StructDesc to spir-v struct id caches based on pointers not data so if anything breaks this could be it
+    
     /// Always BaseBuilder
     raw: Rc<RawBaseBuilder>,
     _marker: PhantomData<T>,

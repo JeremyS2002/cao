@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, any::TypeId};
 
 pub mod as_ty;
 pub mod ops;
@@ -44,6 +44,50 @@ pub enum PrimitiveType {
 }
 
 impl PrimitiveType {
+    /// Returns the number of bytes between rows of a matrix
+    /// TODO test this matches with spirv and rust data.
+    /// shaderc compiling glsl marks all matrices as having a stride of 16
+    pub fn matrix_stride(&self) -> Option<u32> {
+        match self {
+            PrimitiveType::Mat2 => Some(2 * 4),
+            PrimitiveType::Mat3 => Some(3 * 4),
+            PrimitiveType::Mat4 => Some(4 * 4),
+            PrimitiveType::DMat2 => Some(2 * 8),
+            PrimitiveType::DMat3 => Some(3 * 8),
+            PrimitiveType::DMat4 => Some(4 * 8),
+            _ => None,
+        }
+    }
+
+    /// Returns the size of the Primitive in bytes
+    pub fn size(&self) -> u32 {
+        match self {
+            PrimitiveType::Bool => 1,
+            PrimitiveType::Int => 4,
+            PrimitiveType::UInt => 3,
+            PrimitiveType::Float => 3,
+            PrimitiveType::Double => 8,
+            PrimitiveType::IVec2 => 2 * 4,
+            PrimitiveType::IVec3 => 3 * 4,
+            PrimitiveType::IVec4 => 4 * 4,
+            PrimitiveType::UVec2 => 2 * 4,
+            PrimitiveType::UVec3 => 3 * 4,
+            PrimitiveType::UVec4 => 4 * 4,
+            PrimitiveType::Vec2 => 2 * 4,
+            PrimitiveType::Vec3 => 3 * 4,
+            PrimitiveType::Vec4 => 4 * 4,
+            PrimitiveType::DVec2 => 2 * 8,
+            PrimitiveType::DVec3 => 3 * 8,
+            PrimitiveType::DVec4 => 4 * 8,
+            PrimitiveType::Mat2 => 4 * 4,
+            PrimitiveType::Mat3 => 9 * 4,
+            PrimitiveType::Mat4 => 16 * 4,
+            PrimitiveType::DMat2 => 4 * 8,
+            PrimitiveType::DMat3 => 9 * 8,
+            PrimitiveType::DMat4 => 16 * 8,
+        }
+    }
+
     pub fn is_matrix(&self) -> bool {
         match self {
             Self::Mat2 | Self::Mat3 | Self::Mat4 | Self::DMat2 | Self::DMat3 | Self::DMat4 => true,
@@ -460,14 +504,23 @@ impl PrimitiveVal {
 pub enum DataType {
     Primitive(PrimitiveType),
     Array(PrimitiveType, usize),
-    Struct(&'static [&'static str], &'static [DataType]),
+    Struct(TypeId, &'static str, &'static [&'static str], &'static [DataType]),
 }
 
 impl DataType {
+    /// Returns the size of the data type in bytes
+    pub fn size(&self) -> u32 {
+        match self {
+            DataType::Primitive(p) => p.size(),
+            DataType::Array(p, n) => p.size() * (*n) as u32,
+            DataType::Struct(_, _, _, d) => (*d).iter().fold(0, |a, b| a + b.size()),
+        }
+    }
+
     pub fn raw_ty(
         &self,
         b: &mut rspirv::dr::Builder,
-        struct_map: &mut HashMap<(usize, usize), u32>,
+        struct_map: &mut HashMap<TypeId, u32>,
     ) -> u32 {
         match self {
             Self::Primitive(ty) => ty.raw_ty(b),
@@ -475,11 +528,8 @@ impl DataType {
                 let p = ty.raw_ty(b);
                 b.type_array(p, *n as u32)
             }
-            Self::Struct(names, types) => {
-                // Future me, probably don't change this unless you know what you're doing
-                let names_p = (*names).as_ptr() as usize;
-                let types_p = (&types).as_ptr() as usize;
-                if let Some(spv_type_object) = struct_map.get(&(names_p, types_p)) {
+            Self::Struct(id, name, names, types) => {
+                if let Some(spv_type_object) = struct_map.get(id) {
                     *spv_type_object
                 } else {
                     let spv_types = types
@@ -488,6 +538,38 @@ impl DataType {
                         .collect::<Vec<_>>();
 
                     let spv_ty_object = b.type_struct(spv_types);
+
+                    b.name(spv_ty_object, *name);
+
+                    let mut offset = 0u32;
+                    let mut index = 0u32;
+                    for (ty, &name) in types.iter().zip(*names) {
+                        b.member_name(spv_ty_object, index, name);
+                        b.member_decorate(
+                            spv_ty_object, 
+                            index,
+                            rspirv::spirv::Decoration::Offset, 
+                            [rspirv::dr::Operand::LiteralInt32(offset)],
+                        );
+                        if let DataType::Primitive(p) = ty {
+                            if p.is_matrix() {
+                                b.member_decorate(
+                                    spv_ty_object, 
+                                    index, 
+                                    rspirv::spirv::Decoration::MatrixStride,
+                                    [rspirv::dr::Operand::LiteralInt32(p.matrix_stride().unwrap())]
+                                );
+                                b.member_decorate(
+                                    spv_ty_object, 
+                                    index,
+                                    rspirv::spirv::Decoration::ColMajor,
+                                    []
+                                );
+                            }
+                        }
+                        offset += ty.size();
+                        index += 1;
+                    }
 
                     spv_ty_object
                 }
@@ -527,7 +609,7 @@ impl DataVal {
     pub(crate) fn set_constant(
         &self,
         b: &mut rspirv::dr::Builder,
-        struct_map: &mut HashMap<(usize, usize), u32>,
+        struct_map: &mut HashMap<TypeId, u32>,
     ) -> (u32, u32) {
         match self {
             DataVal::Primitive(p) => p.set_constant(b),
@@ -543,7 +625,7 @@ impl DataVal {
     pub fn set(
         &self,
         b: &mut rspirv::dr::Builder,
-        struct_map: &mut HashMap<(usize, usize), u32>,
+        struct_map: &mut HashMap<TypeId, u32>,
     ) -> u32 {
         let (c, ty) = self.set_constant(b, struct_map);
         let p_ty = b.type_pointer(None, rspirv::spirv::StorageClass::Function, ty);

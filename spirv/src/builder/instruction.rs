@@ -1,3 +1,4 @@
+use std::any::TypeId;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
@@ -173,7 +174,7 @@ impl Instruction {
         builder: &mut rspirv::dr::Builder,
         var_map: &mut HashMap<usize, u32>,
         function_map: &HashMap<usize, usize>,
-        struct_map: &mut HashMap<(usize, usize), u32>,
+        struct_map: &mut HashMap<TypeId, u32>,
         inputs: &[u32],
         outputs: &[u32],
         break_target: Option<u32>,
@@ -405,7 +406,7 @@ impl Instruction {
                 let variable =
                     builder.variable(p_ty, None, rspirv::spirv::StorageClass::Function, None);
 
-                let types = if let DataType::Struct(_, types) = ty {
+                let types = if let DataType::Struct(_, _, _, types) = ty {
                     types
                 } else {
                     unreachable!();
@@ -499,7 +500,7 @@ fn process_loop(
     condition: &mut usize,
     body: &mut Vec<Instruction>,
     function_map: &HashMap<usize, usize>,
-    struct_map: &mut HashMap<(usize, usize), u32>,
+    struct_map: &mut HashMap<TypeId, u32>,
     inputs: &[u32],
     outputs: &[u32],
 ) {
@@ -556,7 +557,7 @@ fn process_if_chain(
     var_map: &mut HashMap<usize, u32>,
     builder: &mut rspirv::dr::Builder,
     function_map: &HashMap<usize, usize>,
-    struct_map: &mut HashMap<(usize, usize), u32>,
+    struct_map: &mut HashMap<TypeId, u32>,
     inputs: &[u32],
     outputs: &[u32],
     break_target: Option<u32>,

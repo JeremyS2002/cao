@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, any::TypeId};
 
 use crate::{builder::Instruction, AsData};
 
@@ -6,6 +6,8 @@ use super::DataType;
 
 /// Describes a struct that can be used in shaders
 pub struct StructDesc {
+    /// The name of the struct
+    pub name: &'static str,
     /// The names of the structs fields in order of declaration
     pub names: &'static [&'static str],
     /// The types of the structs fields in order of declaration
@@ -22,7 +24,7 @@ pub struct StructDesc {
 ///
 /// If the type is going to be used as a uniform or storage type then
 /// it should also match padding requirements by the spir-v specicifation
-pub unsafe trait AsSpvStruct {
+pub unsafe trait AsSpvStruct: 'static {
     const DESC: StructDesc;
 
     fn fields<'a>(&'a self) -> &'a [&dyn AsData];
@@ -35,13 +37,13 @@ impl<T: AsSpvStruct> AsData for T {
         b.push_instruction(Instruction::NewStruct {
             data,
             store: id,
-            ty: DataType::Struct(Self::DESC.names, Self::DESC.fields),
+            ty: DataType::Struct(TypeId::of::<T>(), Self::DESC.name, Self::DESC.names, Self::DESC.fields),
         });
         id
     }
 
     fn ty(&self) -> crate::data::DataType {
-        crate::data::DataType::Struct(Self::DESC.names, Self::DESC.fields)
+        crate::data::DataType::Struct(TypeId::of::<T>(), Self::DESC.name, Self::DESC.names, Self::DESC.fields)
     }
 }
 

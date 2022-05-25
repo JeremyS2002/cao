@@ -1,6 +1,7 @@
 use std::any::Any;
 use std::marker::PhantomData;
 use std::rc::Rc;
+use std::any::TypeId;
 
 // If I knew how to write macros properly this wouldn't be here but this is easier than learning proper macros
 use glam::DMat2 as GlamDMat2;
@@ -440,7 +441,7 @@ macro_rules! gen_intrinsics {
                     self.raw.push_instruction(Instruction::NewStruct {
                         data,
                         store: id,
-                        ty: DataType::Struct(S::DESC.names, S::DESC.fields)
+                        ty: DataType::Struct(TypeId::of::<S>(), S::DESC.name, S::DESC.names, S::DESC.fields)
                     });
 
                     SpvStruct {
