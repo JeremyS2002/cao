@@ -51,9 +51,7 @@ pub trait AsPrimitive {
     fn ty(&self) -> crate::data::PrimitiveType;
 }
 
-pub trait IsPrimitiveType {
-    const TY: crate::data::PrimitiveType;
-}
+pub trait IsPrimitiveType: AsPrimitiveType { }
 
 pub trait AsDataType {
     const TY: crate::data::DataType;
@@ -65,9 +63,7 @@ pub trait AsData {
     fn ty(&self) -> crate::data::DataType;
 }
 
-pub trait IsDataType {
-    const TY: crate::data::DataType;
-}
+pub trait IsDataType: AsDataType { }
 
 pub trait FromId {
     fn from_id(id: usize) -> Self;
@@ -96,9 +92,7 @@ macro_rules! gen_as_data {
                 const TY: crate::data::PrimitiveType = crate::data::PrimitiveType::$name;
             }
 
-            impl IsPrimitiveType for $name {
-                const TY: crate::data::PrimitiveType = crate::data::PrimitiveType::$name;
-            }
+            impl IsPrimitiveType for $name { }
 
             impl AsPrimitive for $name {
                 fn id(&self, _: &dyn RawBuilder) -> usize {
@@ -133,9 +127,7 @@ macro_rules! gen_as_data {
                 const TY: crate::data::DataType = crate::data::DataType::Primitive(crate::data::PrimitiveType::$name);
             }
 
-            impl IsDataType for $name {
-                const TY: crate::data::DataType = crate::data::DataType::Primitive(crate::data::PrimitiveType::$name);
-            }
+            impl IsDataType for $name { }
 
             impl AsData for $name {
                 fn id(&self, _: &dyn RawBuilder) -> usize {

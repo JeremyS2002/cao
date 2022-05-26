@@ -5,8 +5,9 @@ fn main() {
         #version 450
 
         struct Data {
-            vec3 a;
-            vec4 b;
+            float x;
+            float y;
+            float z;
         };
 
         layout(set = 0, binding = 0) uniform U {
@@ -14,7 +15,7 @@ fn main() {
         } in_data;
 
         void main() {
-            
+            float x = in_data.d.x;
         }
     ";
 

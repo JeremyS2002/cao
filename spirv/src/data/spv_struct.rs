@@ -1,8 +1,8 @@
 use std::{marker::PhantomData, any::TypeId};
 
-use crate::{builder::Instruction, AsData};
+use crate::AsData;
 
-use super::DataType;
+use super::{DataType, AsDataType, IsDataType};
 
 /// Describes a struct that can be used in shaders
 pub struct StructDesc {
@@ -30,22 +30,29 @@ pub unsafe trait AsSpvStruct: 'static {
     fn fields<'a>(&'a self) -> &'a [&dyn AsData];
 }
 
-impl<T: AsSpvStruct> AsData for T {
-    fn id(&self, b: &dyn crate::builder::RawBuilder) -> usize {
-        let id = b.get_new_id();
-        let data = self.fields().iter().map(|d| d.id(b)).collect::<Vec<_>>();
-        b.push_instruction(Instruction::NewStruct {
-            data,
-            store: id,
-            ty: DataType::Struct(TypeId::of::<T>(), Self::DESC.name, Self::DESC.names, Self::DESC.fields),
-        });
-        id
+impl<T: AsSpvStruct> AsDataType for SpvStruct<T> {
+    const TY: DataType = DataType::Struct(TypeId::of::<T>(), T::DESC.name, T::DESC.names, T::DESC.fields);
+}
+
+impl<T: AsSpvStruct> AsData for SpvStruct<T> {
+    fn id(&self, _: &dyn crate::builder::RawBuilder) -> usize {
+        // let id = b.get_new_id();
+        // let data = self.fields().iter().map(|d| d.id(b)).collect::<Vec<_>>();
+        // b.push_instruction(Instruction::NewStruct {
+        //     data,
+        //     store: id,
+        //     ty: DataType::Struct(TypeId::of::<T>(), Self::DESC.name, Self::DESC.names, Self::DESC.fields),
+        // });
+        // id
+        self.id
     }
 
     fn ty(&self) -> crate::data::DataType {
-        crate::data::DataType::Struct(TypeId::of::<T>(), Self::DESC.name, Self::DESC.names, Self::DESC.fields)
+        crate::data::DataType::Struct(TypeId::of::<T>(), T::DESC.name, T::DESC.names, T::DESC.fields)
     }
 }
+
+impl<T: AsSpvStruct> IsDataType for SpvStruct<T> { }
 
 #[derive(Clone, Copy, Debug)]
 pub struct SpvStruct<S: AsSpvStruct> {

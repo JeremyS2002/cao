@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use crate::data::{AsDataType, IsPrimitiveType};
+use crate::data::{IsDataType, IsPrimitiveType};
 use std::marker::PhantomData;
 
 #[derive(Clone, Copy, Debug)]
@@ -16,9 +16,8 @@ pub struct Out<T: IsPrimitiveType> {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Uniform<T: AsDataType> {
-    pub(crate) set: usize,
-    pub(crate) binding: usize,
+pub struct Uniform<T: IsDataType> {
+    pub(crate) index: usize,
     pub(crate) _marker: PhantomData<T>,
 }
 
@@ -30,8 +29,7 @@ pub struct StorageAccessDesc {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Storage<T: AsDataType> {
-    pub(crate) set: usize,
-    pub(crate) binding: usize,
+pub struct Storage<T: IsDataType> {
+    pub(crate) index: usize,
     pub(crate) _marker: PhantomData<T>,
 }

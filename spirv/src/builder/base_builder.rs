@@ -19,8 +19,20 @@ pub(crate) struct RawBaseBuilder {
             Option<&'static str>,
         )>,
     >,
-    pub(crate) uniforms: RefCell<Vec<DataType>>,
-    pub(crate) storages: RefCell<Vec<DataType>>,
+    pub(crate) uniforms: RefCell<
+        Vec<(
+            DataType,
+            u32,
+            u32,
+        )>
+    >,
+    pub(crate) storages: RefCell<
+        Vec<(
+            DataType,
+            u32,
+            u32,
+        )>
+    >,
     pub(crate) functions: RefCell<HashMap<usize, Vec<Instruction>>>,
     pub(crate) main: RefCell<Vec<Instruction>>,
 }

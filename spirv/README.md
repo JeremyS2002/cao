@@ -1,5 +1,7 @@
 # spirv
 
+Note: Requires nightly compiler until TypeId::of::<T>() is const
+
 # examples
 run from insed `cao/spirv`
 ```

@@ -1,3 +1,5 @@
+#![feature(const_type_id)]
+
 //! let mut b = builder::new();
 //! let f: Function<Vec2> = b.spv_fn(|a| {
 //!     inputs!(a, x: Vec2, y: Vec2);
@@ -32,7 +34,7 @@
 //! });
 //!
 
-use data::{AsDataType, IsPrimitiveType};
+use data::IsPrimitiveType;
 use either::*;
 use interface::{In, Out, Storage, StorageAccessDesc, Uniform};
 use rspirv::binary::Assemble;
@@ -156,18 +158,25 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         }
     }
 
-    pub fn uniform<D: AsDataType>(&self) -> Uniform<D> {
-        self.raw.uniforms.borrow_mut().push(D::TY);
-        // Uniform {
-        //     set: todo!(),
-        //     binding: todo!(),
-        //     _marker: PhantomData,
-        // }
-        todo!();
+    pub fn uniform<D: IsDataType>(&self, set: u32, binding: u32) -> Uniform<D> {
+        let index = self.raw.uniforms.borrow().len();
+        self.raw.uniforms.borrow_mut().push((
+            D::TY,
+            set,
+            binding,
+        ));
+        Uniform { 
+            index,
+            _marker: PhantomData,
+        }
     }
 
-    pub fn storage<D: AsDataType>(&self, _desc: StorageAccessDesc) -> Storage<D> {
-        self.raw.storages.borrow_mut().push(D::TY);
+    pub fn storage<D: IsDataType>(&self, _desc: StorageAccessDesc, set: u32, binding: u32) -> Storage<D> {
+        self.raw.storages.borrow_mut().push((
+            D::TY,
+            set,
+            binding,
+        ));
         // Storage {
         //     set: todo!(),
         //     binding: todo!(),
@@ -215,6 +224,31 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             .begin_function(void, None, rspirv::spirv::FunctionControl::empty(), void_f)
             .unwrap();
         builder.name(main, "main");
+
+        let mut uniforms = Vec::new();
+        for (uniform, set, binding) in &*self.raw.uniforms.borrow() {
+            let raw_inner_ty = uniform.raw_ty(&mut builder, &mut struct_map);
+            let raw_outer_ty = builder.type_struct([raw_inner_ty]);
+
+            builder.decorate(raw_outer_ty, rspirv::spirv::Decoration::Block, None);
+            
+            let p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, raw_outer_ty);
+            let variable = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Uniform, None);
+
+            builder.decorate(
+                variable, 
+                rspirv::spirv::Decoration::DescriptorSet, 
+                Some(rspirv::dr::Operand::LiteralInt32(*set))
+            );
+            builder.decorate(
+                variable, 
+                rspirv::spirv::Decoration::Binding, 
+                Some(rspirv::dr::Operand::LiteralInt32(*binding))
+            );
+            uniforms.push(variable);
+        }
+
+        let storages = Vec::new();
 
         let inputs = self
             .raw
@@ -291,6 +325,8 @@ impl<T: specialisation::ShaderTY> Builder<T> {
                 &mut var_map,
                 &function_map,
                 &mut struct_map,
+                &uniforms,
+                &storages,
                 &inputs,
                 &outputs,
                 None,

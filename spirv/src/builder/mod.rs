@@ -40,6 +40,7 @@ pub use main_builder::*;
 pub(crate) use var::*;
 
 use crate::data::*;
+use crate::interface::*;
 
 pub trait AsAny {
     fn as_any_ref(&self) -> &dyn Any;
@@ -219,7 +220,7 @@ macro_rules! gen_intrinsics {
                     R::from_id(store_id)
                 }
 
-                pub fn load_in<T: crate::data::IsPrimitiveType + FromId>(&self, input: crate::interface::In<T>) -> T {
+                pub fn load_in<T: crate::data::IsPrimitiveType + FromId>(&self, input: In<T>) -> T {
                     let store = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::LoadIn {
                         index: input.index,
@@ -229,7 +230,7 @@ macro_rules! gen_intrinsics {
                     T::from_id(store)
                 }
 
-                pub fn store_out<T, S>(&self, output: crate::interface::Out<T>, store: S)
+                pub fn store_out<T, S>(&self, output: Out<T>, store: S)
                 where
                     T: crate::IsPrimitiveType + crate::data::SpvRustEq<S>,
                     S: AsPrimitive,
@@ -239,6 +240,52 @@ macro_rules! gen_intrinsics {
                         ty: T::TY,
                         read: crate::data::AsPrimitive::id(&store, &*self.raw),
                     })
+                }
+
+                /// Load the uniform into a new variable
+                pub fn load_uniform<T: IsDataType + FromId>(&self, uniform: Uniform<T>) -> T {
+                    let new_id = self.raw.get_new_id();
+                    self.raw.push_instruction(Instruction::LoadUniform {
+                        index: uniform.index,
+                        store: new_id,
+                        ty: T::TY,
+                    });
+                    T::from_id(new_id)
+                }
+
+                /// Load one field from the uniform containing a struct
+                /// 
+                /// Will panic if the struct has no field by the name supplied
+                pub fn load_uniform_field<S: AsSpvStruct, T: FromId>(&self, uniform: Uniform<SpvStruct<S>>, field: &str) -> T {
+                    let f_index = S::DESC.names.iter().position(|&f| f == field).unwrap();
+                    let ty = *S::DESC.fields.get(f_index).unwrap();
+                    let new_id = self.raw.get_new_id();
+                    self.raw.push_instruction(Instruction::LoadUniformField {
+                        u_index: uniform.index,
+                        f_index,
+                        store: new_id,
+                        ty,
+                    });
+                    
+                    T::from_id(new_id)
+                }
+
+                /// Load one field from the uniform containing a struct by the index of the field
+                /// 
+                /// Will panic if the index is out of bounds of the number of structs fields
+                pub fn load_uniform_field_by_index<S: AsSpvStruct, T: FromId>(&self, uniform: Uniform<SpvStruct<S>>, field_index: usize) -> T {
+                    let new_id = self.raw.get_new_id();
+                    
+                    let ty = *S::DESC.fields.get(field_index).unwrap();
+
+                    self.raw.push_instruction(Instruction::LoadUniformField {
+                        u_index: uniform.index,
+                        f_index: field_index,
+                        store: new_id,
+                        ty,
+                    });
+
+                    T::from_id(new_id)
                 }
 
                 pub fn vector_shuffle<V: AsPrimitiveType + FromId>(&self, s: VectorShuffle<V>) -> V {
@@ -435,6 +482,15 @@ macro_rules! gen_intrinsics {
                     Bool::from_id(new_id)
                 }
 
+                /// Create a new struct 
+                /// 
+                /// The fields should be supplied as a slice in order declared 
+                /// This is to allow creating structs from a composition of both spv types and rust types
+                /// 
+                /// TODO update AsSpvStruct to have an associated type with the same field names
+                /// storing &dyn AsData and implement require Into for that associated type. Could be 
+                /// implemented as a proc macro and also a duplicate type that could have fields of Int, Float ...
+                /// or maybe different constructors idk i'm rambling.
                 pub fn new_struct<S: AsSpvStruct>(&self, data: &[&dyn AsData]) -> SpvStruct<S> {
                     let id = self.raw.get_new_id();
                     let data = data.iter().map(|d| d.id(&*self.raw)).collect::<Vec<_>>();
@@ -450,6 +506,9 @@ macro_rules! gen_intrinsics {
                     }
                 }
 
+                /// Store the variable into the struct field
+                /// 
+                /// Will panic if the field type doesn't match the type of T
                 pub fn struct_store<T, S>(&self, s: SpvStruct<S>, field: &str, data: T)
                 where
                     S: AsSpvStruct,
@@ -465,6 +524,9 @@ macro_rules! gen_intrinsics {
                     })
                 }
 
+                /// Load a struct field and return a variable containing the data from that field
+                /// 
+                /// Will panic if the field types doesn't match the type of T
                 pub fn struct_load<T, S>(&self, s: SpvStruct<S>, field: &str) -> T
                 where
                     S: AsSpvStruct,

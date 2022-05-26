@@ -119,7 +119,17 @@ pub enum Instruction {
         ty: PrimitiveType,
         read: usize,
     },
-    LoadUniform {},
+    LoadUniform {
+        index: usize,
+        ty: DataType,
+        store: usize,
+    },
+    LoadUniformField {
+        u_index: usize,
+        f_index: usize,
+        store: usize,
+        ty: DataType,
+    },
     LoadStorage {},
     StoreStorage {},
     Break,
@@ -175,6 +185,8 @@ impl Instruction {
         var_map: &mut HashMap<usize, u32>,
         function_map: &HashMap<usize, usize>,
         struct_map: &mut HashMap<TypeId, u32>,
+        uniforms: &[u32],
+        storages: &[u32],
         inputs: &[u32],
         outputs: &[u32],
         break_target: Option<u32>,
@@ -238,6 +250,8 @@ impl Instruction {
                 builder,
                 function_map,
                 struct_map,
+                uniforms,
+                storages,
                 inputs,
                 outputs,
                 break_target,
@@ -250,6 +264,8 @@ impl Instruction {
                 body,
                 function_map,
                 struct_map,
+                uniforms,
+                storages,
                 inputs,
                 outputs,
             ),
@@ -292,7 +308,67 @@ impl Instruction {
 
                 builder.store(output_var, spv_obj, None, None).unwrap();
             }
-            Instruction::LoadUniform {} => todo!(),
+            Instruction::LoadUniform { 
+                index, 
+                ty, 
+                store 
+            } => {
+                // The following is based on how shaderc compiles glsl
+                // TODO afaik there is no reason not to use copy_memory instead
+                // let pointer_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, base_ty);
+                // let res_var = builder.variable(pointer_ty, None, rspirv::spirv::StorageClass::Function, None);
+                // builder.copy_memory(res_var, variable, None, None, None).unwrap();
+                // var_map.insert(*store, res_var);
+                let variable = *uniforms.get(*index).unwrap();
+                let base_ty = ty.raw_ty(builder, struct_map);
+                let field_pointer = builder.access_chain(base_ty, None, variable, Some(0)).unwrap();
+
+                let obj = builder.load(base_ty, None, field_pointer, None, None).unwrap();
+
+                let res_var = match ty {
+                    DataType::Primitive(_) => {
+                        let p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, base_ty);
+                        let res_var = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Function, None);
+
+                        builder.store(res_var, obj, None, None).unwrap();
+
+                        res_var
+                    },
+                    DataType::Array(p, n) => {
+                        let p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, base_ty);
+                        let res_var = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Function, None);
+                        let index_type = p.raw_ty(builder);
+                        let index_p_type = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, index_type);
+                        for index in 0..*n {
+                            let index_obj = PrimitiveVal::UInt(index as u32).set_constant(builder).0;
+                            let index_data_obj = builder.composite_extract(index_type, None, obj, Some(index_obj)).unwrap();
+                            let pointer = builder.access_chain(index_p_type, None, res_var, Some(index_obj)).unwrap();
+                            builder.store(pointer, index_data_obj, None, None).unwrap();
+                        }
+                        res_var
+                    },
+                    DataType::Struct(_, _, _, types) => {
+                        let p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, base_ty);
+                        let res_var = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Function, None);
+
+                        let mut index = 0;
+                        for field_type in *types {
+                            let raw_field_type = field_type.raw_ty(builder, struct_map);
+                            let field_obj = builder.composite_extract(raw_field_type, None, obj, Some(index)).unwrap();
+                            let index_obj = PrimitiveVal::UInt(index).set_constant(builder).0;
+                            let pointer = builder.access_chain(raw_field_type, None, res_var, Some(index_obj)).unwrap();
+                        
+                            builder.store(pointer, field_obj, None, None).unwrap();
+
+                            index += 1;
+                        }
+
+                        res_var
+                    }
+                };
+
+                var_map.insert(*store, res_var);
+            },
             Instruction::LoadStorage {} => todo!(),
             Instruction::StoreStorage {} => todo!(),
             Instruction::VectorShuffle {
@@ -469,6 +545,24 @@ impl Instruction {
 
                 var_map.insert(*store, res_spv_obj);
             }
+            Instruction::LoadUniformField { 
+                u_index, 
+                f_index, 
+                store,
+                ty, 
+            } => {
+                let uniform_variable = *uniforms.get(*u_index).unwrap();
+                let index_obj = PrimitiveVal::UInt(*f_index as u32).set_constant(builder).0;
+                let field_ty = ty.raw_ty(builder, struct_map);
+                let pointer = builder.access_chain(field_ty, None, uniform_variable, Some(index_obj)).unwrap();
+
+                let field_p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, field_ty);
+                let res_var = builder.variable(field_p_ty, None, rspirv::spirv::StorageClass::Function, None);
+
+                let field_obj = builder.load(field_ty, None, pointer, None, None).unwrap();
+                builder.store(res_var, field_obj, None, None).unwrap();
+                var_map.insert(*store, res_var);
+            },
         }
     }
 }
@@ -501,6 +595,8 @@ fn process_loop(
     body: &mut Vec<Instruction>,
     function_map: &HashMap<usize, usize>,
     struct_map: &mut HashMap<TypeId, u32>,
+    uniform_map: &[u32],
+    storage_map: &[u32],
     inputs: &[u32],
     outputs: &[u32],
 ) {
@@ -538,6 +634,8 @@ fn process_loop(
             var_map,
             function_map,
             struct_map,
+            uniform_map,
+            storage_map,
             inputs,
             outputs,
             Some(merge_block),
@@ -558,6 +656,8 @@ fn process_if_chain(
     builder: &mut rspirv::dr::Builder,
     function_map: &HashMap<usize, usize>,
     struct_map: &mut HashMap<TypeId, u32>,
+    uniforms: &[u32],
+    storages: &[u32],
     inputs: &[u32],
     outputs: &[u32],
     break_target: Option<u32>,
@@ -571,6 +671,8 @@ fn process_if_chain(
                     var_map,
                     function_map,
                     struct_map,
+                    uniforms,
+                    storages,
                     inputs,
                     outputs,
                     break_target,
@@ -610,6 +712,8 @@ fn process_if_chain(
             var_map,
             function_map,
             struct_map,
+            uniforms,
+            storages,
             inputs,
             outputs,
             break_target,
@@ -629,6 +733,8 @@ fn process_if_chain(
         builder,
         function_map,
         struct_map,
+        uniforms,
+        storages,
         inputs,
         outputs,
         break_target,
