@@ -134,24 +134,24 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         }
     }
 
-    pub fn input<P: IsPrimitiveType>(&self, location: u32, name: Option<&'static str>) -> In<P> {
+    pub fn input<P: IsPrimitiveType>(&self, location: u32, flat: bool, name: Option<&'static str>) -> In<P> {
         let index = self.raw.inputs.borrow().len();
         self.raw
             .inputs
             .borrow_mut()
-            .push((P::TY, Left(location), name));
+            .push((P::TY, Left((location, flat)), name));
         In {
             index,
             _marker: PhantomData,
         }
     }
 
-    pub fn output<P: IsPrimitiveType>(&self, location: u32, name: Option<&'static str>) -> Out<P> {
-        let index = self.raw.inputs.borrow().len();
+    pub fn output<P: IsPrimitiveType>(&self, location: u32, flat: bool, name: Option<&'static str>) -> Out<P> {
+        let index = self.raw.outputs.borrow().len();
         self.raw
             .outputs
             .borrow_mut()
-            .push((P::TY, Left(location), name));
+            .push((P::TY, Left((location, flat)), name));
         Out {
             index,
             _marker: PhantomData,
@@ -200,7 +200,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
     pub fn compile(self) -> Vec<u32> {
         let mut builder = rspirv::dr::Builder::new();
 
-        let _ext = builder.ext_inst_import("GLSL.std.450");
+        //let _ext = builder.ext_inst_import("GLSL.std.450");
         builder.set_version(1, 0);
         builder.capability(rspirv::spirv::Capability::Shader);
         builder.memory_model(
@@ -227,7 +227,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
 
         let mut uniforms = Vec::new();
         for (uniform, set, binding) in &*self.raw.uniforms.borrow() {
-            let raw_inner_ty = uniform.raw_ty(&mut builder, &mut struct_map);
+            let raw_inner_ty = uniform.base_type(&mut builder, &mut struct_map);
             let raw_outer_ty = builder.type_struct([raw_inner_ty]);
 
             builder.decorate(raw_outer_ty, rspirv::spirv::Decoration::Block, None);
@@ -257,16 +257,25 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             .iter()
             .map(|(v, t, name)| {
                 let storage = rspirv::spirv::StorageClass::Input;
-                let ty = v.raw_ty(&mut builder);
+                let ty = v.base_type(&mut builder);
                 let pointer_ty = builder.type_pointer(None, storage, ty);
                 let variable = builder.variable(pointer_ty, None, storage, None);
 
                 match t {
-                    Left(location) => builder.decorate(
-                        variable,
-                        rspirv::spirv::Decoration::Location,
-                        [rspirv::dr::Operand::LiteralInt32(*location)],
-                    ),
+                    Left((location, flat)) => {
+                        builder.decorate(
+                            variable,
+                            rspirv::spirv::Decoration::Location,
+                            [rspirv::dr::Operand::LiteralInt32(*location)],
+                        );
+                        if *flat {
+                            builder.decorate(
+                                variable, 
+                                rspirv::spirv::Decoration::Flat,
+                                [],
+                            );
+                        }
+                    },
                     Right(built_in) => builder.decorate(
                         variable,
                         rspirv::spirv::Decoration::BuiltIn,
@@ -288,16 +297,25 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             .iter()
             .map(|(v, t, name)| {
                 let storage = rspirv::spirv::StorageClass::Output;
-                let ty = v.raw_ty(&mut builder);
+                let ty = v.base_type(&mut builder);
                 let pointer_ty = builder.type_pointer(None, storage, ty);
                 let variable = builder.variable(pointer_ty, None, storage, None);
 
                 match t {
-                    Left(location) => builder.decorate(
-                        variable,
-                        rspirv::spirv::Decoration::Location,
-                        [rspirv::dr::Operand::LiteralInt32(*location)],
-                    ),
+                    Left((location, flat)) => {
+                        builder.decorate(
+                            variable,
+                            rspirv::spirv::Decoration::Location,
+                            [rspirv::dr::Operand::LiteralInt32(*location)],
+                        );
+                        if *flat {
+                            builder.decorate(
+                                variable, 
+                                rspirv::spirv::Decoration::Flat,
+                                [],
+                            );
+                        }
+                    },
                     Right(built_in) => builder.decorate(
                         variable,
                         rspirv::spirv::Decoration::BuiltIn,
@@ -317,7 +335,10 @@ impl<T: specialisation::ShaderTY> Builder<T> {
 
         builder.entry_point(T::TY, main, "main", interface);
 
+        T::specialize(&mut builder, main);
+
         builder.begin_block(None).unwrap();
+        let var_block = builder.selected_block().unwrap();
 
         for mut instruction in self.instructions() {
             instruction.process(
@@ -331,6 +352,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
                 &outputs,
                 None,
                 None,
+                var_block,
             );
         }
 
@@ -340,3 +362,59 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         builder.module().assemble()
     }
 }
+
+macro_rules! io_interp_types {
+    ($($i_name:ident, $o_name:ident, $t_name:ident,)*) => {
+        impl<T: specialisation::ShaderTY> Builder<T> {
+            $(
+                pub fn $i_name(&self, location: u32, flat: bool, name: Option<&'static str>) -> In<$t_name> {
+                    self.input(location, flat, name)
+                }
+
+                pub fn $o_name(&self, location: u32, flat: bool, name: Option<&'static str>) -> Out<$t_name> {
+                    self.output(location, flat, name)
+                }
+            )*
+        }
+    };
+}
+
+io_interp_types!(
+    in_float, out_float, Float,
+    in_vec2, out_vec2, Vec2,
+    in_vec3, out_vec3, Vec3,
+    in_vec4, out_vec4, Vec4,
+    in_double, out_double, Double,
+    in_dvec2, out_dvec2, DVec2,
+    in_dvec3, out_dvec3, DVec3,
+    in_dvec4, out_dvec4, DVec4,
+);
+
+macro_rules! io_no_interp_types {
+    ($($i_name:ident, $o_name:ident, $t_name:ident,)*) => {
+        impl<T: specialisation::ShaderTY> Builder<T> {
+            $(
+                pub fn $i_name(&self, location: u32, name: Option<&'static str>) -> In<$t_name> {
+                    self.input(location, true, name)
+                }
+
+                pub fn $o_name(&self, location: u32, name: Option<&'static str>) -> Out<$t_name> {
+                    self.output(location, true, name)
+                }
+            )*
+        }
+    };
+}
+
+io_no_interp_types!(
+    in_bool, out_bool, Bool,
+    in_int, out_int, Int,
+    in_ivec2, out_ivec2, IVec2,
+    in_ivec3, out_ivec3, IVec3,
+    in_ivec4, out_ivec4, IVec4,
+    in_uint, out_uint, UInt,
+    in_uvec2, out_uvec2, UVec2,
+    in_uvec3, out_uvec3, UVec3,
+    in_uvec4, out_uvec4, UVec4,
+    
+);

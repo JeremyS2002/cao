@@ -1,108 +1,375 @@
-use rspirv::binary::{Assemble, Disassemble};
+
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::WindowBuilder,
+};
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct Vertex {
+    pub pos: [f32; 2],
+    pub color: [f32; 3],
+}
+
+unsafe impl bytemuck::Pod for Vertex { }
+unsafe impl bytemuck::Zeroable for Vertex { }
 
 fn main() {
-    let src = "
-        #version 450
+    env_logger::init();
 
-        struct Data {
-            float x;
-            float y;
-            float z;
-        };
+    let instance = gpu::Instance::new(&gpu::InstanceDesc::default()).unwrap();
 
-        layout(set = 0, binding = 0) uniform U {
-            Data d;
-        } in_data;
+    let event_loop = EventLoop::new();
+    let window = WindowBuilder::new().build(&event_loop).unwrap();
 
-        void main() {
-            float x = in_data.d.x;
+    let surface = instance.create_surface(&window).unwrap();
+    let device = instance.create_device(&gpu::DeviceDesc {
+        compatible_surfaces: &[&surface],
+        ..Default::default()
+    }).unwrap();
+
+    let mut swapchain = device.create_swapchain(
+        &surface,
+        &gpu::SwapchainDesc::from_surface(&surface, &device).unwrap(),
+    ).unwrap();
+
+    let mut resized = false;
+
+    let vertices = vec![
+        Vertex {
+            pos: [0.0, -0.5],
+            color: [1.0, 0.0, 0.0],
+        },
+        Vertex {
+            pos: [-0.5, 0.5],
+            color: [0.0, 1.0, 0.0],
+        },
+        Vertex {
+            pos: [0.5, 0.5],
+            color: [0.0, 0.0, 1.0],
         }
-    ";
+    ];
 
-    let compiler = shaderc::Compiler::new().unwrap();
-    let spv = compiler
-        .compile_into_spirv(src, shaderc::ShaderKind::Vertex, "", "main", None)
+    let vertex_buffer = device.create_buffer(&gpu::BufferDesc {
+        name: None,
+        size: (std::mem::size_of::<Vertex>() * vertices.len()) as _,
+        usage: gpu::BufferUsage::VERTEX,
+        memory: gpu::MemoryType::Host,
+    }).unwrap();
+
+    vertex_buffer.slice_ref(..).write(bytemuck::cast_slice(&vertices)).unwrap();
+
+    let vertex_spv = {
+        let builder = spirv::VertexBuilder::new();
+
+        let in_pos = builder.in_vec2(0, false, Some("in_pos"));
+        let in_col = builder.in_vec3(1, false, Some("in_color"));
+
+        let position = builder.position();
+        let out_col = builder.out_vec3(0, false, Some("out_color"));
+
+        builder.main(|b| {
+            let pos = b.load_in(in_pos);
+            let x = b.vector_shuffle(pos.x());
+            let y = b.vector_shuffle(pos.y());
+            let pos = b.vec4(&x, &y, &0.0, &1.0);
+            b.store_out(position, pos);
+
+            let col = b.load_in(in_col);
+            b.store_out(out_col, col);
+        });
+        
+        builder.compile()
+    };
+
+    let vertex_shader = device
+        .create_shader_module(&gpu::ShaderModuleDesc {
+            name: None,
+            entries: &[(gpu::ShaderStages::VERTEX, "main")],
+            spirv: &vertex_spv,
+        })
         .unwrap();
 
-    let mut loader = rspirv::dr::Loader::new();
-    rspirv::binary::parse_words(spv.as_binary(), &mut loader).unwrap();
-    let module = loader.module();
+    let fragment_spv = {
+        let builder = spirv::FragmentBuilder::new();
 
-    println!("{}", module.disassemble());
+        let in_col = builder.in_vec3(0, false, Some("in_color"));
 
-    // ===================================================================
-    // ===================================================================
-    // ===================================================================
+        let out_col = builder.out_vec3(0, false, Some("out_color"));
 
-    // let mut builder = rspirv::dr::Builder::new();
+        builder.main(|b| {
+            let col = b.load_in(in_col);
+            b.store_out(out_col, col);
+        });
 
-    // let void = builder.type_void();
-    // let void_f = builder.type_function(void, []);
-    // let main = builder.begin_function(
-    //     void,
-    //     None,
-    //     rspirv::spirv::FunctionControl::empty(),
-    //     void_f,
-    // ).unwrap();
-    // builder.name(main, "main");
+        builder.compile()
+    };
 
-    // builder.entry_point(
-    //     rspirv::spirv::ExecutionModel::Vertex,
-    //     main,
-    //     "main",
-    //     [],
-    // );
+    let fragment_shader = device
+        .create_shader_module(&gpu::ShaderModuleDesc {
+            name: None,
+            entries: &[(gpu::ShaderStages::FRAGMENT, "main")],
+            spirv: &fragment_spv,
+        })
+        .unwrap();
 
-    // builder.begin_block(None).unwrap();
+    let render_pass = device.create_render_pass(&gpu::RenderPassDesc {
+        name: None,
+        colors: &[gpu::ColorAttachmentDesc {
+            format: swapchain.format(),
+            load: gpu::LoadOp::Clear,
+            store: gpu::StoreOp::Store,
+            initial_layout: gpu::TextureLayout::Undefined,
+            final_layout: gpu::TextureLayout::SwapchainPresent,
+        }],
+        resolves: &[],
+        depth: None,
+        samples: gpu::Samples::S1,
+    }).unwrap();
 
-    // let float_ty = builder.type_float(32);
-    // let constant = builder.constant_f32(float_ty, 0.0);
+    let layout = device.create_pipeline_layout(&gpu::PipelineLayoutDesc {
+        name: None,
+        descriptor_sets: &[],
+        push_constants: &[],
+    }).unwrap();
 
-    // let pointer_ty = builder.type_pointer(
-    //     None,
-    //     rspirv::spirv::StorageClass::Function,
-    //     float_ty,
-    // );
-    // let variable = builder.variable(
-    //     pointer_ty,
-    //     None,
-    //     rspirv::spirv::StorageClass::Function,
-    //     None,
-    // );
+    let rasterizer = gpu::Rasterizer::default();
 
-    // builder.store(variable, constant, None, None).unwrap();
-    // builder.ret().unwrap();
-    // builder.end_function().unwrap();
-    // //let code = builder.module().assemble();
-    // println!("{}", builder.module().disassemble());
+    let vertex_state = gpu::VertexState {
+        stride: std::mem::size_of::<Vertex>() as _,
+        input_rate: gpu::VertexInputRate::Vertex,
+        attributes: &[
+            // layout(location = 0) in vec2 in_pos;
+            gpu::VertexAttribute {
+                location: 0,
+                format: gpu::VertexFormat::Vec2,
+                offset: 0,
+            },
+            // layout(location = 1) in vec3 in_color;
+            gpu::VertexAttribute {
+                location: 1,
+                format: gpu::VertexFormat::Vec3,
+                offset: (2 * std::mem::size_of::<f32>()) as _,
+            },
+        ]
+    };
 
-    // ===================================================================
-    // ===================================================================
-    // ===================================================================
+    let blend_state = gpu::BlendState::REPLACE;
 
-    // let vertex = {
-    //     let builder = spirv::VertexBuilder::new();
+    let extent = swapchain.extent();
 
-    //     let position = builder.position();
+    let mut viewport = gpu::Viewport {
+        x: 0,
+        y: 0,
+        width: extent.width,
+        height: extent.height,
+        min_depth: 0.0,
+        max_depth: 1.0,
+    };
 
-    //     builder.main(|b| {
-    //         // b.spv_if(true, |b| {
-    //         //     b.store_out(position, glam::vec4(0.0, 0.0, 0.0, 0.0));
-    //         // }).spv_else_if(true, |b| {
-    //         //     b.store_out(position, glam::vec4(1.0, 1.0, 1.0, 0.0))
-    //         // });
+    let mut pipeline = device.create_graphics_pipeline(&gpu::GraphicsPipelineDesc {
+        name: None,
+        layout: &layout,
+        pass: &render_pass,
+        vertex: &vertex_shader,
+        geometry: None,
+        tessellation: None,
+        fragment: Some(&fragment_shader),
+        rasterizer,
+        vertex_states: &[vertex_state],
+        blend_states: &[blend_state],
+        depth_stencil: None,
+        viewport,
+    }).unwrap();
 
-    //         b.spv_while(true, |b| {
+    let mut command_buffer = device.create_command_buffer(None).unwrap();
 
-    //         });
-    //     });
+    event_loop.run(move |event, _, control_flow| {
+        *control_flow = ControlFlow::Poll;
 
-    //     builder.compile()
-    // };
+        match event {
+            Event::WindowEvent {
+                event: WindowEvent::CloseRequested,
+                ..
+            } => *control_flow = ControlFlow::Exit,
+            Event::WindowEvent {
+                event: WindowEvent::Resized(_),
+                ..
+            } => resized = true,
+            Event::RedrawRequested(_) => {
+                if resized {
+                    swapchain.recreate(&device).unwrap();
+                    resized = false;
 
-    // let mut loader = rspirv::dr::Loader::new();
-    // rspirv::binary::parse_words(vertex, &mut loader).unwrap();
-    // let module = loader.module();
+                    let extent = swapchain.extent();
+                    viewport.width = extent.width;
+                    viewport.height = extent.height;
 
-    // println!("{}", module.disassemble());
+                    pipeline = device
+                        .create_graphics_pipeline(&gpu::GraphicsPipelineDesc {
+                            name: None,
+                            layout: &layout,
+                            pass: &render_pass,
+                            vertex: &vertex_shader,
+                            geometry: None,
+                            tessellation: None,
+                            fragment: Some(&fragment_shader),
+                            rasterizer,
+                            vertex_states: &[vertex_state],
+                            blend_states: &[blend_state],
+                            depth_stencil: None,
+                            viewport,
+                        })
+                        .unwrap();
+                }
+
+                let view = match swapchain.acquire(!0) {
+                    Ok((view, _)) => view,
+                    Err(e) => if e.can_continue() {
+                        return
+                    } else {
+                        panic!("{}", e)
+                    }
+                };
+
+                command_buffer.begin(true).unwrap();
+
+                command_buffer
+                    .begin_graphics_pass(
+                        &[gpu::Attachment::Swapchain(
+                            &view,
+                            gpu::ClearValue::ColorFloat([0.0, 0.0, 0.0, 1.0]),
+                        )],
+                        &[],
+                        None,
+                        &pipeline,
+                    )
+                    .unwrap();
+
+                command_buffer
+                    .bind_vertex_buffer(vertex_buffer.slice_ref(..), 0)
+                    .unwrap();
+
+                command_buffer.draw(0, vertices.len() as _, 0, 1).unwrap();
+
+                command_buffer.end_graphics_pass().unwrap();
+
+                command_buffer.end().unwrap();
+
+                command_buffer.submit().unwrap();
+
+                match swapchain.present(view) {
+                    Ok(_) => (),
+                    Err(e) => if e.can_continue() {
+                        return
+                    } else {
+                        panic!("{}", e);
+                    }
+                }
+            }
+            _ => (),
+        }
+    })
 }
+
+// fn main() {
+//     use rspirv::binary::Disassemble;
+
+//     let src = "
+//         #version 450
+
+//         layout(location = 0) out vec4 out_col;
+
+//         void main() {
+//             out_col = vec4(1.0);
+//         }
+//     ";
+
+//     let compiler = shaderc::Compiler::new().unwrap();
+//     let spv = compiler
+//         .compile_into_spirv(src, shaderc::ShaderKind::Fragment, "", "main", None)
+//         .unwrap();
+
+//     let mut loader = rspirv::dr::Loader::new();
+//     rspirv::binary::parse_words(spv.as_binary(), &mut loader).unwrap();
+//     let module = loader.module();
+
+//     println!("{}", module.disassemble());
+
+//     // ===================================================================
+//     // ===================================================================
+//     // ===================================================================
+
+//     // let mut builder = rspirv::dr::Builder::new();
+
+//     // let void = builder.type_void();
+//     // let void_f = builder.type_function(void, []);
+//     // let main = builder.begin_function(
+//     //     void,
+//     //     None,
+//     //     rspirv::spirv::FunctionControl::empty(),
+//     //     void_f,
+//     // ).unwrap();
+//     // builder.name(main, "main");
+
+//     // builder.entry_point(
+//     //     rspirv::spirv::ExecutionModel::Vertex,
+//     //     main,
+//     //     "main",
+//     //     [],
+//     // );
+
+//     // builder.begin_block(None).unwrap();
+
+//     // let float_ty = builder.type_float(32);
+//     // let constant = builder.constant_f32(float_ty, 0.0);
+
+//     // let pointer_ty = builder.type_pointer(
+//     //     None,
+//     //     rspirv::spirv::StorageClass::Function,
+//     //     float_ty,
+//     // );
+//     // let variable = builder.variable(
+//     //     pointer_ty,
+//     //     None,
+//     //     rspirv::spirv::StorageClass::Function,
+//     //     None,
+//     // );
+
+//     // builder.store(variable, constant, None, None).unwrap();
+//     // builder.ret().unwrap();
+//     // builder.end_function().unwrap();
+//     // //let code = builder.module().assemble();
+//     // println!("{}", builder.module().disassemble());
+
+//     // ===================================================================
+//     // ===================================================================
+//     // ===================================================================
+
+//     // let vertex = {
+//     //     let builder = spirv::VertexBuilder::new();
+
+//     //     let position = builder.position();
+
+//     //     builder.main(|b| {
+//     //         // b.spv_if(true, |b| {
+//     //         //     b.store_out(position, glam::vec4(0.0, 0.0, 0.0, 0.0));
+//     //         // }).spv_else_if(true, |b| {
+//     //         //     b.store_out(position, glam::vec4(1.0, 1.0, 1.0, 0.0))
+//     //         // });
+
+//     //         b.spv_while(true, |b| {
+
+//     //         });
+//     //     });
+
+//     //     builder.compile()
+//     // };
+
+//     // let mut loader = rspirv::dr::Loader::new();
+//     // rspirv::binary::parse_words(vertex, &mut loader).unwrap();
+//     // let module = loader.module();
+
+//     // println!("{}", module.disassemble());
+// }

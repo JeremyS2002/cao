@@ -26,7 +26,7 @@ use super::PrimitiveType;
 macro_rules! gen_types {
     ($($name:ident,)*) => {
         $(
-            #[derive(Copy, Clone)]
+            #[derive(Copy, Clone, Debug)]
             pub struct $name {
                 pub(crate) id: usize,
             }

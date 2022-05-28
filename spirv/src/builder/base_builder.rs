@@ -8,14 +8,14 @@ pub(crate) struct RawBaseBuilder {
     pub(crate) inputs: RefCell<
         Vec<(
             PrimitiveType,
-            Either<u32, rspirv::spirv::BuiltIn>,
+            Either<(u32, bool), rspirv::spirv::BuiltIn>,
             Option<&'static str>,
         )>,
     >,
     pub(crate) outputs: RefCell<
         Vec<(
             PrimitiveType,
-            Either<u32, rspirv::spirv::BuiltIn>,
+            Either<(u32, bool), rspirv::spirv::BuiltIn>,
             Option<&'static str>,
         )>,
     >,

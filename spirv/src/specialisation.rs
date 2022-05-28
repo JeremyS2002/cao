@@ -3,6 +3,8 @@ use either::*;
 
 pub trait ShaderTY {
     const TY: rspirv::spirv::ExecutionModel;
+
+    fn specialize(_b: &mut rspirv::dr::Builder, _main: rspirv::spirv::Word) { }
 }
 
 pub struct Vertex {}
@@ -15,6 +17,10 @@ pub struct Fragment {}
 
 impl ShaderTY for Fragment {
     const TY: rspirv::spirv::ExecutionModel = rspirv::spirv::ExecutionModel::Fragment;
+
+    fn specialize(b: &mut rspirv::dr::Builder, main: rspirv::spirv::Word) {
+        b.execution_mode(main, rspirv::spirv::ExecutionMode::OriginUpperLeft, &[]);
+    }
 }
 
 pub struct Geometry {}
@@ -60,8 +66,8 @@ macro_rules! impl_specialisation {
             impl $name {
                 $(
                     pub fn $spec_in(&self) -> crate::interface::In<$ty_in> {
-                        let index = self.raw.outputs.borrow().len();
-                        self.raw.outputs.borrow_mut().push((
+                        let index = self.raw.inputs.borrow().len();
+                        self.raw.inputs.borrow_mut().push((
                             crate::data::PrimitiveType::$ty_in,
                             Right(rspirv::spirv::BuiltIn::$built_in_a),
                             Some(stringify!($spec_in)),

@@ -98,8 +98,93 @@ impl dyn RawBuilder {
     }
 }
 
-#[macro_export]
-macro_rules! gen_get_type {
+macro_rules! gen_vec2_construct {
+    ($($f_name:ident, $vec_ty:ident, $comp_ty:ident,)*) => {
+        $(
+            pub fn $f_name(&self, x: &dyn SpvRustEq<$comp_ty>, y: &dyn SpvRustEq<$comp_ty>) -> $vec_ty {
+                let id = self.raw.get_new_id();
+                self.raw.push_instruction(Instruction::VectorComposite {
+                    components: [x.id(&*self.raw), y.id(&*self.raw), 0, 0],
+                    ty: crate::data::PrimitiveType::$vec_ty,
+                    store: id,
+                });
+                $vec_ty {
+                    id,
+                }
+            }
+        )*
+    };
+}
+
+macro_rules! gen_vec3_construct {
+    ($($f_name:ident, $vec_ty:ident, $comp_ty:ident,)*) => {
+        $(
+            pub fn $f_name(&self, x: &dyn SpvRustEq<$comp_ty>, y: &dyn SpvRustEq<$comp_ty>, z: &dyn SpvRustEq<$comp_ty>) -> $vec_ty {
+                let id = self.raw.get_new_id();
+                self.raw.push_instruction(Instruction::VectorComposite {
+                    components: [x.id(&*self.raw), y.id(&*self.raw), z.id(&*self.raw), 0],
+                    ty: crate::data::PrimitiveType::$vec_ty,
+                    store: id,
+                });
+                $vec_ty {
+                    id,
+                }
+            }
+        )*
+    };
+}
+
+macro_rules! gen_vec4_construct {
+    ($($f_name:ident, $vec_ty:ident, $comp_ty:ident,)*) => {
+        $(
+            pub fn $f_name(&self, x: &dyn SpvRustEq<$comp_ty>, y: &dyn SpvRustEq<$comp_ty>, z: &dyn SpvRustEq<$comp_ty>, w: &dyn SpvRustEq<$comp_ty>) -> $vec_ty {
+                let id = self.raw.get_new_id();
+                self.raw.push_instruction(Instruction::VectorComposite {
+                    components: [x.id(&*self.raw), y.id(&*self.raw), z.id(&*self.raw), w.id(&*self.raw)],
+                    ty: crate::data::PrimitiveType::$vec_ty,
+                    store: id,
+                });
+                $vec_ty {
+                    id,
+                }
+            }
+        )*
+    };
+}
+
+macro_rules! gen_vec_construct {
+    ($($name:ident,)*) => {
+        $(
+            impl $name {
+                gen_vec2_construct!(
+                    vec2, Vec2, Float,
+                    ivec2, IVec2, Int,
+                    uvec2, UVec2, UInt,
+                    dvec2, DVec2, Double,
+                );
+
+                gen_vec3_construct!(
+                    vec3, Vec3, Float,
+                    ivec3, IVec3, Int,
+                    uvec3, UVec3, UInt,
+                    dvec3, DVec3, Double,
+                );
+
+                gen_vec4_construct!(
+                    vec4, Vec4, Float,
+                    ivec4, IVec4, Int,
+                    uvec4, UVec4, UInt,
+                    dvec4, DVec4, Double,
+                );
+            }
+        )*
+    };
+}
+
+gen_vec_construct!(FnBuilder, ConditionBuilder, LoopBuilder, MainBuilder,);
+
+
+macro_rules! gen_const_type {
     ($($f:ident, $t:ident, $rust:ident,)*) => {
         $(
             pub fn $f(&self, v: $rust) -> crate::data::$t {
@@ -116,47 +201,47 @@ macro_rules! gen_get_type {
     };
 }
 
-#[macro_export]
-macro_rules! gen_get_types {
+macro_rules! gen_const_types {
     ($($name:ident,)*) => {
         $(
             impl $name {
-                crate::gen_get_type!(
-                    new_bool, Bool, bool,
-                    new_float, Float, f32,
-                    new_int, Int, i32,
-                    new_uint, UInt, u32,
-                    new_double, Double, f64,
-                    new_ivec2, IVec2, GlamIVec2,
-                    new_ivec3, IVec3, GlamIVec3,
-                    new_ivec4, IVec4, GlamIVec4,
-                    new_uvec2, UVec2, GlamUVec2,
-                    new_uvec3, UVec3, GlamUVec3,
-                    new_uvec4, UVec4, GlamUVec4,
-                    new_vec2, Vec2, GlamVec2,
-                    new_vec3, Vec3, GlamVec3,
-                    new_vec4, Vec4, GlamVec4,
-                    new_dvec2, DVec2, GlamDVec2,
-                    new_dvec3, DVec3, GlamDVec3,
-                    new_dvec4, DVec4, GlamDVec4,
-                    new_mat2, Mat2, GlamMat2,
-                    new_mat3, Mat3, GlamMat3,
-                    new_mat4, Mat4, GlamMat4,
-                    new_dmat2, DMat2, GlamDMat2,
-                    new_dmat3, DMat3, GlamDMat3,
-                    new_dmat4, DMat4, GlamDMat4,
+                gen_const_type!(
+                    const_bool, Bool, bool,
+                    const_float, Float, f32,
+                    const_int, Int, i32,
+                    const_uint, UInt, u32,
+                    const_double, Double, f64,
+                    const_ivec2, IVec2, GlamIVec2,
+                    const_ivec3, IVec3, GlamIVec3,
+                    const_ivec4, IVec4, GlamIVec4,
+                    const_uvec2, UVec2, GlamUVec2,
+                    const_uvec3, UVec3, GlamUVec3,
+                    const_uvec4, UVec4, GlamUVec4,
+                    const_vec2, Vec2, GlamVec2,
+                    const_vec3, Vec3, GlamVec3,
+                    const_vec4, Vec4, GlamVec4,
+                    const_dvec2, DVec2, GlamDVec2,
+                    const_dvec3, DVec3, GlamDVec3,
+                    const_dvec4, DVec4, GlamDVec4,
+                    const_mat2, Mat2, GlamMat2,
+                    const_mat3, Mat3, GlamMat3,
+                    const_mat4, Mat4, GlamMat4,
+                    const_dmat2, DMat2, GlamDMat2,
+                    const_dmat3, DMat3, GlamDMat3,
+                    const_dmat4, DMat4, GlamDMat4,
                 );
             }
         )*
     };
 }
 
-gen_get_types!(FnBuilder, ConditionBuilder, LoopBuilder, MainBuilder,);
+gen_const_types!(FnBuilder, ConditionBuilder, LoopBuilder, MainBuilder,);
 
 macro_rules! gen_intrinsics {
     ($($name:ident,)*) => {
         $(
             impl $name {
+
                 /// Adds an if condition to the current function
                 pub fn spv_if<F: FnOnce(&ConditionBuilder)>(&self, b: impl crate::data::SpvRustEq<Bool>, f: F) -> ConditionBuilder {
                     let b = ConditionBuilder {

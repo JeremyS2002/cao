@@ -15,6 +15,7 @@ cargo run --example basic
 - Uniform / Storage Buffers
 - Texture support
 - Testing
+- Stop parent builders being used while they have children
 - utility user facing macros
 - Examples 
 - Remove 2 stage compilation and compile as user commands are recoreded

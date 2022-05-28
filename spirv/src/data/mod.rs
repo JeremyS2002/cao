@@ -44,6 +44,58 @@ pub enum PrimitiveType {
 }
 
 impl PrimitiveType {
+    pub fn component(&self) -> Option<PrimitiveType> {
+        match self {
+            PrimitiveType::IVec2 => Some(PrimitiveType::Int),
+            PrimitiveType::IVec3 => Some(PrimitiveType::Int),
+            PrimitiveType::IVec4 => Some(PrimitiveType::Int),
+            PrimitiveType::UVec2 => Some(PrimitiveType::UInt),
+            PrimitiveType::UVec3 => Some(PrimitiveType::UInt),
+            PrimitiveType::UVec4 => Some(PrimitiveType::UInt),
+            PrimitiveType::Vec2 => Some(PrimitiveType::Float),
+            PrimitiveType::Vec3 => Some(PrimitiveType::Float),
+            PrimitiveType::Vec4 => Some(PrimitiveType::Float),
+            PrimitiveType::DVec2 => Some(PrimitiveType::Double),
+            PrimitiveType::DVec3 => Some(PrimitiveType::Double),
+            PrimitiveType::DVec4 => Some(PrimitiveType::Double),
+            PrimitiveType::Mat2 => Some(PrimitiveType::Float),
+            PrimitiveType::Mat3 => Some(PrimitiveType::Float),
+            PrimitiveType::Mat4 => Some(PrimitiveType::Float),
+            PrimitiveType::DMat2 => Some(PrimitiveType::Double),
+            PrimitiveType::DMat3 => Some(PrimitiveType::Double),
+            PrimitiveType::DMat4 => Some(PrimitiveType::Double),
+            _ => None,
+        }
+    }
+
+    pub fn components(&self) -> u32 {
+        match self {
+            PrimitiveType::Bool => 1,
+            PrimitiveType::Int => 1,
+            PrimitiveType::UInt => 1,
+            PrimitiveType::Float => 1,
+            PrimitiveType::Double => 1,
+            PrimitiveType::IVec2 => 2,
+            PrimitiveType::IVec3 => 3,
+            PrimitiveType::IVec4 => 4,
+            PrimitiveType::UVec2 => 2,
+            PrimitiveType::UVec3 => 3,
+            PrimitiveType::UVec4 => 4,
+            PrimitiveType::Vec2 => 2,
+            PrimitiveType::Vec3 => 3,
+            PrimitiveType::Vec4 => 4,
+            PrimitiveType::DVec2 => 2,
+            PrimitiveType::DVec3 => 3,
+            PrimitiveType::DVec4 => 4,
+            PrimitiveType::Mat2 => 4,
+            PrimitiveType::Mat3 => 9,
+            PrimitiveType::Mat4 => 16,
+            PrimitiveType::DMat2 => 4,
+            PrimitiveType::DMat3 => 9,
+            PrimitiveType::DMat4 => 16,
+        }
+    }
+
     /// Returns the number of bytes between rows of a matrix
     /// TODO test this matches with spirv and rust data.
     /// shaderc compiling glsl marks all matrices as having a stride of 16
@@ -160,7 +212,7 @@ impl PrimitiveType {
         }
     }
 
-    pub fn raw_ty(&self, b: &mut rspirv::dr::Builder) -> u32 {
+    pub fn base_type(&self, b: &mut rspirv::dr::Builder) -> u32 {
         match self {
             PrimitiveType::Bool => b.type_bool(),
             PrimitiveType::Int => b.type_int(32, 1),
@@ -247,6 +299,41 @@ impl PrimitiveType {
             }
         }
     }
+
+    pub(crate) fn pointer_type(&self, b: &mut rspirv::dr::Builder) -> u32 {
+        let b_ty = self.base_type(b);
+        b.type_pointer(
+            None,
+            rspirv::spirv::StorageClass::Function,
+            b_ty,
+        )
+    }
+
+    pub(crate) fn variable(&self, b: &mut rspirv::dr::Builder, var_block: usize) -> u32 {
+        let p_ty = self.pointer_type(b);
+        let current_block = b.selected_block().unwrap();
+        b.select_block(Some(var_block)).unwrap();
+        let id = b.id();
+        b.insert_into_block(
+            rspirv::dr::InsertPoint::Begin,
+            rspirv::dr::Instruction::new(
+                rspirv::spirv::Op::Variable,
+                Some(p_ty),
+                Some(id),
+                vec![rspirv::dr::Operand::StorageClass(
+                    rspirv::spirv::StorageClass::Function,
+                )],
+            ),
+        ).unwrap();
+        b.select_block(Some(current_block)).unwrap();
+        id
+        // b.variable(
+        //     p_ty,
+        //     None,
+        //     rspirv::spirv::StorageClass::Function,
+        //     None,
+        // )
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -284,6 +371,12 @@ pub enum PrimitiveVal {
 
 impl From<PrimitiveVal> for PrimitiveType {
     fn from(v: PrimitiveVal) -> Self {
+        Self::from(&v)
+    }
+}
+
+impl From<&'_ PrimitiveVal> for PrimitiveType {
+    fn from(v: &'_ PrimitiveVal) -> Self {
         match v {
             PrimitiveVal::Bool(_) => PrimitiveType::Bool,
             PrimitiveVal::Int(_) => PrimitiveType::Int,
@@ -316,7 +409,7 @@ impl PrimitiveVal {
     pub(crate) fn set_constant(&self, b: &mut rspirv::dr::Builder) -> (u32, u32) {
         match self {
             PrimitiveVal::Bool(v) => {
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = if *v {
                     b.constant_true(ty)
                 } else {
@@ -325,29 +418,29 @@ impl PrimitiveVal {
                 (c, ty)
             }
             PrimitiveVal::Int(v) => {
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_u32(ty, unsafe { std::mem::transmute(*v) });
                 (c, ty)
             }
             PrimitiveVal::UInt(v) => {
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_u32(ty, *v);
                 (c, ty)
             }
             PrimitiveVal::Float(v) => {
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_f32(ty, *v);
                 (c, ty)
             }
             PrimitiveVal::Double(v) => {
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_f64(ty, *v);
                 (c, ty)
             }
             PrimitiveVal::IVec2(v) => {
                 let x = Self::Int(v.x).set_constant(b).0;
                 let y = Self::Int(v.y).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y]);
                 (c, ty)
             }
@@ -355,7 +448,7 @@ impl PrimitiveVal {
                 let x = Self::Int(v.x).set_constant(b).0;
                 let y = Self::Int(v.y).set_constant(b).0;
                 let z = Self::Int(v.z).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z]);
                 (c, ty)
             }
@@ -364,14 +457,14 @@ impl PrimitiveVal {
                 let y = Self::Int(v.y).set_constant(b).0;
                 let z = Self::Int(v.z).set_constant(b).0;
                 let w = Self::Int(v.w).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z, w]);
                 (c, ty)
             }
             PrimitiveVal::UVec2(v) => {
                 let x = Self::UInt(v.x).set_constant(b).0;
                 let y = Self::UInt(v.y).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y]);
                 (c, ty)
             }
@@ -379,7 +472,7 @@ impl PrimitiveVal {
                 let x = Self::UInt(v.x).set_constant(b).0;
                 let y = Self::UInt(v.y).set_constant(b).0;
                 let z = Self::UInt(v.z).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z]);
                 (c, ty)
             }
@@ -388,14 +481,14 @@ impl PrimitiveVal {
                 let y = Self::UInt(v.y).set_constant(b).0;
                 let z = Self::UInt(v.z).set_constant(b).0;
                 let w = Self::UInt(v.w).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z, w]);
                 (c, ty)
             }
             PrimitiveVal::Vec2(v) => {
                 let x = Self::Float(v.x).set_constant(b).0;
                 let y = Self::Float(v.y).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y]);
                 (c, ty)
             }
@@ -403,7 +496,7 @@ impl PrimitiveVal {
                 let x = Self::Float(v.x).set_constant(b).0;
                 let y = Self::Float(v.y).set_constant(b).0;
                 let z = Self::Float(v.z).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z]);
                 (c, ty)
             }
@@ -412,14 +505,14 @@ impl PrimitiveVal {
                 let y = Self::Float(v.y).set_constant(b).0;
                 let z = Self::Float(v.z).set_constant(b).0;
                 let w = Self::Float(v.w).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z, w]);
                 (c, ty)
             }
             PrimitiveVal::DVec2(v) => {
                 let x = Self::Double(v.x).set_constant(b).0;
                 let y = Self::Double(v.y).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y]);
                 (c, ty)
             }
@@ -427,7 +520,7 @@ impl PrimitiveVal {
                 let x = Self::Double(v.x).set_constant(b).0;
                 let y = Self::Double(v.y).set_constant(b).0;
                 let z = Self::Double(v.z).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z]);
                 (c, ty)
             }
@@ -436,14 +529,14 @@ impl PrimitiveVal {
                 let y = Self::Double(v.y).set_constant(b).0;
                 let z = Self::Double(v.z).set_constant(b).0;
                 let w = Self::Double(v.w).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z, w]);
                 (c, ty)
             }
             PrimitiveVal::Mat2(v) => {
                 let x = Self::Vec2(v.col(0)).set_constant(b).0;
                 let y = Self::Vec2(v.col(1)).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y]);
                 (c, ty)
             }
@@ -451,7 +544,7 @@ impl PrimitiveVal {
                 let x = Self::Vec3(v.col(0)).set_constant(b).0;
                 let y = Self::Vec3(v.col(1)).set_constant(b).0;
                 let z = Self::Vec3(v.col(2)).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z]);
                 (c, ty)
             }
@@ -460,14 +553,14 @@ impl PrimitiveVal {
                 let y = Self::Vec4(v.col(1)).set_constant(b).0;
                 let z = Self::Vec4(v.col(2)).set_constant(b).0;
                 let w = Self::Vec4(v.col(3)).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z, w]);
                 (c, ty)
             }
             PrimitiveVal::DMat2(v) => {
                 let x = Self::DVec2(v.col(0)).set_constant(b).0;
                 let y = Self::DVec2(v.col(1)).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y]);
                 (c, ty)
             }
@@ -475,7 +568,7 @@ impl PrimitiveVal {
                 let x = Self::DVec3(v.col(0)).set_constant(b).0;
                 let y = Self::DVec3(v.col(1)).set_constant(b).0;
                 let z = Self::DVec3(v.col(2)).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z]);
                 (c, ty)
             }
@@ -484,17 +577,16 @@ impl PrimitiveVal {
                 let y = Self::DVec4(v.col(1)).set_constant(b).0;
                 let z = Self::DVec4(v.col(2)).set_constant(b).0;
                 let w = Self::DVec4(v.col(3)).set_constant(b).0;
-                let ty = PrimitiveType::from(*self).raw_ty(b);
+                let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z, w]);
                 (c, ty)
             }
         }
     }
 
-    pub fn set(&self, b: &mut rspirv::dr::Builder) -> u32 {
-        let (c, ty) = self.set_constant(b);
-        let p_ty = b.type_pointer(None, rspirv::spirv::StorageClass::Function, ty);
-        let var = b.variable(p_ty, None, rspirv::spirv::StorageClass::Function, None);
+    pub fn set(&self, b: &mut rspirv::dr::Builder, var_block: usize) -> u32 {
+        let c = self.set_constant(b).0;
+        let var = PrimitiveType::from(self).variable(b, var_block);
         b.store(var, c, None, None).unwrap();
         var
     }
@@ -517,16 +609,17 @@ impl DataType {
         }
     }
 
-    pub fn raw_ty(
+    pub fn base_type(
         &self,
         b: &mut rspirv::dr::Builder,
         struct_map: &mut HashMap<TypeId, u32>,
     ) -> u32 {
         match self {
-            Self::Primitive(ty) => ty.raw_ty(b),
+            Self::Primitive(ty) => ty.base_type(b),
             Self::Array(ty, n) => {
-                let p = ty.raw_ty(b);
-                b.type_array(p, *n as u32)
+                let p = ty.base_type(b);
+                let l = PrimitiveVal::UInt(*n as _).set_constant(b).0;
+                b.type_array(p, l)
             }
             Self::Struct(id, name, names, types) => {
                 if let Some(spv_type_object) = struct_map.get(id) {
@@ -534,7 +627,7 @@ impl DataType {
                 } else {
                     let spv_types = types
                         .iter()
-                        .map(|t| t.raw_ty(b, struct_map))
+                        .map(|t| t.base_type(b, struct_map))
                         .collect::<Vec<_>>();
 
                     let spv_ty_object = b.type_struct(spv_types);
@@ -576,15 +669,40 @@ impl DataType {
             }
         }
     }
+
+    pub(crate) fn pointer_type(&self, b: &mut rspirv::dr::Builder, struct_map: &mut HashMap<TypeId, u32>) -> u32 {
+        let b_ty = self.base_type(b, struct_map);
+        b.type_pointer(
+            None,
+            rspirv::spirv::StorageClass::Function,
+            b_ty,
+        )
+    }
+
+    pub(crate) fn variable(&self, b: &mut rspirv::dr::Builder, struct_map: &mut HashMap<TypeId,  u32>, var_block: usize) -> u32 {
+        let p_ty = self.pointer_type(b, struct_map);
+        let current_block = b.selected_block().unwrap();
+        b.select_block(Some(var_block)).unwrap();
+        let id = b.id();
+        b.insert_into_block(
+            rspirv::dr::InsertPoint::Begin,
+            rspirv::dr::Instruction::new(
+                rspirv::spirv::Op::Variable,
+                Some(p_ty),
+                Some(id),
+                vec![rspirv::dr::Operand::StorageClass(
+                    rspirv::spirv::StorageClass::Function,
+                )],
+            ),
+        ).unwrap();
+        b.select_block(Some(current_block)).unwrap();
+        id
+    }
 }
 
 impl From<DataVal> for DataType {
     fn from(v: DataVal) -> Self {
-        match v {
-            DataVal::Primitive(p) => Self::Primitive(PrimitiveType::from(p)),
-            DataVal::Array(a) => Self::Array(PrimitiveType::from(a[0]), a.len()),
-            DataVal::Struct(_, _) => todo!(),
-        }
+        Self::from(&v)
     }
 }
 
@@ -614,7 +732,7 @@ impl DataVal {
         match self {
             DataVal::Primitive(p) => p.set_constant(b),
             DataVal::Array(v) => {
-                let ty = DataType::from(self).raw_ty(b, struct_map);
+                let ty = DataType::from(self).base_type(b, struct_map);
                 let components = v.iter().map(|c| c.set_constant(b).0).collect::<Vec<_>>();
                 (b.constant_composite(ty, components), ty)
             }
