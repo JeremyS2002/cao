@@ -69,9 +69,25 @@ fn main() {
                     resized = false;
                 }
 
-                let (view, _) = swapchain.acquire(!0).unwrap();
+                let view = match swapchain.acquire(!0) {
+                    Ok((view, _)) => view,
+                    Err(e) => if e.can_continue() {
+                        resized = true;
+                        return
+                    } else {
+                        panic!("{}", e)
+                    }
+                };
 
-                swapchain.present(view).unwrap();
+                match swapchain.present(view) {
+                    Ok(_) => (),
+                    Err(e) => if e.can_continue() {
+                        resized = true;
+                        return
+                    } else {
+                        panic!("{}", e);
+                    }
+                }
             }
             _ => (),
         }

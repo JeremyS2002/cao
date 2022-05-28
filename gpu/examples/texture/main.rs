@@ -345,7 +345,15 @@ fn main() {
                         .unwrap();
                 }
 
-                let (view, _) = swapchain.acquire(!0).unwrap();
+                let view = match swapchain.acquire(!0) {
+                    Ok((view, _)) => view,
+                    Err(e) => if e.can_continue() {
+                        resized = true;
+                        return
+                    } else {
+                        panic!("{}", e)
+                    }
+                };
 
                 command_buffer.begin(true).unwrap();
 
@@ -388,7 +396,15 @@ fn main() {
 
                 command_buffer.submit().unwrap();
 
-                swapchain.present(view).unwrap();
+                match swapchain.present(view) {
+                    Ok(_) => (),
+                    Err(e) => if e.can_continue() {
+                        resized = true;
+                        return
+                    } else {
+                        panic!("{}", e);
+                    }
+                }
             }
             _ => (),
         }
