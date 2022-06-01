@@ -343,13 +343,14 @@ macro_rules! gen_intrinsics {
                 /// Will panic if the struct has no field by the name supplied
                 pub fn load_uniform_field<S: AsSpvStruct, T: FromId>(&self, uniform: Uniform<SpvStruct<S>>, field: &str) -> T {
                     let f_index = S::DESC.names.iter().position(|&f| f == field).unwrap();
-                    let ty = *S::DESC.fields.get(f_index).unwrap();
+                    let f_ty = *S::DESC.fields.get(f_index).unwrap();
                     let new_id = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::LoadUniformField {
                         u_index: uniform.index,
                         f_index,
                         store: new_id,
-                        ty,
+                        f_ty,
+                        ty: SpvStruct::<S>::TY,
                     });
                     
                     T::from_id(new_id)
@@ -361,13 +362,14 @@ macro_rules! gen_intrinsics {
                 pub fn load_uniform_field_by_index<S: AsSpvStruct, T: FromId>(&self, uniform: Uniform<SpvStruct<S>>, field_index: usize) -> T {
                     let new_id = self.raw.get_new_id();
                     
-                    let ty = *S::DESC.fields.get(field_index).unwrap();
+                    let f_ty = *S::DESC.fields.get(field_index).unwrap();
 
                     self.raw.push_instruction(Instruction::LoadUniformField {
                         u_index: uniform.index,
                         f_index: field_index,
                         store: new_id,
-                        ty,
+                        f_ty,
+                        ty: SpvStruct::<S>::TY,
                     });
 
                     T::from_id(new_id)
@@ -594,7 +596,7 @@ macro_rules! gen_intrinsics {
                 /// Store the variable into the struct field
                 /// 
                 /// Will panic if the field type doesn't match the type of T
-                pub fn struct_store<T, S>(&self, s: SpvStruct<S>, field: &str, data: T)
+                pub fn struct_store<S, T>(&self, s: SpvStruct<S>, field: &str, data: T)
                 where
                     S: AsSpvStruct,
                     T: AsData,
@@ -612,7 +614,7 @@ macro_rules! gen_intrinsics {
                 /// Load a struct field and return a variable containing the data from that field
                 /// 
                 /// Will panic if the field types doesn't match the type of T
-                pub fn struct_load<T, S>(&self, s: SpvStruct<S>, field: &str) -> T
+                pub fn struct_load<S, T>(&self, s: SpvStruct<S>, field: &str) -> T
                 where
                     S: AsSpvStruct,
                     T: AsData + AsDataType + FromId,

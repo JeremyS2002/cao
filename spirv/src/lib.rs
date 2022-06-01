@@ -59,7 +59,7 @@ pub use specialisation::{
     VertexBuilder,
 };
 
-pub use data::ty_structs::*;
+pub use data::*;
 
 pub struct Builder<T> {
     /// Well well well, look who wants implement more features and can't remember how this works. 
@@ -231,6 +231,12 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             let raw_outer_ty = builder.type_struct([raw_inner_ty]);
 
             builder.decorate(raw_outer_ty, rspirv::spirv::Decoration::Block, None);
+            builder.member_decorate(
+                raw_outer_ty, 
+                0, 
+                rspirv::spirv::Decoration::Offset, 
+                [rspirv::dr::Operand::LiteralInt32(0)]
+            );
             
             let p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, raw_outer_ty);
             let variable = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Uniform, None);

@@ -116,8 +116,8 @@ impl PrimitiveType {
         match self {
             PrimitiveType::Bool => 1,
             PrimitiveType::Int => 4,
-            PrimitiveType::UInt => 3,
-            PrimitiveType::Float => 3,
+            PrimitiveType::UInt => 4,
+            PrimitiveType::Float => 4,
             PrimitiveType::Double => 8,
             PrimitiveType::IVec2 => 2 * 4,
             PrimitiveType::IVec3 => 3 * 4,
@@ -631,6 +631,8 @@ impl DataType {
                         .collect::<Vec<_>>();
 
                     let spv_ty_object = b.type_struct(spv_types);
+
+                    struct_map.insert(*id, spv_ty_object);
 
                     b.name(spv_ty_object, *name);
 

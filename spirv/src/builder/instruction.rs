@@ -134,6 +134,7 @@ pub enum Instruction {
         f_index: usize,
         store: usize,
         ty: DataType,
+        f_ty: DataType,
     },
     LoadStorage {},
     StoreStorage {},
@@ -468,10 +469,10 @@ impl Instruction {
                 let f_spv_p_ty =
                     builder.type_pointer(None, rspirv::spirv::StorageClass::Function, f_spv_ty);
 
-                let index = PrimitiveVal::UInt(*field as u32).set_constant(builder).0;
+                let index_obj = PrimitiveVal::UInt(*field as u32).set_constant(builder).0;
 
                 let pointer = builder
-                    .access_chain(f_spv_p_ty, None, base_pointer, [index])
+                    .access_chain(f_spv_p_ty, None, base_pointer, Some(index_obj))
                     .unwrap();
                 let res_spv_obj = builder.load(f_spv_ty, None, pointer, None, None).unwrap();
 
@@ -493,40 +494,15 @@ impl Instruction {
                 // var_map.insert(*store, res_var);
                 let variable = *uniforms.get(*index).unwrap();
                 let base_ty = ty.base_type(builder, struct_map);
-                let field_pointer = builder.access_chain(base_ty, None, variable, Some(0)).unwrap();
+                let base_p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, base_ty);
+                let index_obj = PrimitiveVal::UInt(0).set_constant(builder).0;
+                let field_pointer = builder.access_chain(base_p_ty, None, variable, Some(index_obj)).unwrap();
 
                 let obj = builder.load(base_ty, None, field_pointer, None, None).unwrap();
 
-                let res_var = ty.base_type(builder, struct_map);
+                let res_var = ty.variable(builder, struct_map, var_block);
 
-                match ty {
-                    DataType::Primitive(_) => {
-                        builder.store(res_var, obj, None, None).unwrap();
-                    },
-                    DataType::Array(p, n) => {
-                        let index_type = p.base_type(builder);
-                        let index_p_type = p.pointer_type(builder);
-                        for index in 0..*n {
-                            let index_obj = PrimitiveVal::UInt(index as u32).set_constant(builder).0;
-                            let index_data_obj = builder.composite_extract(index_type, None, obj, Some(index_obj)).unwrap();
-                            let pointer = builder.access_chain(index_p_type, None, res_var, Some(index_obj)).unwrap();
-                            builder.store(pointer, index_data_obj, None, None).unwrap();
-                        }
-                    },
-                    DataType::Struct(_, _, _, types) => {
-                        let mut index = 0;
-                        for field_type in *types {
-                            let raw_field_type = field_type.base_type(builder, struct_map);
-                            let field_obj = builder.composite_extract(raw_field_type, None, obj, Some(index)).unwrap();
-                            let index_obj = PrimitiveVal::UInt(index).set_constant(builder).0;
-                            let pointer = builder.access_chain(raw_field_type, None, res_var, Some(index_obj)).unwrap();
-                        
-                            builder.store(pointer, field_obj, None, None).unwrap();
-
-                            index += 1;
-                        }
-                    }
-                };
+                copy_composite(ty, builder, res_var, obj, struct_map);
 
                 var_map.insert(*store, res_var);
             },
@@ -535,18 +511,60 @@ impl Instruction {
                 f_index, 
                 store,
                 ty, 
+                f_ty,
             } => {
                 let uniform_variable = *uniforms.get(*u_index).unwrap();
-                let index_obj = PrimitiveVal::UInt(*f_index as u32).set_constant(builder).0;
-                let field_ty = ty.base_type(builder, struct_map);
-                let pointer = builder.access_chain(field_ty, None, uniform_variable, Some(index_obj)).unwrap();
+                let struct_index = PrimitiveVal::UInt(0).set_constant(builder).0;
+                let struct_ty = ty.base_type(builder, struct_map);
+                let struct_p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, struct_ty);
+                let struct_p = builder.access_chain(struct_p_ty, None, uniform_variable, Some(struct_index)).unwrap();
 
-                let res_var = ty.variable(builder, struct_map, var_block);
+                let index_obj = PrimitiveVal::UInt(*f_index as u32).set_constant(builder).0;
+                let field_ty = f_ty.base_type(builder, struct_map);
+                let field_p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, field_ty);
+                let pointer = builder.access_chain(field_p_ty, None, struct_p, Some(index_obj)).unwrap();
+
+                let res_var = f_ty.variable(builder, struct_map, var_block);
 
                 let field_obj = builder.load(field_ty, None, pointer, None, None).unwrap();
                 builder.store(res_var, field_obj, None, None).unwrap();
                 var_map.insert(*store, res_var);
             },
+        }
+    }
+}
+
+fn copy_composite(ty: &DataType, builder: &mut rspirv::dr::Builder, res_var: u32, obj: u32, struct_map: &mut HashMap<TypeId, u32>) {
+    match ty {
+        DataType::Primitive(_) => {
+            builder.store(res_var, obj, None, None).unwrap();
+        },
+        DataType::Array(p, n) => {
+            let index_type = p.base_type(builder);
+            let index_p_type = p.pointer_type(builder);
+            for index in 0..*n {
+                let index_obj = PrimitiveVal::UInt(index as u32).set_constant(builder).0;
+                let index_data_obj = builder.composite_extract(index_type, None, obj, Some(index_obj)).unwrap();
+                let pointer = builder.access_chain(index_p_type, None, res_var, Some(index_obj)).unwrap();
+                builder.store(pointer, index_data_obj, None, None).unwrap();
+            }
+        },
+        DataType::Struct(_, _, _, types) => {
+            let mut index = 0;
+            for field_type in *types {
+                let raw_field_type = field_type.base_type(builder, struct_map);
+                let raw_field_p_type = field_type.pointer_type(builder, struct_map);//builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, raw_field_type);
+                let field_obj = builder.composite_extract(raw_field_type, None, obj, Some(index)).unwrap();
+                let index_obj = PrimitiveVal::UInt(index).set_constant(builder).0;
+
+                let pointer = builder.access_chain(raw_field_p_type, None, res_var, Some(index_obj)).unwrap();
+        
+                // builder.store(pointer, field_obj, None, None).unwrap();
+
+                copy_composite(field_type, builder, pointer, field_obj, struct_map);
+
+                index += 1;
+            }
         }
     }
 }

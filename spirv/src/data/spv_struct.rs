@@ -1,6 +1,6 @@
 use std::{marker::PhantomData, any::TypeId};
 
-use crate::AsData;
+use crate::{AsData, FromId};
 
 use super::{DataType, AsDataType, IsDataType};
 
@@ -27,7 +27,7 @@ pub struct StructDesc {
 pub unsafe trait AsSpvStruct: 'static {
     const DESC: StructDesc;
 
-    fn fields<'a>(&'a self) -> &'a [&dyn AsData];
+    fn fields<'a>(&'a self) -> Vec<&'a dyn AsData>;
 }
 
 impl<T: AsSpvStruct> AsDataType for SpvStruct<T> {
@@ -58,4 +58,13 @@ impl<T: AsSpvStruct> IsDataType for SpvStruct<T> { }
 pub struct SpvStruct<S: AsSpvStruct> {
     pub(crate) id: usize,
     pub(crate) _marker: PhantomData<S>,
+}
+
+impl<S: AsSpvStruct> FromId for SpvStruct<S> {
+    fn from_id(id: usize) -> Self {
+        Self {
+            id,
+            _marker: PhantomData,
+        }
+    }
 }
