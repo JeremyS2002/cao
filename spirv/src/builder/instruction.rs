@@ -182,6 +182,14 @@ pub enum Instruction {
         ty: DataType,
         store: usize,
     },
+    SampleTexture {
+        texture: usize,
+        sampler: usize,
+        coordinate: usize,
+        coordinate_ty: PrimitiveType,
+        res_ty: PrimitiveType,
+        store: usize,
+    }
 }
 
 impl Instruction {
@@ -195,6 +203,8 @@ impl Instruction {
         storages: &[u32],
         inputs: &[u32],
         outputs: &[u32],
+        textures: &[(u32, u32)],
+        samplers: &[(u32, u32)],
         break_target: Option<u32>,
         continue_target: Option<u32>,
         var_block: usize,
@@ -264,6 +274,8 @@ impl Instruction {
                 storages,
                 inputs,
                 outputs,
+                textures,
+                samplers,
                 break_target,
                 continue_target,
                 var_block,
@@ -279,6 +291,8 @@ impl Instruction {
                 storages,
                 inputs,
                 outputs,
+                textures,
+                samplers,
                 var_block,
             ),
             Instruction::Break => builder.branch(break_target.unwrap()).unwrap(),
@@ -530,6 +544,45 @@ impl Instruction {
                 builder.store(res_var, field_obj, None, None).unwrap();
                 var_map.insert(*store, res_var);
             },
+            Instruction::SampleTexture { 
+                texture, 
+                sampler, 
+                coordinate,
+                coordinate_ty,
+                res_ty,
+                store,
+            } => {
+                let (spv_texture, spv_texture_ty) = *textures.get(*texture).unwrap();
+                let (spv_sampler, spv_sampler_ty) = *samplers.get(*sampler).unwrap();
+
+                let spv_tex_obj = builder.load(spv_texture_ty, None, spv_texture, None, None).unwrap();
+                let spv_sam_obj = builder.load(spv_sampler_ty, None, spv_sampler, None, None).unwrap();
+
+                let sampled_image_ty = builder.type_sampled_image(spv_texture_ty);
+
+                let sampled_image = builder.sampled_image(sampled_image_ty, None, spv_tex_obj, spv_sam_obj).unwrap();
+            
+                let res_spv_ty = res_ty.base_type(builder);
+
+                let spv_coord_ty = coordinate_ty.base_type(builder);
+                let spv_coord_var = *var_map.get(coordinate).unwrap();
+                let spv_coord_obj = builder.load(spv_coord_ty, None, spv_coord_var, None, None).unwrap();
+
+                let res_obj = builder.image_sample_implicit_lod(
+                    res_spv_ty, 
+                    None, 
+                    sampled_image, 
+                    spv_coord_obj, 
+                    None, 
+                    None
+                ).unwrap();
+
+                let res_var = res_ty.variable(builder, var_block);
+
+                builder.store(res_var, res_obj, None, None).unwrap();
+
+                var_map.insert(*store, res_var);
+            },
         }
     }
 }
@@ -615,6 +668,8 @@ fn process_loop(
     storage_map: &[u32],
     inputs: &[u32],
     outputs: &[u32],
+    textures: &[(u32, u32)],
+    samplers: &[(u32, u32)],
     var_block: usize,
 ) {
     let start = builder.id();
@@ -655,6 +710,8 @@ fn process_loop(
             storage_map,
             inputs,
             outputs,
+            textures,
+            samplers,
             Some(merge_block),
             Some(continue_target),
             var_block,
@@ -678,6 +735,8 @@ fn process_if_chain(
     storages: &[u32],
     inputs: &[u32],
     outputs: &[u32],
+    textures: &[(u32, u32)],
+    samplers: &[(u32, u32)],
     break_target: Option<u32>,
     continue_target: Option<u32>,
     var_block: usize,
@@ -694,6 +753,8 @@ fn process_if_chain(
                     storages,
                     inputs,
                     outputs,
+                    textures,
+                    samplers,
                     break_target,
                     continue_target,
                     var_block,
@@ -736,6 +797,8 @@ fn process_if_chain(
             storages,
             inputs,
             outputs,
+            textures,
+            samplers,
             break_target,
             continue_target,
             var_block,
@@ -758,6 +821,8 @@ fn process_if_chain(
         storages,
         inputs,
         outputs,
+        textures,
+        samplers,
         break_target,
         continue_target,
         var_block,
@@ -787,7 +852,8 @@ fn process_vector_shuffle(
             .iter()
             .take(component_count as _)
             .map(|i| {
-                PrimitiveVal::UInt(*i).set_constant(builder).0
+                //PrimitiveVal::UInt(*i).set_constant(builder).0
+                *i
             })
             .collect::<Vec<_>>();
         builder

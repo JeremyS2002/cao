@@ -41,6 +41,8 @@ pub(crate) use var::*;
 
 use crate::data::*;
 use crate::interface::*;
+use crate::texture::*;
+use crate::sampler::*;
 
 pub trait AsAny {
     fn as_any_ref(&self) -> &dyn Any;
@@ -305,7 +307,7 @@ macro_rules! gen_intrinsics {
                     R::from_id(store_id)
                 }
 
-                pub fn load_in<T: crate::data::IsPrimitiveType + FromId>(&self, input: In<T>) -> T {
+                pub fn load_in<T: crate::data::IsPrimitiveType + FromId>(&self, input: SpvInput<T>) -> T {
                     let store = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::LoadIn {
                         index: input.index,
@@ -315,7 +317,7 @@ macro_rules! gen_intrinsics {
                     T::from_id(store)
                 }
 
-                pub fn store_out<T, S>(&self, output: Out<T>, store: S)
+                pub fn store_out<T, S>(&self, output: SpvOutput<T>, store: S)
                 where
                     T: crate::IsPrimitiveType + crate::data::SpvRustEq<S>,
                     S: AsPrimitive,
@@ -328,7 +330,7 @@ macro_rules! gen_intrinsics {
                 }
 
                 /// Load the uniform into a new variable
-                pub fn load_uniform<T: IsDataType + FromId>(&self, uniform: Uniform<T>) -> T {
+                pub fn load_uniform<T: IsDataType + FromId>(&self, uniform: SpvUniform<T>) -> T {
                     let new_id = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::LoadUniform {
                         index: uniform.index,
@@ -341,7 +343,7 @@ macro_rules! gen_intrinsics {
                 /// Load one field from the uniform containing a struct
                 /// 
                 /// Will panic if the struct has no field by the name supplied
-                pub fn load_uniform_field<S: AsSpvStruct, T: FromId>(&self, uniform: Uniform<SpvStruct<S>>, field: &str) -> T {
+                pub fn load_uniform_field<S: AsSpvStruct, T: FromId>(&self, uniform: SpvUniform<SpvStruct<S>>, field: &str) -> T {
                     let f_index = S::DESC.names.iter().position(|&f| f == field).unwrap();
                     let f_ty = *S::DESC.fields.get(f_index).unwrap();
                     let new_id = self.raw.get_new_id();
@@ -359,7 +361,7 @@ macro_rules! gen_intrinsics {
                 /// Load one field from the uniform containing a struct by the index of the field
                 /// 
                 /// Will panic if the index is out of bounds of the number of structs fields
-                pub fn load_uniform_field_by_index<S: AsSpvStruct, T: FromId>(&self, uniform: Uniform<SpvStruct<S>>, field_index: usize) -> T {
+                pub fn load_uniform_field_by_index<S: AsSpvStruct, T: FromId>(&self, uniform: SpvUniform<SpvStruct<S>>, field_index: usize) -> T {
                     let new_id = self.raw.get_new_id();
                     
                     let f_ty = *S::DESC.fields.get(field_index).unwrap();
@@ -674,6 +676,28 @@ macro_rules! gen_intrinsics {
                         element_ty: T::TY,
                     });
                     T::from_id(id)
+                }
+
+                pub fn sample_texture<D, C, V>(&self, texture: SpvGTexture<D, C>, sampler: SpvSampler, coordinate: V) -> C::Read
+                where
+                    D: AsDimension,
+                    D::Coord: AsPrimitive + AsPrimitiveType,
+                    C: AsComponent,
+                    C::Read: FromId + AsPrimitiveType,
+                    V: SpvRustEq<D::Coord>,
+                {
+                    let new_id = self.raw.get_new_id();
+
+                    self.raw.push_instruction(Instruction::SampleTexture {
+                        texture: texture.index,
+                        sampler: sampler.index,
+                        coordinate: coordinate.id(&*self.raw),
+                        coordinate_ty: D::Coord::TY,
+                        store: new_id,
+                        res_ty: C::Read::TY,
+                    });
+
+                    C::Read::from_id(new_id)
                 }
             }
         )*

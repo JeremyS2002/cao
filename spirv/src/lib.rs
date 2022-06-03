@@ -36,7 +36,7 @@
 
 use data::IsPrimitiveType;
 use either::*;
-use interface::{In, Out, Storage, StorageAccessDesc, Uniform};
+use interface::{SpvInput, SpvOutput, SpvStorage, StorageAccessDesc, SpvUniform};
 use rspirv::binary::Assemble;
 
 use std::cell::RefCell;
@@ -53,6 +53,7 @@ pub mod function;
 pub mod interface;
 pub mod specialisation;
 pub mod texture;
+pub mod sampler;
 
 pub use specialisation::{
     ComputeBuilder, FragmentBuilder, GeometryBuilder, TessControlBuilder, TessEvalBuilder,
@@ -60,6 +61,8 @@ pub use specialisation::{
 };
 
 pub use data::*;
+pub use sampler::*;
+pub use texture::*;
 
 pub struct Builder<T> {
     /// Well well well, look who wants implement more features and can't remember how this works. 
@@ -134,44 +137,44 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         }
     }
 
-    pub fn input<P: IsPrimitiveType>(&self, location: u32, flat: bool, name: Option<&'static str>) -> In<P> {
+    pub fn input<P: IsPrimitiveType>(&self, location: u32, flat: bool, name: Option<&'static str>) -> SpvInput<P> {
         let index = self.raw.inputs.borrow().len();
         self.raw
             .inputs
             .borrow_mut()
             .push((P::TY, Left((location, flat)), name));
-        In {
+        SpvInput {
             index,
             _marker: PhantomData,
         }
     }
 
-    pub fn output<P: IsPrimitiveType>(&self, location: u32, flat: bool, name: Option<&'static str>) -> Out<P> {
+    pub fn output<P: IsPrimitiveType>(&self, location: u32, flat: bool, name: Option<&'static str>) -> SpvOutput<P> {
         let index = self.raw.outputs.borrow().len();
         self.raw
             .outputs
             .borrow_mut()
             .push((P::TY, Left((location, flat)), name));
-        Out {
+        SpvOutput {
             index,
             _marker: PhantomData,
         }
     }
 
-    pub fn uniform<D: IsDataType>(&self, set: u32, binding: u32) -> Uniform<D> {
+    pub fn uniform<D: IsDataType>(&self, set: u32, binding: u32) -> SpvUniform<D> {
         let index = self.raw.uniforms.borrow().len();
         self.raw.uniforms.borrow_mut().push((
             D::TY,
             set,
             binding,
         ));
-        Uniform { 
+        SpvUniform { 
             index,
             _marker: PhantomData,
         }
     }
 
-    pub fn storage<D: IsDataType>(&self, _desc: StorageAccessDesc, set: u32, binding: u32) -> Storage<D> {
+    pub fn storage<D: IsDataType>(&self, _desc: StorageAccessDesc, set: u32, binding: u32) -> SpvStorage<D> {
         self.raw.storages.borrow_mut().push((
             D::TY,
             set,
@@ -183,6 +186,35 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         //     _marker: PhantomData,
         // }
         todo!();
+    }
+
+    pub fn texture<D: AsDimension, C: AsComponent>(&self, set: u32, binding: u32, arrayed: bool, name: Option<&'static str>) -> SpvGTexture<D, C> {
+        let index = self.raw.textures.borrow().len();
+        self.raw.textures.borrow_mut().push((
+            D::DIM,
+            C::COMPONENT,
+            arrayed,
+            set,
+            binding,
+            name,
+        ));
+        SpvGTexture {
+            index,
+            _dmarker: PhantomData,
+            _cmarker: PhantomData,
+        }
+    }
+
+    pub fn sampler(&self, set: u32, binding: u32, name: Option<&'static str>) -> SpvSampler {
+        let index = self.raw.samplers.borrow().len();
+        self.raw.samplers.borrow_mut().push((
+            set,
+            binding,
+            name,
+        ));
+        SpvSampler {
+            index,
+        }
     }
 
     pub fn main<F: FnOnce(&builder::MainBuilder) -> ()>(&self, f: F) {
@@ -225,116 +257,12 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             .unwrap();
         builder.name(main, "main");
 
-        let mut uniforms = Vec::new();
-        for (uniform, set, binding) in &*self.raw.uniforms.borrow() {
-            let raw_inner_ty = uniform.base_type(&mut builder, &mut struct_map);
-            let raw_outer_ty = builder.type_struct([raw_inner_ty]);
-
-            builder.decorate(raw_outer_ty, rspirv::spirv::Decoration::Block, None);
-            builder.member_decorate(
-                raw_outer_ty, 
-                0, 
-                rspirv::spirv::Decoration::Offset, 
-                [rspirv::dr::Operand::LiteralInt32(0)]
-            );
-            
-            let p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, raw_outer_ty);
-            let variable = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Uniform, None);
-
-            builder.decorate(
-                variable, 
-                rspirv::spirv::Decoration::DescriptorSet, 
-                Some(rspirv::dr::Operand::LiteralInt32(*set))
-            );
-            builder.decorate(
-                variable, 
-                rspirv::spirv::Decoration::Binding, 
-                Some(rspirv::dr::Operand::LiteralInt32(*binding))
-            );
-            uniforms.push(variable);
-        }
-
+        let uniforms = process_uniforms(&*self.raw.uniforms.borrow(), &mut builder, &mut struct_map);
         let storages = Vec::new();
-
-        let inputs = self
-            .raw
-            .inputs
-            .borrow()
-            .iter()
-            .map(|(v, t, name)| {
-                let storage = rspirv::spirv::StorageClass::Input;
-                let ty = v.base_type(&mut builder);
-                let pointer_ty = builder.type_pointer(None, storage, ty);
-                let variable = builder.variable(pointer_ty, None, storage, None);
-
-                match t {
-                    Left((location, flat)) => {
-                        builder.decorate(
-                            variable,
-                            rspirv::spirv::Decoration::Location,
-                            [rspirv::dr::Operand::LiteralInt32(*location)],
-                        );
-                        if *flat {
-                            builder.decorate(
-                                variable, 
-                                rspirv::spirv::Decoration::Flat,
-                                [],
-                            );
-                        }
-                    },
-                    Right(built_in) => builder.decorate(
-                        variable,
-                        rspirv::spirv::Decoration::BuiltIn,
-                        [rspirv::dr::Operand::BuiltIn(*built_in)],
-                    ),
-                }
-
-                if let Some(name) = name {
-                    builder.name(variable, *name);
-                }
-                variable
-            })
-            .collect::<Vec<_>>();
-
-        let outputs = self
-            .raw
-            .outputs
-            .borrow()
-            .iter()
-            .map(|(v, t, name)| {
-                let storage = rspirv::spirv::StorageClass::Output;
-                let ty = v.base_type(&mut builder);
-                let pointer_ty = builder.type_pointer(None, storage, ty);
-                let variable = builder.variable(pointer_ty, None, storage, None);
-
-                match t {
-                    Left((location, flat)) => {
-                        builder.decorate(
-                            variable,
-                            rspirv::spirv::Decoration::Location,
-                            [rspirv::dr::Operand::LiteralInt32(*location)],
-                        );
-                        if *flat {
-                            builder.decorate(
-                                variable, 
-                                rspirv::spirv::Decoration::Flat,
-                                [],
-                            );
-                        }
-                    },
-                    Right(built_in) => builder.decorate(
-                        variable,
-                        rspirv::spirv::Decoration::BuiltIn,
-                        [rspirv::dr::Operand::BuiltIn(*built_in)],
-                    ),
-                }
-
-                if let Some(name) = name {
-                    builder.name(variable, *name);
-                }
-                variable
-            })
-            .collect::<Vec<_>>();
+        let textures = process_textures(&mut builder, &self.raw.textures.borrow());
+        let samplers = process_samplers(&mut builder, &self.raw.samplers.borrow());
+        let inputs = process_io(&mut builder, &self.raw.inputs.borrow(), rspirv::spirv::StorageClass::Input);
+        let outputs = process_io(&mut builder, &self.raw.outputs.borrow(), rspirv::spirv::StorageClass::Output);
 
         let mut interface = inputs.clone();
         interface.extend_from_slice(&outputs);
@@ -356,6 +284,8 @@ impl<T: specialisation::ShaderTY> Builder<T> {
                 &storages,
                 &inputs,
                 &outputs,
+                &textures,
+                &samplers,
                 None,
                 None,
                 var_block,
@@ -369,15 +299,186 @@ impl<T: specialisation::ShaderTY> Builder<T> {
     }
 }
 
+fn process_uniforms(uniforms: &[(DataType, u32, u32)], builder: &mut rspirv::dr::Builder, struct_map: &mut HashMap<std::any::TypeId, u32>) -> Vec<u32> {
+    uniforms
+        .iter()
+        .map(|(uniform, set, binding)| {
+            let raw_inner_ty = uniform.base_type(builder, struct_map);
+            let raw_outer_ty = builder.type_struct([raw_inner_ty]);
+    
+            builder.decorate(raw_outer_ty, rspirv::spirv::Decoration::Block, None);
+            builder.member_decorate(
+                raw_outer_ty, 
+                0, 
+                rspirv::spirv::Decoration::Offset, 
+                [rspirv::dr::Operand::LiteralInt32(0)]
+            );
+        
+            let p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, raw_outer_ty);
+            let variable = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Uniform, None);
+    
+            builder.decorate(
+                variable, 
+                rspirv::spirv::Decoration::DescriptorSet, 
+                Some(rspirv::dr::Operand::LiteralInt32(*set))
+            );
+            builder.decorate(
+                variable, 
+                rspirv::spirv::Decoration::Binding, 
+                Some(rspirv::dr::Operand::LiteralInt32(*binding))
+            );
+
+            variable
+        })
+        .collect::<Vec<_>>()
+}
+
+fn process_textures(
+    builder: &mut rspirv::dr::Builder, 
+    textures: &[(
+        rspirv::spirv::Dim,
+        crate::texture::Component,
+        bool,
+        u32,
+        u32,
+        Option<&'static str>,
+    )],
+) -> Vec<(u32, u32)> {
+    textures
+        .iter()
+        .map(|(dimension, component, arrayed, set, binding, name)| {
+            let c_type = component.base_type(builder);
+            let t_type = builder.type_image(
+                c_type, 
+                *dimension, 
+                0, 
+                if *arrayed { 1 } else { 0 }, 
+                0, 
+                1, 
+                rspirv::spirv::ImageFormat::Unknown, 
+                None,
+            );
+
+            let p_type = builder.type_pointer(
+                None,
+                rspirv::spirv::StorageClass::UniformConstant,
+                t_type,
+            );
+
+            let variable = builder.variable(p_type, None, rspirv::spirv::StorageClass::UniformConstant, None);
+
+            builder.decorate(
+                variable, 
+                rspirv::spirv::Decoration::DescriptorSet, 
+                Some(rspirv::dr::Operand::LiteralInt32(*set))
+            );
+
+            builder.decorate(
+                variable, 
+                rspirv::spirv::Decoration::Binding, 
+                Some(rspirv::dr::Operand::LiteralInt32(*binding))
+            );
+
+            if let Some(name) = *name {
+                builder.name(
+                    variable,
+                    name
+                )
+            }
+
+            (variable, t_type)
+        })
+        .collect::<Vec<_>>()
+}
+
+fn process_samplers(builder: &mut rspirv::dr::Builder, samplers: &[(u32, u32, Option<&'static str>)]) -> Vec<(u32, u32)> {
+    samplers
+        .iter()
+        .map(|(set, binding, name)| {
+            let b_type = builder.type_sampler();
+            let p_type = builder.type_pointer(None, rspirv::spirv::StorageClass::UniformConstant, b_type);
+            let variable = builder.variable(p_type, None, rspirv::spirv::StorageClass::UniformConstant, None);
+    
+            builder.decorate(
+                variable, 
+                rspirv::spirv::Decoration::DescriptorSet, 
+                Some(rspirv::dr::Operand::LiteralInt32(*set))
+            );
+    
+            builder.decorate(
+                variable, 
+                rspirv::spirv::Decoration::Binding, 
+                Some(rspirv::dr::Operand::LiteralInt32(*binding))
+            );
+    
+            if let Some(name) = *name {
+                builder.name(
+                    variable,
+                    name
+                )
+            }
+
+            (variable, b_type)
+        })
+        .collect::<Vec<_>>()
+}
+
+fn process_io(
+    builder: &mut rspirv::dr::Builder, 
+    io: &[(
+        PrimitiveType,
+        Either<(u32, bool), rspirv::spirv::BuiltIn>,
+        Option<&'static str>,
+    )],
+    storage: rspirv::spirv::StorageClass,
+) -> Vec<u32> {
+    let inputs = io
+        .iter()
+        .map(|(v, t, name)| {
+            let ty = v.base_type(builder);
+            let pointer_ty = builder.type_pointer(None, storage, ty);
+            let variable = builder.variable(pointer_ty, None, storage, None);
+
+            match t {
+                Left((location, flat)) => {
+                    builder.decorate(
+                        variable,
+                        rspirv::spirv::Decoration::Location,
+                        [rspirv::dr::Operand::LiteralInt32(*location)],
+                    );
+                    if *flat {
+                        builder.decorate(
+                            variable, 
+                            rspirv::spirv::Decoration::Flat,
+                            [],
+                        );
+                    }
+                },
+                Right(built_in) => builder.decorate(
+                    variable,
+                    rspirv::spirv::Decoration::BuiltIn,
+                    [rspirv::dr::Operand::BuiltIn(*built_in)],
+                ),
+            }
+
+            if let Some(name) = name {
+                builder.name(variable, *name);
+            }
+            variable
+        })
+        .collect::<Vec<_>>();
+    inputs
+}
+
 macro_rules! io_interp_types {
     ($($i_name:ident, $o_name:ident, $t_name:ident,)*) => {
         impl<T: specialisation::ShaderTY> Builder<T> {
             $(
-                pub fn $i_name(&self, location: u32, flat: bool, name: Option<&'static str>) -> In<$t_name> {
+                pub fn $i_name(&self, location: u32, flat: bool, name: Option<&'static str>) -> SpvInput<$t_name> {
                     self.input(location, flat, name)
                 }
 
-                pub fn $o_name(&self, location: u32, flat: bool, name: Option<&'static str>) -> Out<$t_name> {
+                pub fn $o_name(&self, location: u32, flat: bool, name: Option<&'static str>) -> SpvOutput<$t_name> {
                     self.output(location, flat, name)
                 }
             )*
@@ -400,11 +501,11 @@ macro_rules! io_no_interp_types {
     ($($i_name:ident, $o_name:ident, $t_name:ident,)*) => {
         impl<T: specialisation::ShaderTY> Builder<T> {
             $(
-                pub fn $i_name(&self, location: u32, name: Option<&'static str>) -> In<$t_name> {
+                pub fn $i_name(&self, location: u32, name: Option<&'static str>) -> SpvInput<$t_name> {
                     self.input(location, true, name)
                 }
 
-                pub fn $o_name(&self, location: u32, name: Option<&'static str>) -> Out<$t_name> {
+                pub fn $o_name(&self, location: u32, name: Option<&'static str>) -> SpvOutput<$t_name> {
                     self.output(location, true, name)
                 }
             )*

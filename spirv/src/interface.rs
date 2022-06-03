@@ -4,19 +4,19 @@ use crate::data::{IsDataType, IsPrimitiveType};
 use std::marker::PhantomData;
 
 #[derive(Clone, Copy, Debug)]
-pub struct In<T: IsPrimitiveType> {
+pub struct SpvInput<T: IsPrimitiveType> {
     pub(crate) index: usize,
     pub(crate) _marker: PhantomData<T>,
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Out<T: IsPrimitiveType> {
+pub struct SpvOutput<T: IsPrimitiveType> {
     pub(crate) index: usize,
     pub(crate) _marker: PhantomData<T>,
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Uniform<T: IsDataType> {
+pub struct SpvUniform<T: IsDataType> {
     pub(crate) index: usize,
     pub(crate) _marker: PhantomData<T>,
 }
@@ -29,7 +29,7 @@ pub struct StorageAccessDesc {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub struct Storage<T: IsDataType> {
+pub struct SpvStorage<T: IsDataType> {
     pub(crate) index: usize,
     pub(crate) _marker: PhantomData<T>,
 }
