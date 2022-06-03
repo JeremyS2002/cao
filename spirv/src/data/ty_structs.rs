@@ -323,7 +323,7 @@ macro_rules! impl_vector_shuffle {
                 );
 
                 impl_vec3_shuffle!(
-                    $vec2, $vec3 : [
+                    $vec3, $vec3 : [
                         xxx, 0, 0, 0,
                         xxy, 0, 0, 1,
                         xxz, 0, 0, 2,
@@ -473,7 +473,7 @@ macro_rules! impl_vector_shuffle {
                 );
 
                 impl_vec3_shuffle!(
-                    $vec2, $vec3 : [
+                    $vec4, $vec3 : [
                         xxx, 0, 0, 0,
                         xxy, 0, 0, 1,
                         xxz, 0, 0, 2,
