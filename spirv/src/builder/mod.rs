@@ -3,6 +3,8 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::any::TypeId;
 
+use either::*;
+
 // If I knew how to write macros properly this wouldn't be here but this is easier than learning proper macros
 use glam::DMat2 as GlamDMat2;
 use glam::DMat3 as GlamDMat3;
@@ -678,7 +680,27 @@ macro_rules! gen_intrinsics {
                     T::from_id(id)
                 }
 
-                pub fn sample_texture<D, C, V>(&self, texture: SpvGTexture<D, C>, sampler: SpvSampler, coordinate: V) -> C::Read
+                pub fn combine_texture_sampler<D, C>(&self, texture: SpvGTexture<D, C>, sampler: SpvSampler) -> SpvSampledGTexture<D, C>
+                where
+                    D: AsDimension,
+                    C: AsComponent,
+                {
+                    let new_id = self.raw.get_new_id();
+
+                    self.raw.push_instruction(Instruction::CombineTextureSampler {
+                        texture: texture.index,
+                        sampler: sampler.index,
+                        store: new_id,
+                    });
+
+                    SpvSampledGTexture {
+                        id: Right(new_id),
+                        _dmarker: PhantomData,
+                        _cmarker: PhantomData,
+                    }
+                }
+
+                pub fn sample_texture<D, C, V>(&self, texture: SpvSampledGTexture<D, C>, coordinate: V) -> C::Read
                 where
                     D: AsDimension,
                     D::Coord: AsPrimitive + AsPrimitiveType,
@@ -689,8 +711,7 @@ macro_rules! gen_intrinsics {
                     let new_id = self.raw.get_new_id();
 
                     self.raw.push_instruction(Instruction::SampleTexture {
-                        texture: texture.index,
-                        sampler: sampler.index,
+                        sampled_texture: texture.id,
                         coordinate: coordinate.id(&*self.raw),
                         coordinate_ty: D::Coord::TY,
                         store: new_id,

@@ -217,6 +217,23 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         }
     }
 
+    pub fn sampled_texture<D: AsDimension, C: AsComponent>(&self, set: u32, binding: u32, arrayed: bool, name: Option<&'static str>) -> SpvSampledGTexture<D, C> {
+        let index = self.raw.sampled_textures.borrow().len();
+        self.raw.sampled_textures.borrow_mut().push((
+            D::DIM,
+            C::COMPONENT,
+            arrayed,
+            set,
+            binding,
+            name,
+        ));
+        SpvSampledGTexture {
+            id: Left(index),
+            _dmarker: PhantomData,
+            _cmarker: PhantomData,
+        }
+    }
+
     pub fn main<F: FnOnce(&builder::MainBuilder) -> ()>(&self, f: F) {
         let b = builder::MainBuilder {
             raw: Rc::new(builder::RawMainBuilder {
@@ -241,7 +258,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         );
 
         // map from my function id to rspirv function id
-        let function_map = HashMap::new();
+        let mut function_map = HashMap::new();
         let mut struct_map = HashMap::new();
 
         // for (_, function) in self.functions() {
@@ -261,6 +278,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         let storages = Vec::new();
         let textures = process_textures(&mut builder, &self.raw.textures.borrow());
         let samplers = process_samplers(&mut builder, &self.raw.samplers.borrow());
+        let sampled_textures = process_sampled_textures(&mut builder, &self.raw.sampled_textures.borrow());
         let inputs = process_io(&mut builder, &self.raw.inputs.borrow(), rspirv::spirv::StorageClass::Input);
         let outputs = process_io(&mut builder, &self.raw.outputs.borrow(), rspirv::spirv::StorageClass::Output);
 
@@ -274,21 +292,26 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         builder.begin_block(None).unwrap();
         let var_block = builder.selected_block().unwrap();
 
+        let mut s = crate::builder::instruction::CompileState {
+            var_map: &mut var_map,
+            function_map: &mut function_map,
+            struct_map: &mut struct_map,
+            uniforms: &uniforms,
+            storages: &storages,
+            inputs: &inputs,
+            outputs: &outputs,
+            textures: &textures,
+            samplers: &samplers,
+            sampled_textures: &sampled_textures,
+            var_block,
+        };
+
         for mut instruction in self.instructions() {
             instruction.process(
                 &mut builder,
-                &mut var_map,
-                &function_map,
-                &mut struct_map,
-                &uniforms,
-                &storages,
-                &inputs,
-                &outputs,
-                &textures,
-                &samplers,
+                &mut s,
                 None,
                 None,
-                var_block,
             );
         }
 
@@ -419,6 +442,66 @@ fn process_samplers(builder: &mut rspirv::dr::Builder, samplers: &[(u32, u32, Op
             }
 
             (variable, b_type)
+        })
+        .collect::<Vec<_>>()
+}
+
+fn process_sampled_textures(
+    builder: &mut rspirv::dr::Builder, 
+    textures: &[(
+        rspirv::spirv::Dim,
+        crate::texture::Component,
+        bool,
+        u32,
+        u32,
+        Option<&'static str>,
+    )],
+) -> Vec<(u32, u32)> {
+    textures
+        .iter()
+        .map(|(dimension, component, arrayed, set, binding, name)| {
+            let c_type = component.base_type(builder);
+            let t_type = builder.type_image(
+                c_type, 
+                *dimension, 
+                0, 
+                if *arrayed { 1 } else { 0 }, 
+                0, 
+                1, 
+                rspirv::spirv::ImageFormat::Unknown, 
+                None,
+            );
+
+            let st_type = builder.type_sampled_image(t_type);
+
+            let p_type = builder.type_pointer(
+                None,
+                rspirv::spirv::StorageClass::UniformConstant,
+                st_type,
+            );
+
+            let variable = builder.variable(p_type, None, rspirv::spirv::StorageClass::UniformConstant, None);
+
+            builder.decorate(
+                variable, 
+                rspirv::spirv::Decoration::DescriptorSet, 
+                Some(rspirv::dr::Operand::LiteralInt32(*set))
+            );
+
+            builder.decorate(
+                variable, 
+                rspirv::spirv::Decoration::Binding, 
+                Some(rspirv::dr::Operand::LiteralInt32(*binding))
+            );
+
+            if let Some(name) = *name {
+                builder.name(
+                    variable,
+                    name
+                )
+            }
+
+            (variable, st_type)
         })
         .collect::<Vec<_>>()
 }

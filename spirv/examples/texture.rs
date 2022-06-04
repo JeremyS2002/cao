@@ -118,12 +118,11 @@ fn main() {
 
         let out_col = builder.out_vec3(0, false, Some("out_color"));
 
-        let texture: spirv::SpvTexture2D = builder.texture(0, 0, false, Some("u_texture"));
-        let sampler = builder.sampler(0, 1, Some("u_sampler"));
+        let texture: spirv::SpvSampledTexture2D = builder.sampled_texture(0, 0, false, Some("u_texture"));
 
         builder.main(|b| {
             let uv = b.load_in(in_uv);
-            let col = b.sample_texture(texture, sampler, uv);
+            let col = b.sample_texture(texture, uv);
             let col_rgb = b.vector_shuffle(col.xyz());
             b.store_out(out_col, col_rgb);
         });
@@ -156,14 +155,10 @@ fn main() {
     let descriptor_layout = device.create_descriptor_layout(&gpu::DescriptorLayoutDesc {
         name: None,
         entries: &[
-            gpu::DescriptorLayoutEntry::SampledTexture { 
+            gpu::DescriptorLayoutEntry::CombinedTextureSampler { 
                 stage: gpu::ShaderStages::FRAGMENT, 
                 count: std::num::NonZeroU32::new(1).unwrap(),
             },
-            gpu::DescriptorLayoutEntry::Sampler {
-                stage: gpu::ShaderStages::FRAGMENT,
-                count: std::num::NonZeroU32::new(1).unwrap(),
-            }
         ]
     }).unwrap();
 
@@ -320,13 +315,11 @@ fn main() {
             name: None,
             layout: &descriptor_layout,
             entries: &[
-                gpu::DescriptorSetEntry::texture_ref(
+                gpu::DescriptorSetEntry::combined_texture_sampler_ref(
                     &texture_view,
                     gpu::TextureLayout::ShaderReadOnlyOptimal,
-                ),
-                gpu::DescriptorSetEntry::sampler_ref(
                     &sampler,
-                )
+                ),
             ],
         })
         .unwrap();

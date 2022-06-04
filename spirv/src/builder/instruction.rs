@@ -2,6 +2,8 @@ use std::any::TypeId;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
+use either::*;
+
 use crate::data::DataType;
 use crate::data::{PrimitiveType, PrimitiveVal};
 
@@ -182,9 +184,13 @@ pub enum Instruction {
         ty: DataType,
         store: usize,
     },
-    SampleTexture {
+    CombineTextureSampler {
         texture: usize,
         sampler: usize,
+        store: usize,
+    },
+    SampleTexture {
+        sampled_texture: Either<usize, usize>,
         coordinate: usize,
         coordinate_ty: PrimitiveType,
         res_ty: PrimitiveType,
@@ -192,71 +198,77 @@ pub enum Instruction {
     }
 }
 
+#[allow(dead_code)]
+pub(crate) struct CompileState<'a> {
+    pub var_map: &'a mut HashMap<usize, u32>,
+    pub function_map: &'a HashMap<usize, usize>,
+    pub struct_map: &'a mut HashMap<TypeId, u32>,
+    pub uniforms: &'a [u32],
+    pub storages: &'a [u32],
+    pub inputs: &'a [u32],
+    pub outputs: &'a [u32],
+    pub textures: &'a [(u32, u32)],
+    pub samplers: &'a [(u32, u32)],
+    pub sampled_textures: &'a [(u32, u32)],
+    pub var_block: usize,
+}
+
 impl Instruction {
-    pub fn process(
+    pub(crate) fn process(
         &mut self,
         builder: &mut rspirv::dr::Builder,
-        var_map: &mut HashMap<usize, u32>,
-        function_map: &HashMap<usize, usize>,
-        struct_map: &mut HashMap<TypeId, u32>,
-        uniforms: &[u32],
-        storages: &[u32],
-        inputs: &[u32],
-        outputs: &[u32],
-        textures: &[(u32, u32)],
-        samplers: &[(u32, u32)],
+        s: &mut CompileState<'_>,
         break_target: Option<u32>,
         continue_target: Option<u32>,
-        var_block: usize,
     ) {
         match self {
             Instruction::Store { val, store } => {
-                let v = val.set(builder, var_block);
-                var_map.insert(*store, v);
+                let v = val.set(builder, s.var_block);
+                s.var_map.insert(*store, v);
             }
-            Instruction::Add { lhs, rhs, res } => process_add(var_map, lhs, builder, rhs, res, var_block),
-            Instruction::Sub { lhs, rhs, res } => process_sub(var_map, lhs, builder, rhs, res, var_block),
-            Instruction::Mul { lhs, rhs, res } => process_mul(var_map, lhs, builder, rhs, res, var_block),
-            Instruction::Div { lhs, rhs, res } => process_div(var_map, lhs, builder, rhs, res, var_block),
-            Instruction::AddAssign { lhs, rhs } => process_add_assign(var_map, lhs, builder, rhs),
-            Instruction::SubAssign { lhs, rhs } => process_sub_assign(var_map, lhs, builder, rhs),
-            Instruction::MulAssign { lhs, rhs } => process_mul_assign(var_map, lhs, builder, rhs),
-            Instruction::DivAssign { lhs, rhs } => process_div_assign(var_map, lhs, builder, rhs),
+            Instruction::Add { lhs, rhs, res } => process_add(s.var_map, lhs, builder, rhs, res, s.var_block),
+            Instruction::Sub { lhs, rhs, res } => process_sub(s.var_map, lhs, builder, rhs, res, s.var_block),
+            Instruction::Mul { lhs, rhs, res } => process_mul(s.var_map, lhs, builder, rhs, res, s.var_block),
+            Instruction::Div { lhs, rhs, res } => process_div(s.var_map, lhs, builder, rhs, res, s.var_block),
+            Instruction::AddAssign { lhs, rhs } => process_add_assign(s.var_map, lhs, builder, rhs),
+            Instruction::SubAssign { lhs, rhs } => process_sub_assign(s.var_map, lhs, builder, rhs),
+            Instruction::MulAssign { lhs, rhs } => process_mul_assign(s.var_map, lhs, builder, rhs),
+            Instruction::DivAssign { lhs, rhs } => process_div_assign(s.var_map, lhs, builder, rhs),
             Instruction::BitAnd { lhs, rhs, res } => process_bit_op(
-                var_map,
+                s.var_map,
                 lhs,
                 builder,
                 rhs,
                 res,
                 rspirv::dr::Builder::bitwise_and,
-                var_block,
+                s.var_block,
             ),
             Instruction::BitOr { lhs, rhs, res } => process_bit_op(
-                var_map,
+                s.var_map,
                 lhs,
                 builder,
                 rhs,
                 res,
                 rspirv::dr::Builder::bitwise_or,
-                var_block,
+                s.var_block,
             ),
             Instruction::BitXor { lhs, rhs, res } => process_bit_op(
-                var_map,
+                s.var_map,
                 lhs,
                 builder,
                 rhs,
                 res,
                 rspirv::dr::Builder::bitwise_xor,
-                var_block,
+                s.var_block,
             ),
             Instruction::BitAndAssign { lhs, rhs } => {
-                process_bit_op_assign(var_map, lhs, builder, rhs, rspirv::dr::Builder::bitwise_and)
+                process_bit_op_assign(s.var_map, lhs, builder, rhs, rspirv::dr::Builder::bitwise_and)
             }
             Instruction::BitOrAssign { lhs, rhs } => {
-                process_bit_op_assign(var_map, lhs, builder, rhs, rspirv::dr::Builder::bitwise_or)
+                process_bit_op_assign(s.var_map, lhs, builder, rhs, rspirv::dr::Builder::bitwise_or)
             }
             Instruction::BitXorAssign { lhs, rhs } => {
-                process_bit_op_assign(var_map, lhs, builder, rhs, rspirv::dr::Builder::bitwise_xor)
+                process_bit_op_assign(s.var_map, lhs, builder, rhs, rspirv::dr::Builder::bitwise_xor)
             }
             Instruction::IfChain {
                 conditions,
@@ -266,34 +278,16 @@ impl Instruction {
                 conditions,
                 instructions,
                 else_instructions,
-                var_map,
                 builder,
-                function_map,
-                struct_map,
-                uniforms,
-                storages,
-                inputs,
-                outputs,
-                textures,
-                samplers,
+                s,
                 break_target,
                 continue_target,
-                var_block,
             ),
             Instruction::Loop { condition, body } => process_loop(
                 builder,
-                var_map,
                 condition,
                 body,
-                function_map,
-                struct_map,
-                uniforms,
-                storages,
-                inputs,
-                outputs,
-                textures,
-                samplers,
-                var_block,
+                s,  
             ),
             Instruction::Break => builder.branch(break_target.unwrap()).unwrap(),
             Instruction::Continue => builder.branch(continue_target.unwrap()).unwrap(),
@@ -303,24 +297,24 @@ impl Instruction {
             Instruction::Return { .. } => {}
             Instruction::LoadIn { index, ty, store } => {
                 let spv_ty = ty.base_type(builder);
-                let input_var = *inputs.get(*index).unwrap();
+                let input_var = *s.inputs.get(*index).unwrap();
                 let spv_obj = builder.load(spv_ty, None, input_var, None, None).unwrap();
 
-                let spv_var = if let Some(&spv_var) = var_map.get(store) {
+                let spv_var = if let Some(&spv_var) = s.var_map.get(store) {
                     spv_var
                 } else {
-                    ty.variable(builder, var_block)
+                    ty.variable(builder, s.var_block)
                 };
 
                 builder.store(spv_var, spv_obj, None, None).unwrap();
-                var_map.insert(*store, spv_var);
+                s.var_map.insert(*store, spv_var);
             }
             Instruction::StoreOut { index, ty, read } => {
                 let ty = ty.base_type(builder);
-                let spv_var = *var_map.get(read).unwrap();
+                let spv_var = *s.var_map.get(read).unwrap();
                 let spv_obj = builder.load(ty, None, spv_var, None, None).unwrap();
 
-                let output_var = *outputs.get(*index).unwrap();
+                let output_var = *s.outputs.get(*index).unwrap();
 
                 builder.store(output_var, spv_obj, None, None).unwrap();
             }
@@ -330,24 +324,24 @@ impl Instruction {
                 src,
                 dst,
                 components,
-            } => process_vector_shuffle(var_map, builder, src, dst, *components, var_block),
+            } => process_vector_shuffle(s.var_map, builder, src, dst, *components, s.var_block),
             Instruction::VectorComposite {
                 components,
                 ty,
                 store,
-            } => process_vector_composite(var_map, builder, components, ty, store, var_block),
+            } => process_vector_composite(s.var_map, builder, components, ty, store, s.var_block),
             Instruction::NewArray { store, ty, data } => {                
-                let spv_ty = DataType::Array(*ty, data.len()).base_type(builder, struct_map);
-                let var = DataType::Array(*ty, data.len()).variable(builder, struct_map, var_block);
+                let spv_ty = DataType::Array(*ty, data.len()).base_type(builder, s.struct_map);
+                let var = DataType::Array(*ty, data.len()).variable(builder, s.struct_map, s.var_block);
 
                 let elements = data
                     .iter()
-                    .map(|e| *var_map.get(e).unwrap())
+                    .map(|e| *s.var_map.get(e).unwrap())
                     .collect::<Vec<_>>();
 
                 let spv_obj = builder.constant_composite(spv_ty, elements);
                 builder.store(var, spv_obj, None, None).unwrap();
-                var_map.insert(*store, var);
+                s.var_map.insert(*store, var);
             }
             Instruction::ArrayStore {
                 array,
@@ -356,13 +350,13 @@ impl Instruction {
                 element_ty,
             } => {
                 let index_obj = PrimitiveVal::UInt(*index as u32).set_constant(builder).0;
-                let array_obj = *var_map.get(array).unwrap();
+                let array_obj = *s.var_map.get(array).unwrap();
                 let spv_element_ty = element_ty.base_type(builder);
                 let index_p = builder
                     .access_chain(spv_element_ty, None, array_obj, [index_obj])
                     .unwrap();
 
-                let data_var = *var_map.get(data).unwrap();
+                let data_var = *s.var_map.get(data).unwrap();
                 let data_obj = builder
                     .load(spv_element_ty, None, data_var, None, None)
                     .unwrap();
@@ -376,7 +370,7 @@ impl Instruction {
                 element_ty,
             } => {
                 let index_obj = PrimitiveVal::UInt(*index as u32).set_constant(builder).0;
-                let array_obj = *var_map.get(array).unwrap();
+                let array_obj = *s.var_map.get(array).unwrap();
                 let spv_element_ty = element_ty.base_type(builder);
                 let index_p = builder
                     .access_chain(spv_element_ty, None, array_obj, [index_obj])
@@ -386,48 +380,48 @@ impl Instruction {
                     .load(spv_element_ty, None, index_p, None, None)
                     .unwrap();
 
-                let store_var = element_ty.variable(builder, var_block);
+                let store_var = element_ty.variable(builder, s.var_block);
                 builder.store(store_var, index_obj, None, None).unwrap();
-                var_map.insert(*store, store_var);
+                s.var_map.insert(*store, store_var);
             }
             Instruction::LogicalAnd { lhs, rhs, res } => process_logical(
                 builder,
-                var_map,
+                s.var_map,
                 lhs,
                 rhs,
                 res,
-                var_block,
+                s.var_block,
                 rspirv::dr::Builder::logical_and,
             ),
             Instruction::LogicalOr { lhs, rhs, res } => process_logical(
                 builder,
-                var_map,
+                s.var_map,
                 lhs,
                 rhs,
                 res,
-                var_block,
+                s.var_block,
                 rspirv::dr::Builder::logical_or,
             ),
             Instruction::LogicalEqual { lhs, rhs, res } => process_logical(
                 builder,
-                var_map,
+                s.var_map,
                 lhs,
                 rhs,
                 res,
-                var_block,
+                s.var_block,
                 rspirv::dr::Builder::logical_equal,
             ),
             Instruction::LogicalNot { lhs, res } => {
                 let ty = PrimitiveType::Bool.base_type(builder);
-                let lhs_pointer = *var_map.get(lhs).unwrap();
+                let lhs_pointer = *s.var_map.get(lhs).unwrap();
                 let lhs_obj = builder.load(ty, None, lhs_pointer, None, None).unwrap();
                 let res_obj = builder.logical_not(ty, None, lhs_obj).unwrap();
-                let res_variable = PrimitiveType::Bool.variable(builder, var_block);
+                let res_variable = PrimitiveType::Bool.variable(builder, s.var_block);
                 builder.store(res_variable, res_obj, None, None).unwrap();
-                var_map.insert(*res, res_variable);
+                s.var_map.insert(*res, res_variable);
             }
             Instruction::NewStruct { store, ty, data } => {
-                let variable = ty.variable(builder, struct_map, var_block);
+                let variable = ty.variable(builder, s.struct_map, s.var_block);
 
                 let types = if let DataType::Struct(_, _, _, types) = ty {
                     types
@@ -437,10 +431,10 @@ impl Instruction {
 
                 for i in 0..data.len() {
                     let f_ty = types.get(i).unwrap();
-                    let f_spv_ty = f_ty.base_type(builder, struct_map);
+                    let f_spv_ty = f_ty.base_type(builder, s.struct_map);
                     let f_spv_p_ty =
                         builder.type_pointer(None, rspirv::spirv::StorageClass::Function, f_spv_ty);
-                    let f_obj = *var_map.get(data.get(i).unwrap()).unwrap();
+                    let f_obj = *s.var_map.get(data.get(i).unwrap()).unwrap();
 
                     let index = PrimitiveVal::UInt(i as u32).set_constant(builder).0;
 
@@ -450,7 +444,7 @@ impl Instruction {
                     builder.store(pointer, f_obj, None, None).unwrap();
                 }
 
-                var_map.insert(*store, variable);
+                s.var_map.insert(*store, variable);
             }
             Instruction::StructStore {
                 struct_id,
@@ -458,12 +452,12 @@ impl Instruction {
                 ty,
                 data,
             } => {
-                let base_pointer = *var_map.get(struct_id).unwrap();
-                let f_spv_ty = ty.base_type(builder, struct_map);
+                let base_pointer = *s.var_map.get(struct_id).unwrap();
+                let f_spv_ty = ty.base_type(builder, s.struct_map);
                 let f_spv_p_ty =
                     builder.type_pointer(None, rspirv::spirv::StorageClass::Function, f_spv_ty);
 
-                let f_obj = *var_map.get(data).unwrap();
+                let f_obj = *s.var_map.get(data).unwrap();
 
                 let index = PrimitiveVal::UInt(*field as u32).set_constant(builder).0;
 
@@ -478,8 +472,8 @@ impl Instruction {
                 ty,
                 store,
             } => {
-                let base_pointer = *var_map.get(struct_id).unwrap();
-                let f_spv_ty = ty.base_type(builder, struct_map);
+                let base_pointer = *s.var_map.get(struct_id).unwrap();
+                let f_spv_ty = ty.base_type(builder, s.struct_map);
                 let f_spv_p_ty =
                     builder.type_pointer(None, rspirv::spirv::StorageClass::Function, f_spv_ty);
 
@@ -490,10 +484,10 @@ impl Instruction {
                     .unwrap();
                 let res_spv_obj = builder.load(f_spv_ty, None, pointer, None, None).unwrap();
 
-                let variable = ty.variable(builder, struct_map, var_block);
+                let variable = ty.variable(builder, s.struct_map, s.var_block);
                 builder.store(variable, res_spv_obj, None, None).unwrap();
 
-                var_map.insert(*store, variable);
+                s.var_map.insert(*store, variable);
             }
             Instruction::LoadUniform { 
                 index, 
@@ -503,22 +497,22 @@ impl Instruction {
                 // The following is based on how shaderc compiles glsl
                 // TODO afaik there is no reason not to use copy_memory instead
                 // let pointer_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, base_ty);
-                // let res_var = builder.variable(pointer_ty, None, rspirv::spirv::StorageClass::Function, None, var_block);
+                // let res_var = builder.variable(pointer_ty, None, rspirv::spirv::StorageClass::Function, None, s.var_block);
                 // builder.copy_memory(res_var, variable, None, None, None).unwrap();
                 // var_map.insert(*store, res_var);
-                let variable = *uniforms.get(*index).unwrap();
-                let base_ty = ty.base_type(builder, struct_map);
+                let variable = *s.uniforms.get(*index).unwrap();
+                let base_ty = ty.base_type(builder, s.struct_map);
                 let base_p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, base_ty);
                 let index_obj = PrimitiveVal::UInt(0).set_constant(builder).0;
                 let field_pointer = builder.access_chain(base_p_ty, None, variable, Some(index_obj)).unwrap();
 
                 let obj = builder.load(base_ty, None, field_pointer, None, None).unwrap();
 
-                let res_var = ty.variable(builder, struct_map, var_block);
+                let res_var = ty.variable(builder, s.struct_map, s.var_block);
 
-                copy_composite(ty, builder, res_var, obj, struct_map);
+                copy_composite(ty, builder, res_var, obj, s.struct_map);
 
-                var_map.insert(*store, res_var);
+                s.var_map.insert(*store, res_var);
             },
             Instruction::LoadUniformField { 
                 u_index, 
@@ -527,33 +521,30 @@ impl Instruction {
                 ty, 
                 f_ty,
             } => {
-                let uniform_variable = *uniforms.get(*u_index).unwrap();
+                let uniform_variable = *s.uniforms.get(*u_index).unwrap();
                 let struct_index = PrimitiveVal::UInt(0).set_constant(builder).0;
-                let struct_ty = ty.base_type(builder, struct_map);
+                let struct_ty = ty.base_type(builder, s.struct_map);
                 let struct_p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, struct_ty);
                 let struct_p = builder.access_chain(struct_p_ty, None, uniform_variable, Some(struct_index)).unwrap();
 
                 let index_obj = PrimitiveVal::UInt(*f_index as u32).set_constant(builder).0;
-                let field_ty = f_ty.base_type(builder, struct_map);
+                let field_ty = f_ty.base_type(builder, s.struct_map);
                 let field_p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, field_ty);
                 let pointer = builder.access_chain(field_p_ty, None, struct_p, Some(index_obj)).unwrap();
 
-                let res_var = f_ty.variable(builder, struct_map, var_block);
+                let res_var = f_ty.variable(builder, s.struct_map, s.var_block);
 
                 let field_obj = builder.load(field_ty, None, pointer, None, None).unwrap();
                 builder.store(res_var, field_obj, None, None).unwrap();
-                var_map.insert(*store, res_var);
+                s.var_map.insert(*store, res_var);
             },
-            Instruction::SampleTexture { 
+            Instruction::CombineTextureSampler { 
                 texture, 
                 sampler, 
-                coordinate,
-                coordinate_ty,
-                res_ty,
-                store,
+                store 
             } => {
-                let (spv_texture, spv_texture_ty) = *textures.get(*texture).unwrap();
-                let (spv_sampler, spv_sampler_ty) = *samplers.get(*sampler).unwrap();
+                let (spv_texture, spv_texture_ty) = *s.textures.get(*texture).unwrap();
+                let (spv_sampler, spv_sampler_ty) = *s.samplers.get(*sampler).unwrap();
 
                 let spv_tex_obj = builder.load(spv_texture_ty, None, spv_texture, None, None).unwrap();
                 let spv_sam_obj = builder.load(spv_sampler_ty, None, spv_sampler, None, None).unwrap();
@@ -561,11 +552,28 @@ impl Instruction {
                 let sampled_image_ty = builder.type_sampled_image(spv_texture_ty);
 
                 let sampled_image = builder.sampled_image(sampled_image_ty, None, spv_tex_obj, spv_sam_obj).unwrap();
+
+                s.var_map.insert(*store, sampled_image);
+            }
+            Instruction::SampleTexture { 
+                sampled_texture,
+                coordinate,
+                coordinate_ty,
+                res_ty,
+                store,
+            } => {
+                let sampled_image = match sampled_texture {
+                    Left(index) => {
+                        let (p, ty) = *s.sampled_textures.get(*index).unwrap();
+                        builder.load(ty, None, p, None, None).unwrap()
+                    }
+                    Right(id) => *s.var_map.get(id).unwrap(),
+                };
             
                 let res_spv_ty = res_ty.base_type(builder);
 
                 let spv_coord_ty = coordinate_ty.base_type(builder);
-                let spv_coord_var = *var_map.get(coordinate).unwrap();
+                let spv_coord_var = *s.var_map.get(coordinate).unwrap();
                 let spv_coord_obj = builder.load(spv_coord_ty, None, spv_coord_var, None, None).unwrap();
 
                 let res_obj = builder.image_sample_implicit_lod(
@@ -577,11 +585,11 @@ impl Instruction {
                     None
                 ).unwrap();
 
-                let res_var = res_ty.variable(builder, var_block);
+                let res_var = res_ty.variable(builder, s.var_block);
 
                 builder.store(res_var, res_obj, None, None).unwrap();
 
-                var_map.insert(*store, res_var);
+                s.var_map.insert(*store, res_var);
             },
         }
     }
@@ -659,18 +667,9 @@ fn process_logical(
 
 fn process_loop(
     builder: &mut rspirv::dr::Builder,
-    var_map: &mut HashMap<usize, u32>,
     condition: &mut usize,
     body: &mut Vec<Instruction>,
-    function_map: &HashMap<usize, usize>,
-    struct_map: &mut HashMap<TypeId, u32>,
-    uniform_map: &[u32],
-    storage_map: &[u32],
-    inputs: &[u32],
-    outputs: &[u32],
-    textures: &[(u32, u32)],
-    samplers: &[(u32, u32)],
-    var_block: usize,
+    s: &mut CompileState<'_>
 ) {
     let start = builder.id();
     builder.branch(start).unwrap();
@@ -690,7 +689,7 @@ fn process_loop(
     builder.select_block(Some(block)).unwrap();
     builder.branch(condition_block).unwrap();
     builder.begin_block(Some(condition_block)).unwrap();
-    let condition_var = *var_map.get(condition).unwrap();
+    let condition_var = *s.var_map.get(condition).unwrap();
     let condition_type = builder.type_bool();
     let condition_obj = builder
         .load(condition_type, None, condition_var, None, None)
@@ -703,18 +702,9 @@ fn process_loop(
     for instruction in body {
         instruction.process(
             builder,
-            var_map,
-            function_map,
-            struct_map,
-            uniform_map,
-            storage_map,
-            inputs,
-            outputs,
-            textures,
-            samplers,
+            s,
             Some(merge_block),
             Some(continue_target),
-            var_block,
         );
     }
     builder.branch(continue_target).unwrap();
@@ -727,37 +717,19 @@ fn process_if_chain(
     conditions: &mut VecDeque<usize>,
     instructions: &mut VecDeque<Vec<Instruction>>,
     else_instructions: &mut Option<Vec<Instruction>>,
-    var_map: &mut HashMap<usize, u32>,
     builder: &mut rspirv::dr::Builder,
-    function_map: &HashMap<usize, usize>,
-    struct_map: &mut HashMap<TypeId, u32>,
-    uniforms: &[u32],
-    storages: &[u32],
-    inputs: &[u32],
-    outputs: &[u32],
-    textures: &[(u32, u32)],
-    samplers: &[(u32, u32)],
+    s: &mut CompileState<'_>,
     break_target: Option<u32>,
     continue_target: Option<u32>,
-    var_block: usize,
 ) {
     if conditions.len() == 0 {
         if let Some(else_instructions) = else_instructions {
             for instruction in else_instructions {
                 instruction.process(
                     builder,
-                    var_map,
-                    function_map,
-                    struct_map,
-                    uniforms,
-                    storages,
-                    inputs,
-                    outputs,
-                    textures,
-                    samplers,
+                    s,
                     break_target,
                     continue_target,
-                    var_block,
                 );
             }
         }
@@ -766,7 +738,7 @@ fn process_if_chain(
 
     let condition = conditions.pop_front().unwrap();
 
-    let condition_var = *var_map.get(&condition).unwrap();
+    let condition_var = *s.var_map.get(&condition).unwrap();
     let condition_type = builder.type_bool();
     let condition_obj = builder
         .load(condition_type, None, condition_var, None, None)
@@ -790,18 +762,9 @@ fn process_if_chain(
     for mut instruction in instructions.pop_front().unwrap() {
         instruction.process(
             builder,
-            var_map,
-            function_map,
-            struct_map,
-            uniforms,
-            storages,
-            inputs,
-            outputs,
-            textures,
-            samplers,
+            s,
             break_target,
             continue_target,
-            var_block,
         );
     }
 
@@ -813,19 +776,10 @@ fn process_if_chain(
         conditions,
         instructions,
         else_instructions,
-        var_map,
         builder,
-        function_map,
-        struct_map,
-        uniforms,
-        storages,
-        inputs,
-        outputs,
-        textures,
-        samplers,
+        s,
         break_target,
         continue_target,
-        var_block,
     );
 
     builder.branch(end_label).unwrap();

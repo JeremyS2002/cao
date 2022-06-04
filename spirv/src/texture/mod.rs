@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use either::Either;
+
 use crate::PrimitiveType;
 
 
@@ -102,6 +104,8 @@ impl AsComponent for crate::UInt {
     type Read = crate::UVec2;
 }
 
+/// A Raw texture, can be used to read pixels or combined with a sampler to 
+/// create a [`SpvSampledGTexture`] which can then be sampled from
 pub struct SpvGTexture<D: AsDimension, C: AsComponent> {
     pub(crate) index: usize,
     pub(crate) _dmarker: PhantomData<D>,
@@ -132,3 +136,35 @@ pub type SpvUTexture1D = SpvUTexture<D1>;
 pub type SpvUTexture2D = SpvUTexture<D2>;
 pub type SpvUTexture3D = SpvUTexture<D3>;
 pub type SpvUTextureCube = SpvUTexture<Cube>;
+
+pub struct SpvSampledGTexture<D: AsDimension, C: AsComponent> {
+    /// Either Left(index) or Right(id)
+    pub(crate) id: Either<usize, usize>,
+    pub(crate) _dmarker: PhantomData<D>,
+    pub(crate) _cmarker: PhantomData<C>,
+}
+
+pub type SpvSampledTexture<D> = SpvSampledGTexture<D, crate::Float>;
+pub type SpvSampledDTexture<D> = SpvSampledGTexture<D, crate::Double>;
+pub type SpvSampledITexture<D> = SpvSampledGTexture<D, crate::Int>;
+pub type SpvSampledUTexture<D> = SpvSampledGTexture<D, crate::UInt>;
+
+pub type SpvSampledTexture1D = SpvSampledTexture<D1>;
+pub type SpvSampledTexture2D = SpvSampledTexture<D2>;
+pub type SpvSampledTexture3D = SpvSampledTexture<D3>;
+pub type SpvSampledTextureCube = SpvSampledTexture<Cube>;
+
+pub type SpvSampledDTexture1D = SpvSampledDTexture<D1>;
+pub type SpvSampledDTexture2D = SpvSampledDTexture<D2>;
+pub type SpvSampledDTexture3D = SpvSampledDTexture<D3>;
+pub type SpvSampledDTextureCube = SpvSampledDTexture<Cube>;
+
+pub type SpvSampledITexture1D = SpvSampledITexture<D1>;
+pub type SpvSampledITexture2D = SpvSampledITexture<D2>;
+pub type SpvSampledITexture3D = SpvSampledITexture<D3>;
+pub type SpvSampledITextureCube = SpvSampledITexture<Cube>;
+
+pub type SpvSampledUTexture1D = SpvSampledUTexture<D1>;
+pub type SpvSampledUTexture2D = SpvSampledUTexture<D2>;
+pub type SpvSampledUTexture3D = SpvSampledUTexture<D3>;
+pub type SpvSampledUTextureCube = SpvSampledUTexture<Cube>;

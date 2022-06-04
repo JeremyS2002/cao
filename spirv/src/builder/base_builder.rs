@@ -38,6 +38,14 @@ pub(crate) struct RawBaseBuilder {
         u32,
         Option<&'static str>,
     )>>,
+    pub(crate) sampled_textures: RefCell<Vec<(
+        rspirv::spirv::Dim,
+        crate::texture::Component,
+        bool,
+        u32,
+        u32,
+        Option<&'static str>,
+    )>>,
     pub(crate) functions: RefCell<HashMap<usize, Vec<Instruction>>>,
     pub(crate) main: RefCell<Vec<Instruction>>,
 }
@@ -51,6 +59,7 @@ impl RawBaseBuilder {
             storages: RefCell::new(Vec::new()),
             textures: RefCell::new(Vec::new()),
             samplers: RefCell::new(Vec::new()),
+            sampled_textures: RefCell::new(Vec::new()),
             functions: RefCell::new(HashMap::new()),
             main: RefCell::new(Vec::new()),
         }
