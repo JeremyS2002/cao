@@ -21,11 +21,13 @@ pub(crate) struct RawBaseBuilder {
         DataType,
         u32,
         u32,
+        Option<&'static str>,
     )>>,
     pub(crate) storages: RefCell<Vec<(
         DataType,
         u32,
         u32,
+        Option<&'static str>,
     )>>,
     pub(crate) textures: RefCell<Vec<(
         rspirv::spirv::Dim,
@@ -51,7 +53,7 @@ pub(crate) struct RawBaseBuilder {
     pub(crate) functions: RefCell<HashMap<usize, Vec<Instruction>>>,
     pub(crate) main: RefCell<Vec<Instruction>>,
     #[cfg(feature = "gpu")]
-    pub(crate) map: RefCell<HashMap<(u32, u32), gpu::DescriptorLayoutEntry>>,
+    pub(crate) map: RefCell<HashMap<(u32, u32), (gpu::DescriptorLayoutEntry, Option<&'static str>)>>,
 }
 
 impl RawBaseBuilder {

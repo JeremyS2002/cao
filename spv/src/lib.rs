@@ -118,9 +118,11 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         (*self.raw.outputs.borrow()).clone()
     }
 
-    pub fn uniforms(&self) -> Vec<(DataType, u32, u32)> {
+    pub fn uniforms(&self) -> Vec<(DataType, u32, u32, Option<&'static str>)> {
         (*self.raw.uniforms.borrow()).clone()
     }
+
+    //pub fn storage(&self) -> Vec<()
 
     pub fn textures(&self) -> Vec<(
         rspirv::spirv::Dim,
@@ -146,6 +148,16 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         Option<&'static str>,
     )> {
         (*self.raw.sampled_textures.borrow()).clone()
+    }
+
+    #[cfg(feature = "gpu")]
+    pub fn descriptor_layout_entry(&self, set: u32, binding: u32) -> Option<(gpu::DescriptorLayoutEntry, Option<&'static str>)> {
+        self.raw.map.borrow().get(&(set, binding)).cloned()
+    }
+
+    #[cfg(feature = "gpu")]
+    pub fn descriptor_layout_entries(&self) -> HashMap<(u32, u32), (gpu::DescriptorLayoutEntry, Option<&'static str>)> {
+        (*self.raw.map.borrow()).clone()
     }
 
     pub fn functions(&self) -> HashMap<usize, Vec<Instruction>> {
@@ -199,30 +211,49 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         }
     }
 
-    pub fn uniform<D: IsDataType>(&self, set: u32, binding: u32) -> SpvUniform<D> {
+    pub fn uniform<D: IsDataType>(&self, set: u32, binding: u32, name: Option<&'static str>) -> SpvUniform<D> {
         let index = self.raw.uniforms.borrow().len();
         self.raw.uniforms.borrow_mut().push((
             D::TY,
             set,
             binding,
+            name,
         ));
-        // #[cfg(feature = "gpu")]
-        // self.raw.map.borrow_mut().insert(
-        //     (set, binding), gpu
-        //     ::DescriptorLayoutEntry::UniformBuffer { stage: (), count: () 
-        // })
+        #[cfg(feature = "gpu")]
+        self.raw.map.borrow_mut().insert(
+            (set, binding), 
+            (gpu::DescriptorLayoutEntry {
+                ty: gpu::DescriptorLayoutEntryType::UniformBuffer,
+                stage: T::GPU_STAGE,
+                count: std::num::NonZeroU32::new(1).unwrap(),
+            }, name)
+        );
         SpvUniform { 
             index,
             _marker: PhantomData,
         }
     }
 
-    pub fn storage<D: IsDataType>(&self, _desc: StorageAccessDesc, set: u32, binding: u32) -> SpvStorage<D> {
+    pub fn uniform_struct<S: AsSpvStruct>(&self, set: u32, binding: u32, name: Option<&'static str>) -> SpvUniform<SpvStruct<S>> {
+        self.uniform(set, binding, name)
+    }
+
+    pub fn storage<D: IsDataType>(&self, _desc: StorageAccessDesc, set: u32, binding: u32, read_only: bool, name: Option<&'static str>) -> SpvStorage<D> {
         self.raw.storages.borrow_mut().push((
             D::TY,
             set,
             binding,
+            name,
         ));
+        #[cfg(feature = "gpu")]
+        self.raw.map.borrow_mut().insert(
+            (set, binding), 
+            (gpu::DescriptorLayoutEntry {
+                ty: gpu::DescriptorLayoutEntryType::StorageBuffer { read_only },
+                stage: T::GPU_STAGE,
+                count: std::num::NonZeroU32::new(1).unwrap(),
+            }, name)
+        );
         // Storage {
         //     set: todo!(),
         //     binding: todo!(),
@@ -241,6 +272,15 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             binding,
             name,
         ));
+        #[cfg(feature = "gpu")]
+        self.raw.map.borrow_mut().insert(
+            (set, binding), 
+            (gpu::DescriptorLayoutEntry {
+                ty: gpu::DescriptorLayoutEntryType::SampledTexture,
+                stage: T::GPU_STAGE,
+                count: std::num::NonZeroU32::new(1).unwrap(),
+            }, name)
+        );
         SpvGTexture {
             index,
             _dmarker: PhantomData,
@@ -255,6 +295,15 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             binding,
             name,
         ));
+        #[cfg(feature = "gpu")]
+        self.raw.map.borrow_mut().insert(
+            (set, binding), 
+            (gpu::DescriptorLayoutEntry {
+                ty: gpu::DescriptorLayoutEntryType::Sampler,
+                stage: T::GPU_STAGE,
+                count: std::num::NonZeroU32::new(1).unwrap(),
+            }, name)
+        );
         SpvSampler {
             index,
         }
@@ -270,6 +319,15 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             binding,
             name,
         ));
+        #[cfg(feature = "gpu")]
+        self.raw.map.borrow_mut().insert(
+            (set, binding), 
+            (gpu::DescriptorLayoutEntry {
+                ty: gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
+                stage: T::GPU_STAGE,
+                count: std::num::NonZeroU32::new(1).unwrap(),
+            }, name)
+        );
         SpvSampledGTexture {
             id: Left(index),
             _dmarker: PhantomData,
@@ -365,10 +423,10 @@ impl<T: specialisation::ShaderTY> Builder<T> {
     }
 }
 
-fn process_uniforms(uniforms: &[(DataType, u32, u32)], builder: &mut rspirv::dr::Builder, struct_map: &mut HashMap<std::any::TypeId, u32>) -> Vec<u32> {
+fn process_uniforms(uniforms: &[(DataType, u32, u32, Option<&'static str>)], builder: &mut rspirv::dr::Builder, struct_map: &mut HashMap<std::any::TypeId, u32>) -> Vec<u32> {
     uniforms
         .iter()
-        .map(|(uniform, set, binding)| {
+        .map(|(uniform, set, binding, name)| {
             let raw_inner_ty = uniform.base_type(builder, struct_map);
             let raw_outer_ty = builder.type_struct([raw_inner_ty]);
     
@@ -393,6 +451,13 @@ fn process_uniforms(uniforms: &[(DataType, u32, u32)], builder: &mut rspirv::dr:
                 rspirv::spirv::Decoration::Binding, 
                 Some(rspirv::dr::Operand::LiteralInt32(*binding))
             );
+
+            if let Some(name) = *name {
+                builder.name(
+                    variable,
+                    name
+                )
+            }
 
             variable
         })

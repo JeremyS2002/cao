@@ -132,7 +132,7 @@ fn main() {
     let fragment_spv = {
         let builder = spv::FragmentBuilder::new();
 
-        let u = builder.uniform::<spv::SpvStruct<Uniform>>(0, 0);
+        let u = builder.uniform_struct::<Uniform>(0, 0, Some("u_data"));
 
         let out_col = builder.out_vec3(0, false, Some("out_color"));
 

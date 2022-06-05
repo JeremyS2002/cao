@@ -4,6 +4,9 @@ use either::*;
 pub trait ShaderTY {
     const TY: rspirv::spirv::ExecutionModel;
 
+    #[cfg(feature = "gpu")]
+    const GPU_STAGE: gpu::ShaderStages;
+
     fn specialize(_b: &mut rspirv::dr::Builder, _main: rspirv::spirv::Word) { }
 }
 
@@ -11,12 +14,18 @@ pub struct Vertex {}
 
 impl ShaderTY for Vertex {
     const TY: rspirv::spirv::ExecutionModel = rspirv::spirv::ExecutionModel::Vertex;
+
+    #[cfg(feature = "gpu")]
+    const GPU_STAGE: gpu::ShaderStages = gpu::ShaderStages::VERTEX;
 }
 
 pub struct Fragment {}
 
 impl ShaderTY for Fragment {
     const TY: rspirv::spirv::ExecutionModel = rspirv::spirv::ExecutionModel::Fragment;
+
+    #[cfg(feature = "gpu")]
+    const GPU_STAGE: gpu::ShaderStages = gpu::ShaderStages::FRAGMENT;
 
     fn specialize(b: &mut rspirv::dr::Builder, main: rspirv::spirv::Word) {
         b.execution_mode(main, rspirv::spirv::ExecutionMode::OriginUpperLeft, &[]);
@@ -27,24 +36,36 @@ pub struct Geometry {}
 
 impl ShaderTY for Geometry {
     const TY: rspirv::spirv::ExecutionModel = rspirv::spirv::ExecutionModel::Geometry;
+
+    #[cfg(feature = "gpu")]
+    const GPU_STAGE: gpu::ShaderStages = gpu::ShaderStages::GEOMETRY;
 }
 
 pub struct TessControl {}
 
 impl ShaderTY for TessControl {
     const TY: rspirv::spirv::ExecutionModel = rspirv::spirv::ExecutionModel::TessellationControl;
+
+    #[cfg(feature = "gpu")]
+    const GPU_STAGE: gpu::ShaderStages = gpu::ShaderStages::TESSELLATION_CONTROL;
 }
 
 pub struct TessEval {}
 
 impl ShaderTY for TessEval {
     const TY: rspirv::spirv::ExecutionModel = rspirv::spirv::ExecutionModel::TessellationEvaluation;
+
+    #[cfg(feature = "gpu")]
+    const GPU_STAGE: gpu::ShaderStages = gpu::ShaderStages::TESSELLATION_EVAL;
 }
 
 pub struct Compute {}
 
 impl ShaderTY for Compute {
     const TY: rspirv::spirv::ExecutionModel = rspirv::spirv::ExecutionModel::GLCompute;
+
+    #[cfg(feature = "gpu")]
+    const GPU_STAGE: gpu::ShaderStages = gpu::ShaderStages::COMPUTE;
 }
 
 pub type VertexBuilder = super::Builder<Vertex>;
