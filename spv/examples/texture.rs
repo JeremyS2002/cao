@@ -1,4 +1,6 @@
 
+use std::borrow::Cow;
+
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -9,41 +11,11 @@ use winit::{
 #[repr(C)]
 pub struct Vertex {
     pub pos: [f32; 2],
+    pub uv: [f32; 2],
 }
 
 unsafe impl bytemuck::Pod for Vertex { }
 unsafe impl bytemuck::Zeroable for Vertex { }
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct Uniform {
-    pub r: f32,
-    pub g: f32,
-    pub b: f32,
-}
-
-unsafe impl bytemuck::Pod for Uniform { }
-unsafe impl bytemuck::Zeroable for Uniform { }
-
-unsafe impl spirv::AsSpvStruct for Uniform {
-    const DESC: spirv::StructDesc = spirv::StructDesc {
-        name: "Uniform",
-        names: &["r", "g", "b"],
-        fields: &[
-            spirv::DataType::Primitive(spirv::PrimitiveType::Float),
-            spirv::DataType::Primitive(spirv::PrimitiveType::Float),
-            spirv::DataType::Primitive(spirv::PrimitiveType::Float),
-        ]
-    };
-
-    fn fields<'a>(&'a self) -> Vec<&'a dyn spirv::AsData> {
-        vec![
-            &self.r,
-            &self.g,
-            &self.b,
-        ]
-    }
-}
 
 fn main() {
     env_logger::init();
@@ -68,14 +40,21 @@ fn main() {
 
     let vertices = vec![
         Vertex {
-            pos: [0.0, -0.5],
+            pos: [-0.5, -0.5],
+            uv: [0.0, 0.0],
         },
         Vertex {
             pos: [-0.5, 0.5],
+            uv: [0.0, 1.0],
         },
         Vertex {
             pos: [0.5, 0.5],
-        }
+            uv: [1.0, 1.0],
+        },
+        Vertex {
+            pos: [0.5, -0.5],
+            uv: [1.0, 0.0],
+        },
     ];
 
     let vertex_buffer = device.create_buffer(&gpu::BufferDesc {
@@ -87,28 +66,28 @@ fn main() {
 
     vertex_buffer.slice_ref(..).write(bytemuck::cast_slice(&vertices)).unwrap();
 
-    let mut uniform = Uniform {
-        r: 1.0,
-        g: 1.0,
-        b: 1.0,
-    };
+    let indices = vec![0u32, 1, 2, 2, 3, 0];
 
-    let uniform_buffer = device.create_buffer(&gpu::BufferDesc {
+    let index_buffer = device.create_buffer(&gpu::BufferDesc {
         name: None,
-        size: std::mem::size_of::<Uniform>() as _,
-        usage: gpu::BufferUsage::UNIFORM
-            | gpu::BufferUsage::COPY_DST,
+        size: (std::mem::size_of::<u32>() * indices.len()) as _,
+        usage: gpu::BufferUsage::INDEX,
         memory: gpu::MemoryType::Host,
     }).unwrap();
 
-    uniform_buffer.slice_ref(..).write(bytemuck::bytes_of(&uniform)).unwrap();
+    index_buffer
+        .slice_ref(..)
+        .write(bytemuck::cast_slice(&indices))
+        .unwrap();
 
     let vertex_spv = {
-        let builder = spirv::VertexBuilder::new();
+        let builder = spv::VertexBuilder::new();
 
         let in_pos = builder.in_vec2(0, false, Some("in_pos"));
+        let in_uv = builder.in_vec2(1, false, Some("in_uv"));
 
         let position = builder.position();
+        let out_uv = builder.out_vec2(0, false, Some("out_uv"));
 
         builder.main(|b| {
             let pos = b.load_in(in_pos);
@@ -116,6 +95,9 @@ fn main() {
             let y = b.vector_shuffle(pos.y());
             let pos = b.vec4(&x, &y, &0.0, &1.0);
             b.store_out(position, pos);
+
+            let uv = b.load_in(in_uv);
+            b.store_out(out_uv, uv);
         });
         
         builder.compile()
@@ -130,38 +112,24 @@ fn main() {
         .unwrap();
 
     let fragment_spv = {
-        let builder = spirv::FragmentBuilder::new();
+        let builder = spv::FragmentBuilder::new();
 
-        let u = builder.uniform::<spirv::SpvStruct<Uniform>>(0, 0);
+        let in_uv = builder.in_vec2(0, false, Some("in_uv"));
 
         let out_col = builder.out_vec3(0, false, Some("out_color"));
 
+        let texture: spv::SpvSampledTexture2D = builder.sampled_texture(0, 0, false, Some("u_texture"));
+
         builder.main(|b| {
-            // First load the whole struct the fields
-            // let u = b.load_uniform(u);
-            // let red = b.struct_load::<_, spirv::Float>(u, "r");
-            // let green = b.struct_load::<_, spirv::Float>(u, "g");
-            // let blue = b.struct_load::<_, spirv::Float>(u, "b");
-
-            // Just load fields
-            let red = b.load_uniform_field::<_, spirv::Float>(u, "r");
-            let green = b.load_uniform_field::<_, spirv::Float>(u, "g");
-            let blue = b.load_uniform_field::<_, spirv::Float>(u, "b");
-            let col = b.vec3(&red, &green, &blue);
-
-            // store composite into output
-            b.store_out(out_col, col);
+            let uv = b.load_in(in_uv);
+            let col = b.sample_texture(texture, uv);
+            let col_rgb = b.vector_shuffle(col.xyz());
+            b.store_out(out_col, col_rgb);
         });
 
         builder.compile()
     };
-
-    // let mut loader = rspirv::dr::Loader::new();
-    // rspirv::binary::parse_words(&fragment_spv, &mut loader).unwrap();
-    // let module = loader.module();
-
-    // println!("{}", module.disassemble());
-
+    
     let fragment_shader = device
         .create_shader_module(&gpu::ShaderModuleDesc {
             name: None,
@@ -184,27 +152,20 @@ fn main() {
         samples: gpu::Samples::S1,
     }).unwrap();
 
-    let descriptor_set_layout = device.create_descriptor_layout(&gpu::DescriptorLayoutDesc {
+    let descriptor_layout = device.create_descriptor_layout(&gpu::DescriptorLayoutDesc {
         name: None,
         entries: &[
-            gpu::DescriptorLayoutEntry::UniformBuffer { 
+            gpu::DescriptorLayoutEntry { 
+                ty: gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
                 stage: gpu::ShaderStages::FRAGMENT, 
-                count: std::num::NonZeroU32::new(1).unwrap(), 
-            }
-        ]
-    }).unwrap();
-
-    let descriptor_set = device.create_descriptor_set(&gpu::DescriptorSetDesc {
-        name: None,
-        layout: &descriptor_set_layout,
-        entries: &[
-            gpu::DescriptorSetEntry::Buffer(uniform_buffer.slice_ref(..))
+                count: std::num::NonZeroU32::new(1).unwrap(),
+            },
         ]
     }).unwrap();
 
     let layout = device.create_pipeline_layout(&gpu::PipelineLayoutDesc {
         name: None,
-        descriptor_sets: &[&descriptor_set_layout],
+        descriptor_sets: &[&descriptor_layout],
         push_constants: &[],
     }).unwrap();
 
@@ -223,7 +184,7 @@ fn main() {
             // layout(location = 1) in vec3 in_color;
             gpu::VertexAttribute {
                 location: 1,
-                format: gpu::VertexFormat::Vec3,
+                format: gpu::VertexFormat::Vec2,
                 offset: (2 * std::mem::size_of::<f32>()) as _,
             },
         ]
@@ -259,7 +220,110 @@ fn main() {
 
     let mut command_buffer = device.create_command_buffer(None).unwrap();
 
-    let start_time = std::time::Instant::now();
+    let sampler = device.create_sampler(&gpu::SamplerDesc::default()).unwrap();
+
+    let i = image::open("../gpu/examples/texture/rust.png").unwrap();
+    let i_rgb = i.to_rgba8();
+    let i_bytes = i_rgb.as_raw();
+    let staging_buffer = device.create_buffer(&gpu::BufferDesc {
+        name: None,
+        size: i_bytes.len() as _,
+        usage: gpu::BufferUsage::COPY_SRC,
+        memory: gpu::MemoryType::Host,
+    }).unwrap();
+
+    staging_buffer.slice_ref(..).write(i_bytes).unwrap();
+
+    let texture = device.create_texture(&gpu::TextureDesc {
+        name: None,
+        format: gpu::Format::Rgba8Unorm,
+        usage: gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COPY_DST,
+        dimension: gpu::TextureDimension::D2(
+            i_rgb.width(), 
+            i_rgb.height(), 
+            gpu::Samples::S1,
+        ),
+        mip_levels: std::num::NonZeroU32::new(1).unwrap(),
+        memory: gpu::MemoryType::Device,
+        layout: gpu::TextureLayout::ShaderReadOnlyOptimal,
+    }).unwrap();
+
+    let texture_view = texture.create_default_view().unwrap();
+
+    let texture_slice = texture.slice_ref(&gpu::TextureSliceDesc {
+        offset: gpu::Offset3D::ZERO,
+        extent: texture.dimension().into(),
+        base_array_layer: 0,
+        array_layers: 1,
+        base_mip_level: 0,
+        mip_levels: 1,
+    });
+
+    command_buffer.begin(true).unwrap();
+
+    command_buffer.pipeline_barrier(
+        gpu::PipelineStageFlags::TOP_OF_PIPE,
+        gpu::PipelineStageFlags::COPY,
+        &[],
+        &[gpu::TextureAccessInfo {
+            texture: Cow::Borrowed(&texture),
+            base_mip_level: 0,
+            mip_levels: 1,
+            base_array_layer: 0,
+            array_layers: 1,
+            src_access: gpu::AccessFlags::empty(),
+            dst_access: gpu::AccessFlags::COPY_WRITE,
+            src_layout: gpu::TextureLayout::ShaderReadOnlyOptimal,
+            dst_layout: gpu::TextureLayout::CopyDstOptimal,
+        }]
+    ).unwrap();
+
+    command_buffer
+        .copy_buffer_to_texture(
+            staging_buffer.slice_ref(..),
+            texture_slice.clone(),
+            gpu::TextureLayout::CopyDstOptimal,
+        )
+        .unwrap();
+
+    command_buffer
+        .pipeline_barrier(
+            gpu::PipelineStageFlags::COPY,
+            gpu::PipelineStageFlags::BOTTOM_OF_PIPE,
+            &[],
+            &[gpu::TextureAccessInfo {
+                texture: Cow::Borrowed(&texture),
+                base_mip_level: 0,
+                mip_levels: 1,
+                base_array_layer: 0,
+                array_layers: 1,
+                src_access: gpu::AccessFlags::COPY_WRITE,
+                dst_access: gpu::AccessFlags::empty(),
+                src_layout: gpu::TextureLayout::CopyDstOptimal,
+                dst_layout: gpu::TextureLayout::ShaderReadOnlyOptimal,
+            }],
+        )
+        .unwrap();
+
+    command_buffer.end().unwrap();
+
+    command_buffer.submit().unwrap();
+
+    command_buffer.wait(!0).unwrap();
+
+    let descriptor_set = device
+        .create_descriptor_set(&gpu::DescriptorSetDesc {
+            name: None,
+            layout: &descriptor_layout,
+            entries: &[
+                gpu::DescriptorSetEntry::combined_texture_sampler_ref(
+                    &texture_view,
+                    gpu::TextureLayout::ShaderReadOnlyOptimal,
+                    &sampler,
+                ),
+            ],
+        })
+        .unwrap();
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
@@ -273,7 +337,6 @@ fn main() {
                 event: WindowEvent::Resized(_),
                 ..
             } => resized = true,
-            Event::MainEventsCleared => window.request_redraw(),
             Event::RedrawRequested(_) => {
                 if resized {
                     swapchain.recreate(&device).unwrap();
@@ -310,16 +373,7 @@ fn main() {
                     }
                 };
 
-                let elapsed = start_time.elapsed().as_secs_f32() / 5.0;
-                uniform.r = elapsed.cos().abs();
-                uniform.g = elapsed.sin().abs();
-                uniform.b = (elapsed.cos() * elapsed.sin()).abs();
-
                 command_buffer.begin(true).unwrap();
-
-                command_buffer
-                    .update_buffer(&uniform_buffer, 0, bytemuck::bytes_of(&uniform))
-                    .unwrap();
 
                 command_buffer
                     .begin_graphics_pass(
@@ -334,15 +388,25 @@ fn main() {
                     .unwrap();
 
                 command_buffer
-                    .bind_descriptor(0, &descriptor_set, gpu::PipelineBindPoint::Graphics, &layout)
-                    .unwrap();
-
-                command_buffer
                     .bind_vertex_buffer(vertex_buffer.slice_ref(..), 0)
                     .unwrap();
 
-                command_buffer.draw(0, vertices.len() as _, 0, 1).unwrap();
+                command_buffer
+                    .bind_index_buffer(index_buffer.slice_ref(..), gpu::IndexType::U32)
+                    .unwrap();
 
+                command_buffer
+                    .bind_descriptors(
+                        0,
+                        &[&descriptor_set],
+                        gpu::PipelineBindPoint::Graphics,
+                        &layout,
+                    )
+                    .unwrap();
+
+                command_buffer
+                    .draw_indexed(0, indices.len() as _, 0, 1, 0)
+                    .unwrap();
                 command_buffer.end_graphics_pass().unwrap();
 
                 command_buffer.end().unwrap();

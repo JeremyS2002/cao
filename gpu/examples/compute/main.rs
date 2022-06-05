@@ -38,9 +38,9 @@ fn main() {
     let descriptor_layout = device
         .create_descriptor_layout(&gpu::DescriptorLayoutDesc {
             name: None,
-            entries: &[gpu::DescriptorLayoutEntry::StorageBuffer {
+            entries: &[gpu::DescriptorLayoutEntry {
+                ty: gpu::DescriptorLayoutEntryType::StorageBuffer { read_only: false },
                 stage: gpu::ShaderStages::COMPUTE,
-                read_only: false,
                 count: std::num::NonZeroU32::new(1).unwrap(),
             }],
         })

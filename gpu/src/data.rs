@@ -1699,110 +1699,63 @@ impl Into<vk::SampleCountFlags> for Samples {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct DescriptorLayoutEntry {
+    pub ty: DescriptorLayoutEntryType,
+    pub stage: crate::ShaderStages,
+    pub count: NonZeroU32,
+}
+
 /// A single entry to a DescriptorLayout
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum DescriptorLayoutEntry {
+pub enum DescriptorLayoutEntryType {
     /// At this location shaders should accept a uniform buffer
     ///
     /// In glsl looks like
     /// `layout(set = _, binding = _) uniform Struct { .. };`
-    UniformBuffer {
-        /// The shader stages that can access the buffer
-        stage: crate::ShaderStages,
-        /// The number of buffers to accept
-        count: NonZeroU32,
-    },
+    UniformBuffer,
     /// At this location shaders should accept a storage buffer
     ///
     /// In glsl looks like
     /// `layout(set = _, binding = _) buffer Buffer { ..[] }'`
     StorageBuffer {
-        /// The shader stages that can access the buffer
-        stage: crate::ShaderStages,
         /// If the buffer is read only
         read_only: bool,
-        /// The number of buffers to accept
-        count: NonZeroU32,
     },
     /// At this location shaders should accept a sampled texture
     ///
     /// In glsl looks like
     /// `layout(set = _, binding = _) uniform texture2D u_texture;`
-    SampledTexture {
-        /// The shader stages that can access the texture
-        stage: crate::ShaderStages,
-        /// The number of textures
-        count: NonZeroU32,
-    },
+    SampledTexture,
     /// At this location shaders should accept a storage texture
     ///
     /// In glsl looks like
     /// TODO
     StorageTexture {
-        /// The shader stages that can access the texture
-        stage: crate::ShaderStages,
         /// If the texture is readonly or not
-        read_only: bool,
-        /// The number of textures
-        count: NonZeroU32,
+        read_only: bool
     },
     /// At this location shaders should accept a combined texture/sampler
     ///
     /// In glsl looks like
     /// `layout(set = _, binding = _) uniform sampler2D u_sampled;`
-    CombinedTextureSampler {
-        /// The shader stages that can access the combined texture/sampler
-        stage: crate::ShaderStages,
-        /// The number of combined texture/samplers
-        count: NonZeroU32,
-    },
+    CombinedTextureSampler,
     /// At this location shaders should accept a sampler
     ///
     /// In glsl looks like
     /// `layout(set = _, binding = _) uniform sampler u_samper`
-    Sampler {
-        /// The shader stages that can access the sampler
-        stage: crate::ShaderStages,
-        /// The number of samplers
-        count: NonZeroU32,
-    },
+    Sampler,
 }
 
-impl DescriptorLayoutEntry {
-    /// Get the shader stage for this binding
-    pub fn stage(&self) -> crate::ShaderStages {
-        match self {
-            Self::UniformBuffer { stage, .. } => *stage,
-            Self::StorageBuffer { stage, .. } => *stage,
-            Self::SampledTexture { stage, .. } => *stage,
-            Self::StorageTexture { stage, .. } => *stage,
-            Self::Sampler { stage, .. } => *stage,
-            Self::CombinedTextureSampler { stage, .. } => *stage,
-        }
-    }
-
-    /// The count of the binding
-    pub fn count(&self) -> u32 {
-        match self {
-            Self::UniformBuffer { count, .. } => count.get(),
-            Self::StorageBuffer { count, .. } => count.get(),
-            Self::SampledTexture { count, .. } => count.get(),
-            Self::StorageTexture { count, .. } => count.get(),
-            Self::Sampler { count, .. } => count.get(),
-            Self::CombinedTextureSampler { count, .. } => count.get(),
-        }
-    }
-}
-
-impl Into<vk::DescriptorType> for DescriptorLayoutEntry {
+impl Into<vk::DescriptorType> for DescriptorLayoutEntryType {
     fn into(self) -> vk::DescriptorType {
         match self {
-            Self::UniformBuffer { .. } => vk::DescriptorType::UNIFORM_BUFFER,
+            Self::UniformBuffer => vk::DescriptorType::UNIFORM_BUFFER,
             Self::StorageBuffer { .. } => vk::DescriptorType::STORAGE_BUFFER,
-            Self::SampledTexture { .. } => vk::DescriptorType::SAMPLED_IMAGE,
+            Self::SampledTexture => vk::DescriptorType::SAMPLED_IMAGE,
             Self::StorageTexture { .. } => vk::DescriptorType::STORAGE_IMAGE,
-            Self::CombinedTextureSampler { .. } => vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
-            Self::Sampler { .. } => vk::DescriptorType::SAMPLER,
+            Self::CombinedTextureSampler => vk::DescriptorType::COMBINED_IMAGE_SAMPLER,
+            Self::Sampler => vk::DescriptorType::SAMPLER,
         }
     }
 }
@@ -1810,8 +1763,8 @@ impl Into<vk::DescriptorType> for DescriptorLayoutEntry {
 impl Into<vk::DescriptorPoolSize> for DescriptorLayoutEntry {
     fn into(self) -> vk::DescriptorPoolSize {
         vk::DescriptorPoolSize {
-            ty: self.into(),
-            descriptor_count: self.count(),
+            ty: self.ty.into(),
+            descriptor_count: self.count.get(),
         }
     }
 }

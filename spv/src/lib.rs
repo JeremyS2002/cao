@@ -110,6 +110,44 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         (*self.raw.main.borrow()).clone()
     }
 
+    pub fn inputs(&self) -> Vec<(PrimitiveType, Either<(u32, bool), rspirv::spirv::BuiltIn>, Option<&'static str>)> {
+        (*self.raw.inputs.borrow()).clone()
+    }
+
+    pub fn outputs(&self) -> Vec<(PrimitiveType, Either<(u32, bool), rspirv::spirv::BuiltIn>, Option<&'static str>)> {
+        (*self.raw.outputs.borrow()).clone()
+    }
+
+    pub fn uniforms(&self) -> Vec<(DataType, u32, u32)> {
+        (*self.raw.uniforms.borrow()).clone()
+    }
+
+    pub fn textures(&self) -> Vec<(
+        rspirv::spirv::Dim,
+        crate::texture::Component,
+        bool,
+        u32,
+        u32,
+        Option<&'static str>,
+    )> {
+        (*self.raw.textures.borrow()).clone()
+    }
+
+    pub fn samplers(&self) -> Vec<(u32, u32, Option<&'static str>)> {
+        (*self.raw.samplers.borrow()).clone()
+    }
+
+    pub fn sampled_textures(&self) -> Vec<(
+        rspirv::spirv::Dim,
+        crate::texture::Component,
+        bool,
+        u32,
+        u32,
+        Option<&'static str>,
+    )> {
+        (*self.raw.sampled_textures.borrow()).clone()
+    }
+
     pub fn functions(&self) -> HashMap<usize, Vec<Instruction>> {
         (*self.raw.functions.borrow()).clone()
     }
@@ -168,6 +206,11 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             set,
             binding,
         ));
+        // #[cfg(feature = "gpu")]
+        // self.raw.map.borrow_mut().insert(
+        //     (set, binding), gpu
+        //     ::DescriptorLayoutEntry::UniformBuffer { stage: (), count: () 
+        // })
         SpvUniform { 
             index,
             _marker: PhantomData,

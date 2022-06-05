@@ -12,9 +12,6 @@ impl D1 {
 }
 
 impl AsDimension for D1 {
-    #[cfg(feature = "spirv")]
-    type Spirv = spirv::D1;
-
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::D1(self.0)
     }
@@ -30,9 +27,6 @@ impl D1Array {
 }
 
 impl AsDimension for D1Array {
-    #[cfg(feature = "spirv")]
-    type Spirv = spirv::D1Array;
-
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::D1Array(self.0, self.1)
     }
@@ -48,9 +42,6 @@ impl D2 {
 }
 
 impl AsDimension for D2 {
-    #[cfg(feature = "spirv")]
-    type Spirv = spirv::D2;
-
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::D2(self.0, self.1, gpu::Samples::S1)
     }
@@ -66,9 +57,6 @@ impl D2Ms {
 }
 
 impl AsDimension for D2Ms {
-    #[cfg(feature = "spirv")]
-    type Spirv = spirv::D2Ms;
-
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::D2(self.0, self.1, self.2)
     }
@@ -94,9 +82,6 @@ impl D2Array {
 }
 
 impl AsDimension for D2Array {
-    #[cfg(feature = "spirv")]
-    type Spirv = spirv::D2Array;
-
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::D2Array(self.0, self.1, self.2, self.3)
     }
@@ -106,9 +91,6 @@ impl AsDimension for D2Array {
 pub struct D3(pub gpu::Size, pub gpu::Size, pub gpu::Size);
 
 impl AsDimension for D3 {
-    #[cfg(feature = "spirv")]
-    type Spirv = spirv::D3;
-
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::D3(self.0, self.1, self.2)
     }
@@ -118,9 +100,6 @@ impl AsDimension for D3 {
 pub struct Cube(pub gpu::Size, pub gpu::Size);
 
 impl AsDimension for Cube {
-    #[cfg(feature = "spirv")]
-    type Spirv = spirv::Cube;
-
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::Cube(self.0, self.1)
     }
@@ -130,9 +109,6 @@ impl AsDimension for Cube {
 pub struct CubeArray(pub gpu::Size, pub gpu::Size, pub gpu::Layer);
 
 impl AsDimension for CubeArray {
-    #[cfg(feature = "spirv")]
-    type Spirv = spirv::CubeArray;
-
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::CubeArray(self.0, self.1, self.2)
     }

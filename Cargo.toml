@@ -3,5 +3,5 @@
 members = [
     "gpu",
     "gfx",
-    "spirv",
+    "spv",
 ]

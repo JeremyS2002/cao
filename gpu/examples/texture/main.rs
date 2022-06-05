@@ -125,7 +125,8 @@ fn main() {
     let descriptor_layout = device
         .create_descriptor_layout(&gpu::DescriptorLayoutDesc {
             name: None,
-            entries: &[gpu::DescriptorLayoutEntry::CombinedTextureSampler {
+            entries: &[gpu::DescriptorLayoutEntry {
+                ty: gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
                 stage: gpu::ShaderStages::FRAGMENT,
                 count: std::num::NonZeroU32::new(1).unwrap(),
             }],

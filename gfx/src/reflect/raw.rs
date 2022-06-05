@@ -74,39 +74,42 @@ pub(crate) fn combine_descriptor_set_layouts(
         .iter()
         .map(|v| {
             v.iter()
-                .map(|e| match e {
-                    gpu::DescriptorLayoutEntry::UniformBuffer { count, .. } => {
-                        super::ResourceType {
-                            ty: ReflectDescriptorType::UniformBuffer,
-                            count: count.get(),
+                .map(|e| {
+                    let count = e.count.get();
+                    match e.ty {
+                        gpu::DescriptorLayoutEntryType::UniformBuffer => {
+                            super::ResourceType {
+                                ty: ReflectDescriptorType::UniformBuffer,
+                                count,
+                            }
                         }
-                    }
-                    gpu::DescriptorLayoutEntry::StorageBuffer { count, .. } => {
-                        super::ResourceType {
-                            ty: ReflectDescriptorType::StorageBuffer,
-                            count: count.get(),
+                        gpu::DescriptorLayoutEntryType::StorageBuffer { .. }=> {
+                            super::ResourceType {
+                                ty: ReflectDescriptorType::StorageBuffer,
+                                count,
+                            }
                         }
-                    }
-                    gpu::DescriptorLayoutEntry::SampledTexture { count, .. } => {
-                        super::ResourceType {
-                            ty: ReflectDescriptorType::SampledImage,
-                            count: count.get(),
+                        gpu::DescriptorLayoutEntryType::SampledTexture => {
+                            super::ResourceType {
+                                ty: ReflectDescriptorType::SampledImage,
+                                count,
+                            }
                         }
-                    }
-                    gpu::DescriptorLayoutEntry::StorageTexture { count, .. } => {
-                        super::ResourceType {
-                            ty: ReflectDescriptorType::StorageImage,
-                            count: count.get(),
+                        gpu::DescriptorLayoutEntryType::StorageTexture { .. }=> {
+                            super::ResourceType {
+                                ty: ReflectDescriptorType::StorageImage,
+                                count,
+                            }
                         }
-                    }
-                    gpu::DescriptorLayoutEntry::Sampler { count, .. } => super::ResourceType {
-                        ty: ReflectDescriptorType::Sampler,
-                        count: count.get(),
-                    },
-                    gpu::DescriptorLayoutEntry::CombinedTextureSampler { count, .. } => {
-                        super::ResourceType {
-                            ty: ReflectDescriptorType::CombinedImageSampler,
-                            count: count.get(),
+                        gpu::DescriptorLayoutEntryType::Sampler => super::ResourceType {
+                            ty: ReflectDescriptorType::Sampler,
+                            count,
+                        },
+                        gpu::DescriptorLayoutEntryType::CombinedTextureSampler => {
+                            super::ResourceType {
+                                ty: ReflectDescriptorType::CombinedImageSampler,
+                                count,
+                            }
                         }
                     }
                 })
@@ -277,8 +280,8 @@ pub(crate) fn parse_descriptor_set_layouts(
             match binding.descriptor_type {
                 spirv_reflect::types::descriptor::ReflectDescriptorType::Sampler => {
                     if let Some(b) = bindings_map.get_mut(&binding.binding) {
-                        if let gpu::DescriptorLayoutEntry::Sampler { stage, .. } = b {
-                            *stage |= shader_stage;
+                        if let gpu::DescriptorLayoutEntryType::Sampler = b.ty {
+                            b.stage |= shader_stage;
                         } else {
                             let n1 = binding.name.clone();
                             let n2 = descriptor_set_names
@@ -302,7 +305,8 @@ pub(crate) fn parse_descriptor_set_layouts(
                     } else {
                         bindings_map.insert(
                             binding.binding,
-                            gpu::DescriptorLayoutEntry::Sampler {
+                            gpu::DescriptorLayoutEntry {
+                                ty: gpu::DescriptorLayoutEntryType::Sampler,
                                 stage: shader_stage,
                                 count: NonZeroU32::new(binding.count).unwrap(),
                             },
@@ -311,8 +315,8 @@ pub(crate) fn parse_descriptor_set_layouts(
                 }
                 spirv_reflect::types::descriptor::ReflectDescriptorType::UniformBuffer => {
                     if let Some(b) = bindings_map.get_mut(&binding.binding) {
-                        if let gpu::DescriptorLayoutEntry::UniformBuffer { stage, .. } = b {
-                            *stage |= shader_stage;
+                        if let gpu::DescriptorLayoutEntryType::UniformBuffer = b.ty {
+                            b.stage |= shader_stage;
                         } else {
                             let n1 = binding.name.clone();
                             let n2 = descriptor_set_names
@@ -336,7 +340,8 @@ pub(crate) fn parse_descriptor_set_layouts(
                     } else {
                         bindings_map.insert(
                             binding.binding,
-                            gpu::DescriptorLayoutEntry::UniformBuffer {
+                            gpu::DescriptorLayoutEntry {
+                                ty: gpu::DescriptorLayoutEntryType::UniformBuffer,
                                 stage: shader_stage,
                                 count: NonZeroU32::new(binding.count).unwrap(),
                             },
@@ -345,8 +350,8 @@ pub(crate) fn parse_descriptor_set_layouts(
                 }
                 spirv_reflect::types::descriptor::ReflectDescriptorType::StorageBuffer => {
                     if let Some(b) = bindings_map.get_mut(&binding.binding) {
-                        if let gpu::DescriptorLayoutEntry::StorageBuffer { stage, .. } = b {
-                            *stage |= shader_stage;
+                        if let gpu::DescriptorLayoutEntryType::StorageBuffer { .. } = b.ty {
+                            b.stage |= shader_stage;
                         } else {
                             let n1 = binding.name.clone();
                             let n2 = descriptor_set_names
@@ -370,18 +375,18 @@ pub(crate) fn parse_descriptor_set_layouts(
                     } else {
                         bindings_map.insert(
                             binding.binding,
-                            gpu::DescriptorLayoutEntry::StorageBuffer {
+                            gpu::DescriptorLayoutEntry {
+                                ty: gpu::DescriptorLayoutEntryType::StorageBuffer { read_only: false },
                                 stage: shader_stage,
                                 count: NonZeroU32::new(binding.count).unwrap(),
-                                read_only: false,
                             },
                         );
                     }
                 }
                 spirv_reflect::types::descriptor::ReflectDescriptorType::SampledImage => {
                     if let Some(b) = bindings_map.get_mut(&binding.binding) {
-                        if let gpu::DescriptorLayoutEntry::SampledTexture { stage, .. } = b {
-                            *stage |= shader_stage;
+                        if let gpu::DescriptorLayoutEntryType::SampledTexture = b.ty {
+                            b.stage |= shader_stage;
                         } else {
                             let n1 = binding.name.clone();
                             let n2 = descriptor_set_names
@@ -405,7 +410,8 @@ pub(crate) fn parse_descriptor_set_layouts(
                     } else {
                         bindings_map.insert(
                             binding.binding,
-                            gpu::DescriptorLayoutEntry::SampledTexture {
+                            gpu::DescriptorLayoutEntry {
+                                ty: gpu::DescriptorLayoutEntryType::SampledTexture,
                                 stage: shader_stage,
                                 count: NonZeroU32::new(binding.count).unwrap(),
                             },
@@ -414,8 +420,8 @@ pub(crate) fn parse_descriptor_set_layouts(
                 }
                 spirv_reflect::types::descriptor::ReflectDescriptorType::StorageImage => {
                     if let Some(b) = bindings_map.get_mut(&binding.binding) {
-                        if let gpu::DescriptorLayoutEntry::Sampler { stage, .. } = b {
-                            *stage |= shader_stage;
+                        if let gpu::DescriptorLayoutEntryType::Sampler = b.ty {
+                            b.stage |= shader_stage;
                         } else {
                             let n1 = binding.name.clone();
                             let n2 = descriptor_set_names
@@ -439,21 +445,18 @@ pub(crate) fn parse_descriptor_set_layouts(
                     } else {
                         bindings_map.insert(
                             binding.binding,
-                            gpu::DescriptorLayoutEntry::StorageTexture {
+                            gpu::DescriptorLayoutEntry {
+                                ty: gpu::DescriptorLayoutEntryType::StorageTexture { read_only: false },
                                 stage: shader_stage,
                                 count: NonZeroU32::new(binding.count).unwrap(),
-                                read_only: false,
                             },
                         );
                     }
                 }
                 spirv_reflect::types::descriptor::ReflectDescriptorType::CombinedImageSampler => {
                     if let Some(b) = bindings_map.get_mut(&binding.binding) {
-                        if let gpu::DescriptorLayoutEntry::CombinedTextureSampler {
-                            stage, ..
-                        } = b
-                        {
-                            *stage |= shader_stage
+                        if let gpu::DescriptorLayoutEntryType::CombinedTextureSampler = b.ty {
+                            b.stage |= shader_stage
                         } else {
                             let n1 = binding.name.clone();
                             let n2 = descriptor_set_names
@@ -477,7 +480,8 @@ pub(crate) fn parse_descriptor_set_layouts(
                     } else {
                         bindings_map.insert(
                             binding.binding,
-                            gpu::DescriptorLayoutEntry::CombinedTextureSampler {
+                            gpu::DescriptorLayoutEntry {
+                                ty: gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
                                 stage: shader_stage,
                                 count: NonZeroU32::new(binding.count).unwrap(),
                             },

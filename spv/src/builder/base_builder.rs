@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use super::*;
 use std::cell::RefCell;
 
+
+
 pub(crate) struct RawBaseBuilder {
     pub(crate) inputs: RefCell<Vec<(
         PrimitiveType,
@@ -48,6 +50,8 @@ pub(crate) struct RawBaseBuilder {
     )>>,
     pub(crate) functions: RefCell<HashMap<usize, Vec<Instruction>>>,
     pub(crate) main: RefCell<Vec<Instruction>>,
+    #[cfg(feature = "gpu")]
+    pub(crate) map: RefCell<HashMap<(u32, u32), gpu::DescriptorLayoutEntry>>,
 }
 
 impl RawBaseBuilder {
@@ -62,6 +66,8 @@ impl RawBaseBuilder {
             sampled_textures: RefCell::new(Vec::new()),
             functions: RefCell::new(HashMap::new()),
             main: RefCell::new(Vec::new()),
+            #[cfg(feature = "gpu")]
+            map: RefCell::new(HashMap::new()),
         }
     }
 }

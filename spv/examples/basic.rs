@@ -61,7 +61,7 @@ fn main() {
     vertex_buffer.slice_ref(..).write(bytemuck::cast_slice(&vertices)).unwrap();
 
     let vertex_spv = {
-        let builder = spirv::VertexBuilder::new();
+        let builder = spv::VertexBuilder::new();
 
         let in_pos = builder.in_vec2(0, false, Some("in_pos"));
         let in_col = builder.in_vec3(1, false, Some("in_color"));
@@ -92,7 +92,7 @@ fn main() {
         .unwrap();
 
     let fragment_spv = {
-        let builder = spirv::FragmentBuilder::new();
+        let builder = spv::FragmentBuilder::new();
 
         let in_col = builder.in_vec3(0, false, Some("in_color"));
 

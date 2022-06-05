@@ -96,7 +96,7 @@ impl DescriptorLayout {
 
         let mut shader_stages = crate::ShaderStages::empty();
         for e in desc.entries.as_ref() {
-            shader_stages |= e.stage();
+            shader_stages |= e.stage;
         }
         let s = Self {
             key,
@@ -127,9 +127,9 @@ impl DescriptorLayout {
             .enumerate()
             .map(|(binding, e)| vk::DescriptorSetLayoutBinding {
                 binding: binding as u32,
-                descriptor_type: (*e).into(),
-                stage_flags: e.stage().into(),
-                descriptor_count: e.count(),
+                descriptor_type: e.ty.into(),
+                stage_flags: e.stage.into(),
+                descriptor_count: e.count.get(),
                 p_immutable_samplers: ptr::null(),
             })
             .collect::<Vec<vk::DescriptorSetLayoutBinding>>();
@@ -390,9 +390,9 @@ impl DescriptorSet {
         let mut i = 0;
         for list in &descriptors {
             let mut j = 0;
-            let buffer = match desc.layout.key.entries[i] {
-                crate::DescriptorLayoutEntry::UniformBuffer { .. } => true,
-                crate::DescriptorLayoutEntry::StorageBuffer { .. } => true,
+            let buffer = match desc.layout.key.entries[i].ty {
+                crate::DescriptorLayoutEntryType::UniformBuffer => true,
+                crate::DescriptorLayoutEntryType::StorageBuffer { .. } => true,
                 _ => false,
             };
             for d in list {
@@ -402,7 +402,7 @@ impl DescriptorSet {
                     dst_set: set,
                     dst_binding: i as u32,
                     dst_array_element: j,
-                    descriptor_type: desc.layout.key.entries[i].into(),
+                    descriptor_type: desc.layout.key.entries[i].ty.into(),
                     descriptor_count: 1,
                     p_buffer_info: if buffer {
                         unsafe { &d.buffer }
@@ -430,8 +430,9 @@ impl DescriptorSet {
         e: &crate::DescriptorSetEntry<'_>,
         l: &crate::DescriptorLayoutEntry,
     ) -> Result<Vec<Descriptor>, Error> {
-        match l {
-            crate::DescriptorLayoutEntry::UniformBuffer { count, .. } => {
+        let count = l.count;
+        match l.ty {
+            crate::DescriptorLayoutEntryType::UniformBuffer => {
                 if count.get() == 1 {
                     if let crate::DescriptorSetEntry::Buffer(b) = e {
                         Ok(vec![Descriptor {
@@ -442,7 +443,7 @@ impl DescriptorSet {
                             },
                         }])
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntry::UniformBuffer with type not Buffer")
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::UniformBuffer with type not Buffer")
                     }
                 } else {
                     if let crate::DescriptorSetEntry::BufferArray(b) = e {
@@ -468,11 +469,11 @@ impl DescriptorSet {
                             })
                             .collect::<_>())
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntry::UniformBuffer with type not Buffer");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::UniformBuffer with type not Buffer");
                     }
                 }
             }
-            crate::DescriptorLayoutEntry::StorageBuffer { count, .. } => {
+            crate::DescriptorLayoutEntryType::StorageBuffer { .. } => {
                 if count.get() == 1 {
                     if let crate::DescriptorSetEntry::Buffer(b) = e {
                         Ok(vec![Descriptor {
@@ -483,7 +484,7 @@ impl DescriptorSet {
                             },
                         }])
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntry::StorageBuffer with type not Buffer")
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::StorageBuffer with type not Buffer")
                     }
                 } else {
                     if let crate::DescriptorSetEntry::BufferArray(b) = e {
@@ -509,11 +510,11 @@ impl DescriptorSet {
                             })
                             .collect::<_>())
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntry::StorageBuffer with type not Buffer")
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::StorageBuffer with type not Buffer")
                     }
                 }
             }
-            crate::DescriptorLayoutEntry::SampledTexture { count, .. } => {
+            crate::DescriptorLayoutEntryType::SampledTexture { .. } => {
                 if count.get() == 1 {
                     if let crate::DescriptorSetEntry::Texture(i, lo) = e {
                         Ok(vec![Descriptor {
@@ -550,11 +551,11 @@ impl DescriptorSet {
                             })
                             .collect::<_>())
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntry::SampledTexture with type not texture");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::SampledTexture with type not texture");
                     }
                 }
             }
-            crate::DescriptorLayoutEntry::StorageTexture { count, .. } => {
+            crate::DescriptorLayoutEntryType::StorageTexture { .. } => {
                 if count.get() == 1 {
                     if let crate::DescriptorSetEntry::Texture(i, lo) = e {
                         Ok(vec![Descriptor {
@@ -565,7 +566,7 @@ impl DescriptorSet {
                             },
                         }])
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntry::StorageTexture with type not texture");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::StorageTexture with type not texture");
                     }
                 } else {
                     if let crate::DescriptorSetEntry::TextureArray(b) = e {
@@ -591,11 +592,11 @@ impl DescriptorSet {
                             })
                             .collect::<_>())
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntry::StorageTexture with type not texture");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::StorageTexture with type not texture");
                     }
                 }
             }
-            crate::DescriptorLayoutEntry::CombinedTextureSampler { count, .. } => {
+            crate::DescriptorLayoutEntryType::CombinedTextureSampler => {
                 if count.get() == 1 {
                     if let crate::DescriptorSetEntry::CombinedTextureSampler(i, lo, s) = e {
                         Ok(vec![Descriptor {
@@ -606,7 +607,7 @@ impl DescriptorSet {
                             },
                         }])
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntry::CombinedTextureSampler with type not combined");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::CombinedTextureSampler with type not combined");
                     }
                 } else {
                     if let crate::DescriptorSetEntry::CombinedTextureSamplerArray(a) = e {
@@ -632,11 +633,11 @@ impl DescriptorSet {
                             })
                             .collect::<_>())
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntry::CombinedTextureSampler with type not combined");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::CombinedTextureSampler with type not combined");
                     }
                 }
             }
-            crate::DescriptorLayoutEntry::Sampler { count, .. } => {
+            crate::DescriptorLayoutEntryType::Sampler => {
                 if count.get() == 1 {
                     if let crate::DescriptorSetEntry::Sampler(s) = e {
                         Ok(vec![Descriptor {
@@ -647,7 +648,7 @@ impl DescriptorSet {
                             },
                         }])
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntry::Sampler with type not sampler");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::Sampler with type not sampler");
                     }
                 } else {
                     if let crate::DescriptorSetEntry::SamplerArray(s) = e {
@@ -673,7 +674,7 @@ impl DescriptorSet {
                             })
                             .collect::<_>())
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntry::Sampler with type not sampler");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::Sampler with type not sampler");
                     }
                 }
             }
