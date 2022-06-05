@@ -15,5 +15,3 @@ pub use compute::*;
 pub use error::*;
 pub use graphics::*;
 pub use resource::*;
-
-

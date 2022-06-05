@@ -1,13 +1,12 @@
-
 use std::borrow::Cow;
 
 use winit_input_helper::WinitInputHelper;
 
 use winit::{
     dpi::PhysicalSize,
-    event_loop::{ControlFlow, EventLoop},
-    window::{WindowBuilder, Window},
     event::VirtualKeyCode,
+    event_loop::{ControlFlow, EventLoop},
+    window::{Window, WindowBuilder},
 };
 
 const WIDTH: u32 = 512;
@@ -25,9 +24,8 @@ struct Uniform {
     offset: f32,
 }
 
-unsafe impl bytemuck::Pod for Uniform { }
-unsafe impl bytemuck::Zeroable for Uniform { }
-
+unsafe impl bytemuck::Pod for Uniform {}
+unsafe impl bytemuck::Zeroable for Uniform {}
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
@@ -36,8 +34,8 @@ struct Vertex {
     tex_coord: [f32; 2],
 }
 
-unsafe impl bytemuck::Pod for Vertex { }
-unsafe impl bytemuck::Zeroable for Vertex { }
+unsafe impl bytemuck::Pod for Vertex {}
+unsafe impl bytemuck::Zeroable for Vertex {}
 
 impl gfx::Vertex for Vertex {
     fn get(name: &str) -> Option<(u32, gpu::VertexFormat)> {
@@ -45,7 +43,7 @@ impl gfx::Vertex for Vertex {
             "in_pos" => Some((0, gpu::VertexFormat::Vec2)),
             "in_uv" => Some((
                 std::mem::size_of::<[f32; 2]>() as u32,
-                gpu::VertexFormat::Vec2
+                gpu::VertexFormat::Vec2,
             )),
             _ => None,
         }
@@ -130,15 +128,20 @@ impl Fractal {
             None,
         )?;
 
-        let uniform = gfx::Uniform::new(&mut encoder, &device, Uniform {
-            center: [0.0, 0.0],
-            width: 2.0,
-            height: 2.0,
-            start_val: [0.0, 0.0],
-            julia: 0,
-            iterations: 75,
-            offset: 0.0,
-        }, None)?;
+        let uniform = gfx::Uniform::new(
+            &mut encoder,
+            &device,
+            Uniform {
+                center: [0.0, 0.0],
+                width: 2.0,
+                height: 2.0,
+                start_val: [0.0, 0.0],
+                julia: 0,
+                iterations: 75,
+                offset: 0.0,
+            },
+            None,
+        )?;
 
         encoder.submit(&mut command, true)?;
 
@@ -170,7 +173,9 @@ impl Fractal {
             None,
         )?;
 
-        let fractal_bundle = fractal_graphics.bundle().unwrap()
+        let fractal_bundle = fractal_graphics
+            .bundle()
+            .unwrap()
             .set_resource_by_location(0, 0, &uniform)?
             .build(&device)?;
 
@@ -202,7 +207,9 @@ impl Fractal {
             None,
         )?;
 
-        let display_bundle = display_graphics.bundle().unwrap()
+        let display_bundle = display_graphics
+            .bundle()
+            .unwrap()
             .set_resource("u_texture", &target)?
             .set_resource("u_sampler", &sampler)?
             .build(&device)?;
@@ -213,7 +220,7 @@ impl Fractal {
             _instance: instance,
             _surface: surface,
             device,
-            
+
             swapchain,
 
             command,
@@ -314,16 +321,14 @@ impl Fractal {
 
         let mut pass = encoder.graphics_pass_reflected(
             &self.device,
-            &[
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&self.target.view), 
-                        gpu::ClearValue::ColorFloat([0.0; 4]),
-                    ),
-                    load: gpu::LoadOp::DontCare,
-                    store: gpu::StoreOp::Store,
-                }
-            ],
+            &[gfx::Attachment {
+                raw: gpu::Attachment::View(
+                    Cow::Borrowed(&self.target.view),
+                    gpu::ClearValue::ColorFloat([0.0; 4]),
+                ),
+                load: gpu::LoadOp::DontCare,
+                store: gpu::StoreOp::Store,
+            }],
             &[],
             None,
             &self.fractal_graphics,
@@ -335,16 +340,11 @@ impl Fractal {
 
         let mut pass = encoder.graphics_pass_reflected(
             &self.device,
-            &[
-                gfx::Attachment {
-                    raw: gpu::Attachment::Swapchain(
-                        &view, 
-                        gpu::ClearValue::ColorFloat([0.0; 4]),
-                    ),
-                    load: gpu::LoadOp::DontCare,
-                    store: gpu::StoreOp::Store,
-                }
-            ],
+            &[gfx::Attachment {
+                raw: gpu::Attachment::Swapchain(&view, gpu::ClearValue::ColorFloat([0.0; 4])),
+                load: gpu::LoadOp::DontCare,
+                store: gpu::StoreOp::Store,
+            }],
             &[],
             None,
             &self.display_graphics,
@@ -364,7 +364,7 @@ impl Fractal {
 
 fn main() {
     env_logger::init();
-    
+
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("fractal")
@@ -386,11 +386,11 @@ fn main() {
                 Err(e) => {
                     if let Some(e) = e.downcast_ref::<gpu::Error>() {
                         if e.can_continue() {
-                            return
-                        } 
+                            return;
+                        }
                     }
                     panic!("{}", e);
-                },
+                }
             }
 
             if input_helper.quit() {

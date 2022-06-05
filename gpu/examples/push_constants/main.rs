@@ -222,11 +222,13 @@ fn main() {
 
                 let view = match swapchain.acquire(!0) {
                     Ok((view, _)) => view,
-                    Err(e) => if e.can_continue() {
-                        resized = true;
-                        return
-                    } else {
-                        panic!("{}", e)
+                    Err(e) => {
+                        if e.can_continue() {
+                            resized = true;
+                            return;
+                        } else {
+                            panic!("{}", e)
+                        }
                     }
                 };
 
@@ -267,11 +269,13 @@ fn main() {
 
                 match swapchain.present(view) {
                     Ok(_) => (),
-                    Err(e) => if e.can_continue() {
-                        resized = true;
-                        return
-                    } else {
-                        panic!("{}", e);
+                    Err(e) => {
+                        if e.can_continue() {
+                            resized = true;
+                            return;
+                        } else {
+                            panic!("{}", e);
+                        }
                     }
                 }
             }

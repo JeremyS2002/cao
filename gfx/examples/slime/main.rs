@@ -1,13 +1,12 @@
-
 use gfx::prelude::*;
 
 use winit_input_helper::WinitInputHelper;
 
 use winit::{
     dpi::PhysicalSize,
-    event_loop::{ControlFlow, EventLoop},
-    window::{WindowBuilder, Window},
     event::VirtualKeyCode,
+    event_loop::{ControlFlow, EventLoop},
+    window::{Window, WindowBuilder},
 };
 
 use rand::prelude::*;
@@ -113,7 +112,7 @@ struct Slime {
     width: u32,
     height: u32,
 
-    rng: rand::rngs::ThreadRng
+    rng: rand::rngs::ThreadRng,
 }
 
 impl Slime {
@@ -141,7 +140,7 @@ impl Slime {
         let mut encoder = gfx::CommandEncoder::new();
 
         let uniform = gfx::Uniform::new(&mut encoder, &device, data, None)?;
-        
+
         let rng = rand::thread_rng();
 
         let agents = gfx::Storage::new(&mut encoder, &device, agents, None)?;
@@ -152,8 +151,8 @@ impl Slime {
             &device,
             WIDTH,
             HEIGHT,
-            gpu::TextureUsage::STORAGE 
-                | gpu::TextureUsage::SAMPLED 
+            gpu::TextureUsage::STORAGE
+                | gpu::TextureUsage::SAMPLED
                 | gpu::TextureUsage::COPY_SRC
                 | gpu::TextureUsage::COPY_DST,
             1,
@@ -161,11 +160,7 @@ impl Slime {
             None,
         )?;
 
-        let update = gfx::ReflectedCompute::new(
-            &device,
-            &gpu::include_spirv!("update.spv"),
-            None,
-        )?;
+        let update = gfx::ReflectedCompute::new(&device, &gpu::include_spirv!("update.spv"), None)?;
 
         let update_bundle = update
             .bundle()
@@ -175,11 +170,7 @@ impl Slime {
             .set_resource("u_agents", &agents)?
             .build(&device)?;
 
-        let fade = gfx::ReflectedCompute::new(
-            &device,
-            &gpu::include_spirv!("fade.spv"),
-            None,
-        )?;
+        let fade = gfx::ReflectedCompute::new(&device, &gpu::include_spirv!("fade.spv"), None)?;
 
         let fade_bundle = fade
             .bundle()
@@ -228,7 +219,7 @@ impl Slime {
             _instance: instance,
             _surface: surface,
             device,
-            
+
             swapchain,
 
             command,
@@ -313,8 +304,8 @@ impl Slime {
                 &self.device,
                 size.width,
                 size.height,
-                gpu::TextureUsage::STORAGE 
-                    | gpu::TextureUsage::SAMPLED 
+                gpu::TextureUsage::STORAGE
+                    | gpu::TextureUsage::SAMPLED
                     | gpu::TextureUsage::COPY_SRC
                     | gpu::TextureUsage::COPY_DST,
                 1,
@@ -324,7 +315,8 @@ impl Slime {
 
             std::mem::swap(&mut trail_map, &mut self.trail_map);
 
-            self.update_bundle = self.update
+            self.update_bundle = self
+                .update
                 .bundle()
                 .unwrap()
                 .set_resource("u_trail_map", &self.trail_map)?
@@ -332,20 +324,21 @@ impl Slime {
                 .set_resource("u_agents", &self.agents)?
                 .build(&self.device)?;
 
-            self.fade_bundle = self.fade
+            self.fade_bundle = self
+                .fade
                 .bundle()
                 .unwrap()
                 .set_resource("u_trail_map", &self.trail_map)?
                 .set_resource("u_data", &self.uniform)?
                 .build(&self.device)?;
 
-            self.graphics_bundle = self.graphics
+            self.graphics_bundle = self
+                .graphics
                 .bundle()
                 .unwrap()
                 .set_resource("u_texture", &self.trail_map)?
                 .set_resource("u_sampler", &self.sampler)?
                 .build(&self.device)?;
-
 
             let old_extent: gpu::Extent3D = trail_map.dimension().into();
             let new_extent: gpu::Extent3D = self.trail_map.dimension().into();
@@ -363,7 +356,7 @@ impl Slime {
                     array_layers: 1,
                     base_mip_level: 0,
                     mip_levels: 1,
-                }), 
+                }),
                 self.trail_map.slice_ref(&gpu::TextureSliceDesc {
                     offset: gpu::Offset3D::ZERO,
                     extent,
@@ -371,7 +364,7 @@ impl Slime {
                     array_layers: 1,
                     base_mip_level: 0,
                     mip_levels: 1,
-                }), 
+                }),
             );
         }
 
@@ -392,17 +385,12 @@ impl Slime {
         }
 
         let mut pass = encoder.graphics_pass_reflected::<()>(
-            &self.device, 
-            &[
-                gfx::Attachment {
-                    raw: gpu::Attachment::Swapchain(
-                        &view, 
-                        gpu::ClearValue::ColorFloat([0.0; 4]),
-                    ),
-                    load: gpu::LoadOp::DontCare,
-                    store: gpu::StoreOp::Store,
-                }
-            ],
+            &self.device,
+            &[gfx::Attachment {
+                raw: gpu::Attachment::Swapchain(&view, gpu::ClearValue::ColorFloat([0.0; 4])),
+                load: gpu::LoadOp::DontCare,
+                store: gpu::StoreOp::Store,
+            }],
             &[],
             None,
             &self.graphics,
@@ -469,7 +457,7 @@ fn agents3() -> Vec<Agent> {
 
 fn main() {
     env_logger::init();
-    
+
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("Slime")
@@ -495,11 +483,11 @@ fn main() {
                 Err(e) => {
                     if let Some(e) = e.downcast_ref::<gpu::Error>() {
                         if e.can_continue() {
-                            return
-                        } 
+                            return;
+                        }
                     }
                     panic!("{}", e);
-                },
+                }
             }
 
             if input_helper.quit() {

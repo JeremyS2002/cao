@@ -254,10 +254,16 @@ impl<'a> Command<'a> {
             } => {
                 // only need to track base mip level as only base will be used for this command
                 for i in src.base_array_layer()..(src.base_array_layer() + src.array_layers()) {
-                    result.insert((src.texture().clone(), src.base_mip_level(), i), *src_layout);
+                    result.insert(
+                        (src.texture().clone(), src.base_mip_level(), i),
+                        *src_layout,
+                    );
                 }
                 for i in dst.base_array_layer()..(dst.base_array_layer() + dst.array_layers()) {
-                    result.insert((dst.texture().clone(), dst.base_mip_level(), i), *dst_layout);
+                    result.insert(
+                        (dst.texture().clone(), dst.base_mip_level(), i),
+                        *dst_layout,
+                    );
                 }
             }
             Command::CopyTextureToTexture {
@@ -267,10 +273,16 @@ impl<'a> Command<'a> {
                 dst_layout,
             } => {
                 for i in src.base_array_layer()..(src.base_array_layer() + src.array_layers()) {
-                    result.insert((src.texture().clone(), src.base_mip_level(), i), *src_layout);
+                    result.insert(
+                        (src.texture().clone(), src.base_mip_level(), i),
+                        *src_layout,
+                    );
                 }
                 for i in dst.base_array_layer()..(dst.base_array_layer() + dst.array_layers()) {
-                    result.insert((dst.texture().clone(), dst.base_mip_level(), i), *dst_layout);
+                    result.insert(
+                        (dst.texture().clone(), dst.base_mip_level(), i),
+                        *dst_layout,
+                    );
                 }
             }
             Command::CopyBufferToTexture {
@@ -278,7 +290,10 @@ impl<'a> Command<'a> {
             } => {
                 // only need to track base mip level as only base will be used for this command
                 for i in dst.base_array_layer()..(dst.base_array_layer() + dst.array_layers()) {
-                    result.insert((dst.texture().clone(), dst.base_mip_level(), i), *dst_layout);
+                    result.insert(
+                        (dst.texture().clone(), dst.base_mip_level(), i),
+                        *dst_layout,
+                    );
                 }
             }
             Command::CopyTextureToBuffer {
@@ -286,7 +301,10 @@ impl<'a> Command<'a> {
             } => {
                 // only need to track base mip level as only base will be used for this command
                 for i in src.base_array_layer()..(src.base_array_layer() + src.array_layers()) {
-                    result.insert((src.texture().clone(), src.base_mip_level(), i), *src_layout);
+                    result.insert(
+                        (src.texture().clone(), src.base_mip_level(), i),
+                        *src_layout,
+                    );
                 }
             }
             Command::ComputePass { commands, .. } => {
@@ -315,8 +333,8 @@ impl<'a> Command<'a> {
                         for j in
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
-                            if let Some(_) = result
-                                .insert((view.texture().clone(), i, j), c.initial_layout)
+                            if let Some(_) =
+                                result.insert((view.texture().clone(), i, j), c.initial_layout)
                             {
                                 panic!(
                                     "ERROR: GraphicsPass {:?} uses texture {:?} as multiple attachments",
@@ -333,8 +351,8 @@ impl<'a> Command<'a> {
                         for j in
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
-                            if let Some(_) = result
-                                .insert((view.texture().clone(), i, j), c.initial_layout)
+                            if let Some(_) =
+                                result.insert((view.texture().clone(), i, j), c.initial_layout)
                             {
                                 panic!(
                                     "ERROR: GraphicsPass {:?} uses texture {:?} as multiple attachments",
@@ -352,8 +370,8 @@ impl<'a> Command<'a> {
                         for j in
                             view.base_array_layer()..(view.base_array_layer() + view.array_layers())
                         {
-                            if let Some(_) = result
-                                .insert((view.texture().clone(), i, j), d.initial_layout)
+                            if let Some(_) =
+                                result.insert((view.texture().clone(), i, j), d.initial_layout)
                             {
                                 panic!(
                                     "ERROR: GraphicsPass {:?} uses texture {:?} as multiple attachments",

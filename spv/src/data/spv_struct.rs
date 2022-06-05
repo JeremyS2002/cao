@@ -1,8 +1,8 @@
-use std::{marker::PhantomData, any::TypeId};
+use std::{any::TypeId, marker::PhantomData};
 
 use crate::{AsData, FromId};
 
-use super::{DataType, AsDataType, IsDataType};
+use super::{AsDataType, DataType, IsDataType};
 
 /// Describes a struct that can be used in shaders
 pub struct StructDesc {
@@ -31,7 +31,12 @@ pub unsafe trait AsSpvStruct: 'static {
 }
 
 impl<T: AsSpvStruct> AsDataType for SpvStruct<T> {
-    const TY: DataType = DataType::Struct(TypeId::of::<T>(), T::DESC.name, T::DESC.names, T::DESC.fields);
+    const TY: DataType = DataType::Struct(
+        TypeId::of::<T>(),
+        T::DESC.name,
+        T::DESC.names,
+        T::DESC.fields,
+    );
 }
 
 impl<T: AsSpvStruct> AsData for SpvStruct<T> {
@@ -48,11 +53,16 @@ impl<T: AsSpvStruct> AsData for SpvStruct<T> {
     }
 
     fn ty(&self) -> crate::data::DataType {
-        crate::data::DataType::Struct(TypeId::of::<T>(), T::DESC.name, T::DESC.names, T::DESC.fields)
+        crate::data::DataType::Struct(
+            TypeId::of::<T>(),
+            T::DESC.name,
+            T::DESC.names,
+            T::DESC.fields,
+        )
     }
 }
 
-impl<T: AsSpvStruct> IsDataType for SpvStruct<T> { }
+impl<T: AsSpvStruct> IsDataType for SpvStruct<T> {}
 
 #[derive(Clone, Copy, Debug)]
 pub struct SpvStruct<S: AsSpvStruct> {

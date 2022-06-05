@@ -1,4 +1,3 @@
-
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -11,8 +10,8 @@ pub struct Vertex {
     pub pos: [f32; 2],
 }
 
-unsafe impl bytemuck::Pod for Vertex { }
-unsafe impl bytemuck::Zeroable for Vertex { }
+unsafe impl bytemuck::Pod for Vertex {}
+unsafe impl bytemuck::Zeroable for Vertex {}
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -22,8 +21,8 @@ pub struct Uniform {
     pub b: f32,
 }
 
-unsafe impl bytemuck::Pod for Uniform { }
-unsafe impl bytemuck::Zeroable for Uniform { }
+unsafe impl bytemuck::Pod for Uniform {}
+unsafe impl bytemuck::Zeroable for Uniform {}
 
 unsafe impl spv::AsSpvStruct for Uniform {
     const DESC: spv::StructDesc = spv::StructDesc {
@@ -33,15 +32,11 @@ unsafe impl spv::AsSpvStruct for Uniform {
             spv::DataType::Primitive(spv::PrimitiveType::Float),
             spv::DataType::Primitive(spv::PrimitiveType::Float),
             spv::DataType::Primitive(spv::PrimitiveType::Float),
-        ]
+        ],
     };
 
     fn fields<'a>(&'a self) -> Vec<&'a dyn spv::AsData> {
-        vec![
-            &self.r,
-            &self.g,
-            &self.b,
-        ]
+        vec![&self.r, &self.g, &self.b]
     }
 }
 
@@ -54,38 +49,41 @@ fn main() {
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
     let surface = instance.create_surface(&window).unwrap();
-    let device = instance.create_device(&gpu::DeviceDesc {
-        compatible_surfaces: &[&surface],
-        ..Default::default()
-    }).unwrap();
+    let device = instance
+        .create_device(&gpu::DeviceDesc {
+            compatible_surfaces: &[&surface],
+            ..Default::default()
+        })
+        .unwrap();
 
-    let mut swapchain = device.create_swapchain(
-        &surface,
-        &gpu::SwapchainDesc::from_surface(&surface, &device).unwrap(),
-    ).unwrap();
+    let mut swapchain = device
+        .create_swapchain(
+            &surface,
+            &gpu::SwapchainDesc::from_surface(&surface, &device).unwrap(),
+        )
+        .unwrap();
 
     let mut resized = false;
 
     let vertices = vec![
-        Vertex {
-            pos: [0.0, -0.5],
-        },
-        Vertex {
-            pos: [-0.5, 0.5],
-        },
-        Vertex {
-            pos: [0.5, 0.5],
-        }
+        Vertex { pos: [0.0, -0.5] },
+        Vertex { pos: [-0.5, 0.5] },
+        Vertex { pos: [0.5, 0.5] },
     ];
 
-    let vertex_buffer = device.create_buffer(&gpu::BufferDesc {
-        name: None,
-        size: (std::mem::size_of::<Vertex>() * vertices.len()) as _,
-        usage: gpu::BufferUsage::VERTEX,
-        memory: gpu::MemoryType::Host,
-    }).unwrap();
+    let vertex_buffer = device
+        .create_buffer(&gpu::BufferDesc {
+            name: None,
+            size: (std::mem::size_of::<Vertex>() * vertices.len()) as _,
+            usage: gpu::BufferUsage::VERTEX,
+            memory: gpu::MemoryType::Host,
+        })
+        .unwrap();
 
-    vertex_buffer.slice_ref(..).write(bytemuck::cast_slice(&vertices)).unwrap();
+    vertex_buffer
+        .slice_ref(..)
+        .write(bytemuck::cast_slice(&vertices))
+        .unwrap();
 
     let mut uniform = Uniform {
         r: 1.0,
@@ -93,15 +91,19 @@ fn main() {
         b: 1.0,
     };
 
-    let uniform_buffer = device.create_buffer(&gpu::BufferDesc {
-        name: None,
-        size: std::mem::size_of::<Uniform>() as _,
-        usage: gpu::BufferUsage::UNIFORM
-            | gpu::BufferUsage::COPY_DST,
-        memory: gpu::MemoryType::Host,
-    }).unwrap();
+    let uniform_buffer = device
+        .create_buffer(&gpu::BufferDesc {
+            name: None,
+            size: std::mem::size_of::<Uniform>() as _,
+            usage: gpu::BufferUsage::UNIFORM | gpu::BufferUsage::COPY_DST,
+            memory: gpu::MemoryType::Host,
+        })
+        .unwrap();
 
-    uniform_buffer.slice_ref(..).write(bytemuck::bytes_of(&uniform)).unwrap();
+    uniform_buffer
+        .slice_ref(..)
+        .write(bytemuck::bytes_of(&uniform))
+        .unwrap();
 
     let vertex_spv = {
         let builder = spv::VertexBuilder::new();
@@ -117,7 +119,7 @@ fn main() {
             let pos = b.vec4(&x, &y, &0.0, &1.0);
             b.store_out(position, pos);
         });
-        
+
         builder.compile()
     };
 
@@ -164,44 +166,50 @@ fn main() {
         })
         .unwrap();
 
-    let render_pass = device.create_render_pass(&gpu::RenderPassDesc {
-        name: None,
-        colors: &[gpu::ColorAttachmentDesc {
-            format: swapchain.format(),
-            load: gpu::LoadOp::Clear,
-            store: gpu::StoreOp::Store,
-            initial_layout: gpu::TextureLayout::Undefined,
-            final_layout: gpu::TextureLayout::SwapchainPresent,
-        }],
-        resolves: &[],
-        depth: None,
-        samples: gpu::Samples::S1,
-    }).unwrap();
+    let render_pass = device
+        .create_render_pass(&gpu::RenderPassDesc {
+            name: None,
+            colors: &[gpu::ColorAttachmentDesc {
+                format: swapchain.format(),
+                load: gpu::LoadOp::Clear,
+                store: gpu::StoreOp::Store,
+                initial_layout: gpu::TextureLayout::Undefined,
+                final_layout: gpu::TextureLayout::SwapchainPresent,
+            }],
+            resolves: &[],
+            depth: None,
+            samples: gpu::Samples::S1,
+        })
+        .unwrap();
 
-    let descriptor_set_layout = device.create_descriptor_layout(&gpu::DescriptorLayoutDesc {
-        name: None,
-        entries: &[
-            gpu::DescriptorLayoutEntry { 
+    let descriptor_set_layout = device
+        .create_descriptor_layout(&gpu::DescriptorLayoutDesc {
+            name: None,
+            entries: &[gpu::DescriptorLayoutEntry {
                 ty: gpu::DescriptorLayoutEntryType::UniformBuffer,
-                stage: gpu::ShaderStages::FRAGMENT, 
-                count: std::num::NonZeroU32::new(1).unwrap(), 
-            }
-        ]
-    }).unwrap();
+                stage: gpu::ShaderStages::FRAGMENT,
+                count: std::num::NonZeroU32::new(1).unwrap(),
+            }],
+        })
+        .unwrap();
 
-    let descriptor_set = device.create_descriptor_set(&gpu::DescriptorSetDesc {
-        name: None,
-        layout: &descriptor_set_layout,
-        entries: &[
-            gpu::DescriptorSetEntry::Buffer(uniform_buffer.slice_ref(..))
-        ]
-    }).unwrap();
+    let descriptor_set = device
+        .create_descriptor_set(&gpu::DescriptorSetDesc {
+            name: None,
+            layout: &descriptor_set_layout,
+            entries: &[gpu::DescriptorSetEntry::Buffer(
+                uniform_buffer.slice_ref(..),
+            )],
+        })
+        .unwrap();
 
-    let layout = device.create_pipeline_layout(&gpu::PipelineLayoutDesc {
-        name: None,
-        descriptor_sets: &[&descriptor_set_layout],
-        push_constants: &[],
-    }).unwrap();
+    let layout = device
+        .create_pipeline_layout(&gpu::PipelineLayoutDesc {
+            name: None,
+            descriptor_sets: &[&descriptor_set_layout],
+            push_constants: &[],
+        })
+        .unwrap();
 
     let rasterizer = gpu::Rasterizer::default();
 
@@ -221,7 +229,7 @@ fn main() {
                 format: gpu::VertexFormat::Vec3,
                 offset: (2 * std::mem::size_of::<f32>()) as _,
             },
-        ]
+        ],
     };
 
     let blend_state = gpu::BlendState::REPLACE;
@@ -237,20 +245,22 @@ fn main() {
         max_depth: 1.0,
     };
 
-    let mut pipeline = device.create_graphics_pipeline(&gpu::GraphicsPipelineDesc {
-        name: None,
-        layout: &layout,
-        pass: &render_pass,
-        vertex: &vertex_shader,
-        geometry: None,
-        tessellation: None,
-        fragment: Some(&fragment_shader),
-        rasterizer,
-        vertex_states: &[vertex_state],
-        blend_states: &[blend_state],
-        depth_stencil: None,
-        viewport,
-    }).unwrap();
+    let mut pipeline = device
+        .create_graphics_pipeline(&gpu::GraphicsPipelineDesc {
+            name: None,
+            layout: &layout,
+            pass: &render_pass,
+            vertex: &vertex_shader,
+            geometry: None,
+            tessellation: None,
+            fragment: Some(&fragment_shader),
+            rasterizer,
+            vertex_states: &[vertex_state],
+            blend_states: &[blend_state],
+            depth_stencil: None,
+            viewport,
+        })
+        .unwrap();
 
     let mut command_buffer = device.create_command_buffer(None).unwrap();
 
@@ -298,10 +308,12 @@ fn main() {
 
                 let view = match swapchain.acquire(!0) {
                     Ok((view, _)) => view,
-                    Err(e) => if e.can_continue() {
-                        return
-                    } else {
-                        panic!("{}", e)
+                    Err(e) => {
+                        if e.can_continue() {
+                            return;
+                        } else {
+                            panic!("{}", e)
+                        }
                     }
                 };
 
@@ -329,7 +341,12 @@ fn main() {
                     .unwrap();
 
                 command_buffer
-                    .bind_descriptor(0, &descriptor_set, gpu::PipelineBindPoint::Graphics, &layout)
+                    .bind_descriptor(
+                        0,
+                        &descriptor_set,
+                        gpu::PipelineBindPoint::Graphics,
+                        &layout,
+                    )
                     .unwrap();
 
                 command_buffer
@@ -346,10 +363,12 @@ fn main() {
 
                 match swapchain.present(view) {
                     Ok(_) => (),
-                    Err(e) => if e.can_continue() {
-                        return
-                    } else {
-                        panic!("{}", e);
+                    Err(e) => {
+                        if e.can_continue() {
+                            return;
+                        } else {
+                            panic!("{}", e);
+                        }
                     }
                 }
             }

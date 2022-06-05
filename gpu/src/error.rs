@@ -20,12 +20,10 @@ impl Error {
     /// and recreating the swapchain. This will return true if that is the case
     pub fn can_continue(&self) -> bool {
         match self {
-            Self::Explicit(r) => {
-                match *r {
-                    vk::Result::SUBOPTIMAL_KHR => true,
-                    vk::Result::ERROR_OUT_OF_DATE_KHR => true,
-                    _ => false,
-                }
+            Self::Explicit(r) => match *r {
+                vk::Result::SUBOPTIMAL_KHR => true,
+                vk::Result::ERROR_OUT_OF_DATE_KHR => true,
+                _ => false,
             },
             Self::Validation(_) => false,
         }
@@ -44,7 +42,7 @@ impl std::fmt::Display for Error {
                     writeln!(f)?;
                 }
                 Ok(())
-            },
+            }
         }
     }
 }

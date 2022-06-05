@@ -1,4 +1,4 @@
-use std::{collections::HashMap, any::TypeId};
+use std::{any::TypeId, collections::HashMap};
 
 pub mod as_ty;
 pub mod ops;
@@ -302,11 +302,7 @@ impl PrimitiveType {
 
     pub(crate) fn pointer_type(&self, b: &mut rspirv::dr::Builder) -> u32 {
         let b_ty = self.base_type(b);
-        b.type_pointer(
-            None,
-            rspirv::spirv::StorageClass::Function,
-            b_ty,
-        )
+        b.type_pointer(None, rspirv::spirv::StorageClass::Function, b_ty)
     }
 
     pub(crate) fn variable(&self, b: &mut rspirv::dr::Builder, var_block: usize) -> u32 {
@@ -324,7 +320,8 @@ impl PrimitiveType {
                     rspirv::spirv::StorageClass::Function,
                 )],
             ),
-        ).unwrap();
+        )
+        .unwrap();
         b.select_block(Some(current_block)).unwrap();
         id
         // b.variable(
@@ -596,7 +593,12 @@ impl PrimitiveVal {
 pub enum DataType {
     Primitive(PrimitiveType),
     Array(PrimitiveType, usize),
-    Struct(TypeId, &'static str, &'static [&'static str], &'static [DataType]),
+    Struct(
+        TypeId,
+        &'static str,
+        &'static [&'static str],
+        &'static [DataType],
+    ),
 }
 
 impl DataType {
@@ -641,24 +643,26 @@ impl DataType {
                     for (ty, &name) in types.iter().zip(*names) {
                         b.member_name(spv_ty_object, index, name);
                         b.member_decorate(
-                            spv_ty_object, 
+                            spv_ty_object,
                             index,
-                            rspirv::spirv::Decoration::Offset, 
+                            rspirv::spirv::Decoration::Offset,
                             [rspirv::dr::Operand::LiteralInt32(offset)],
                         );
                         if let DataType::Primitive(p) = ty {
                             if p.is_matrix() {
                                 b.member_decorate(
-                                    spv_ty_object, 
-                                    index, 
+                                    spv_ty_object,
+                                    index,
                                     rspirv::spirv::Decoration::MatrixStride,
-                                    [rspirv::dr::Operand::LiteralInt32(p.matrix_stride().unwrap())]
+                                    [rspirv::dr::Operand::LiteralInt32(
+                                        p.matrix_stride().unwrap(),
+                                    )],
                                 );
                                 b.member_decorate(
-                                    spv_ty_object, 
+                                    spv_ty_object,
                                     index,
                                     rspirv::spirv::Decoration::ColMajor,
-                                    []
+                                    [],
                                 );
                             }
                         }
@@ -672,16 +676,21 @@ impl DataType {
         }
     }
 
-    pub(crate) fn pointer_type(&self, b: &mut rspirv::dr::Builder, struct_map: &mut HashMap<TypeId, u32>) -> u32 {
+    pub(crate) fn pointer_type(
+        &self,
+        b: &mut rspirv::dr::Builder,
+        struct_map: &mut HashMap<TypeId, u32>,
+    ) -> u32 {
         let b_ty = self.base_type(b, struct_map);
-        b.type_pointer(
-            None,
-            rspirv::spirv::StorageClass::Function,
-            b_ty,
-        )
+        b.type_pointer(None, rspirv::spirv::StorageClass::Function, b_ty)
     }
 
-    pub(crate) fn variable(&self, b: &mut rspirv::dr::Builder, struct_map: &mut HashMap<TypeId,  u32>, var_block: usize) -> u32 {
+    pub(crate) fn variable(
+        &self,
+        b: &mut rspirv::dr::Builder,
+        struct_map: &mut HashMap<TypeId, u32>,
+        var_block: usize,
+    ) -> u32 {
         let p_ty = self.pointer_type(b, struct_map);
         let current_block = b.selected_block().unwrap();
         b.select_block(Some(var_block)).unwrap();
@@ -696,7 +705,8 @@ impl DataType {
                     rspirv::spirv::StorageClass::Function,
                 )],
             ),
-        ).unwrap();
+        )
+        .unwrap();
         b.select_block(Some(current_block)).unwrap();
         id
     }
@@ -742,11 +752,7 @@ impl DataVal {
         }
     }
 
-    pub fn set(
-        &self,
-        b: &mut rspirv::dr::Builder,
-        struct_map: &mut HashMap<TypeId, u32>,
-    ) -> u32 {
+    pub fn set(&self, b: &mut rspirv::dr::Builder, struct_map: &mut HashMap<TypeId, u32>) -> u32 {
         let (c, ty) = self.set_constant(b, struct_map);
         let p_ty = b.type_pointer(None, rspirv::spirv::StorageClass::Function, ty);
         let var = b.variable(p_ty, None, rspirv::spirv::StorageClass::Function, None);

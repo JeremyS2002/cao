@@ -4,56 +4,49 @@ use std::collections::HashMap;
 use super::*;
 use std::cell::RefCell;
 
-
-
 pub(crate) struct RawBaseBuilder {
-    pub(crate) inputs: RefCell<Vec<(
-        PrimitiveType,
-        Either<(u32, bool), rspirv::spirv::BuiltIn>,
-        Option<&'static str>,
-    )>>,
-    pub(crate) outputs: RefCell<Vec<(
-        PrimitiveType,
-        Either<(u32, bool), rspirv::spirv::BuiltIn>,
-        Option<&'static str>,
-    )>>,
-    pub(crate) uniforms: RefCell<Vec<(
-        DataType,
-        u32,
-        u32,
-        Option<&'static str>,
-    )>>,
-    pub(crate) storages: RefCell<Vec<(
-        DataType,
-        u32,
-        u32,
-        Option<&'static str>,
-    )>>,
-    pub(crate) textures: RefCell<Vec<(
-        rspirv::spirv::Dim,
-        crate::texture::Component,
-        bool,
-        u32,
-        u32,
-        Option<&'static str>,
-    )>>,
-    pub(crate) samplers: RefCell<Vec<(
-        u32, 
-        u32,
-        Option<&'static str>,
-    )>>,
-    pub(crate) sampled_textures: RefCell<Vec<(
-        rspirv::spirv::Dim,
-        crate::texture::Component,
-        bool,
-        u32,
-        u32,
-        Option<&'static str>,
-    )>>,
+    pub(crate) inputs: RefCell<
+        Vec<(
+            PrimitiveType,
+            Either<(u32, bool), rspirv::spirv::BuiltIn>,
+            Option<&'static str>,
+        )>,
+    >,
+    pub(crate) outputs: RefCell<
+        Vec<(
+            PrimitiveType,
+            Either<(u32, bool), rspirv::spirv::BuiltIn>,
+            Option<&'static str>,
+        )>,
+    >,
+    pub(crate) uniforms: RefCell<Vec<(DataType, u32, u32, Option<&'static str>)>>,
+    pub(crate) storages: RefCell<Vec<(DataType, u32, u32, Option<&'static str>)>>,
+    pub(crate) textures: RefCell<
+        Vec<(
+            rspirv::spirv::Dim,
+            crate::texture::Component,
+            bool,
+            u32,
+            u32,
+            Option<&'static str>,
+        )>,
+    >,
+    pub(crate) samplers: RefCell<Vec<(u32, u32, Option<&'static str>)>>,
+    pub(crate) sampled_textures: RefCell<
+        Vec<(
+            rspirv::spirv::Dim,
+            crate::texture::Component,
+            bool,
+            u32,
+            u32,
+            Option<&'static str>,
+        )>,
+    >,
     pub(crate) functions: RefCell<HashMap<usize, Vec<Instruction>>>,
     pub(crate) main: RefCell<Vec<Instruction>>,
     #[cfg(feature = "gpu")]
-    pub(crate) map: RefCell<HashMap<(u32, u32), (gpu::DescriptorLayoutEntry, Option<&'static str>)>>,
+    pub(crate) map:
+        RefCell<HashMap<(u32, u32), (gpu::DescriptorLayoutEntry, Option<&'static str>)>>,
 }
 
 impl RawBaseBuilder {

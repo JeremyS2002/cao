@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{AsData, IsDataType, AsPrimitiveType};
+use crate::{AsData, AsPrimitiveType, IsDataType};
 
 use super::AsDataType;
 
@@ -24,4 +24,4 @@ impl<const N: usize, T: AsPrimitiveType> AsData for SpvArray<N, T> {
     }
 }
 
-impl<const N: usize, T: AsPrimitiveType> IsDataType for SpvArray<N, T> { }
+impl<const N: usize, T: AsPrimitiveType> IsDataType for SpvArray<N, T> {}

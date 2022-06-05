@@ -1,4 +1,3 @@
-
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -12,8 +11,8 @@ pub struct Vertex {
     pub color: [f32; 3],
 }
 
-unsafe impl bytemuck::Pod for Vertex { }
-unsafe impl bytemuck::Zeroable for Vertex { }
+unsafe impl bytemuck::Pod for Vertex {}
+unsafe impl bytemuck::Zeroable for Vertex {}
 
 fn main() {
     env_logger::init();
@@ -24,15 +23,19 @@ fn main() {
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
     let surface = instance.create_surface(&window).unwrap();
-    let device = instance.create_device(&gpu::DeviceDesc {
-        compatible_surfaces: &[&surface],
-        ..Default::default()
-    }).unwrap();
+    let device = instance
+        .create_device(&gpu::DeviceDesc {
+            compatible_surfaces: &[&surface],
+            ..Default::default()
+        })
+        .unwrap();
 
-    let mut swapchain = device.create_swapchain(
-        &surface,
-        &gpu::SwapchainDesc::from_surface(&surface, &device).unwrap(),
-    ).unwrap();
+    let mut swapchain = device
+        .create_swapchain(
+            &surface,
+            &gpu::SwapchainDesc::from_surface(&surface, &device).unwrap(),
+        )
+        .unwrap();
 
     let mut resized = false;
 
@@ -48,17 +51,22 @@ fn main() {
         Vertex {
             pos: [0.5, 0.5],
             color: [0.0, 0.0, 1.0],
-        }
+        },
     ];
 
-    let vertex_buffer = device.create_buffer(&gpu::BufferDesc {
-        name: None,
-        size: (std::mem::size_of::<Vertex>() * vertices.len()) as _,
-        usage: gpu::BufferUsage::VERTEX,
-        memory: gpu::MemoryType::Host,
-    }).unwrap();
+    let vertex_buffer = device
+        .create_buffer(&gpu::BufferDesc {
+            name: None,
+            size: (std::mem::size_of::<Vertex>() * vertices.len()) as _,
+            usage: gpu::BufferUsage::VERTEX,
+            memory: gpu::MemoryType::Host,
+        })
+        .unwrap();
 
-    vertex_buffer.slice_ref(..).write(bytemuck::cast_slice(&vertices)).unwrap();
+    vertex_buffer
+        .slice_ref(..)
+        .write(bytemuck::cast_slice(&vertices))
+        .unwrap();
 
     let vertex_spv = {
         let builder = spv::VertexBuilder::new();
@@ -79,7 +87,7 @@ fn main() {
             let col = b.load_in(in_col);
             b.store_out(out_col, col);
         });
-        
+
         builder.compile()
     };
 
@@ -114,25 +122,29 @@ fn main() {
         })
         .unwrap();
 
-    let render_pass = device.create_render_pass(&gpu::RenderPassDesc {
-        name: None,
-        colors: &[gpu::ColorAttachmentDesc {
-            format: swapchain.format(),
-            load: gpu::LoadOp::Clear,
-            store: gpu::StoreOp::Store,
-            initial_layout: gpu::TextureLayout::Undefined,
-            final_layout: gpu::TextureLayout::SwapchainPresent,
-        }],
-        resolves: &[],
-        depth: None,
-        samples: gpu::Samples::S1,
-    }).unwrap();
+    let render_pass = device
+        .create_render_pass(&gpu::RenderPassDesc {
+            name: None,
+            colors: &[gpu::ColorAttachmentDesc {
+                format: swapchain.format(),
+                load: gpu::LoadOp::Clear,
+                store: gpu::StoreOp::Store,
+                initial_layout: gpu::TextureLayout::Undefined,
+                final_layout: gpu::TextureLayout::SwapchainPresent,
+            }],
+            resolves: &[],
+            depth: None,
+            samples: gpu::Samples::S1,
+        })
+        .unwrap();
 
-    let layout = device.create_pipeline_layout(&gpu::PipelineLayoutDesc {
-        name: None,
-        descriptor_sets: &[],
-        push_constants: &[],
-    }).unwrap();
+    let layout = device
+        .create_pipeline_layout(&gpu::PipelineLayoutDesc {
+            name: None,
+            descriptor_sets: &[],
+            push_constants: &[],
+        })
+        .unwrap();
 
     let rasterizer = gpu::Rasterizer::default();
 
@@ -152,7 +164,7 @@ fn main() {
                 format: gpu::VertexFormat::Vec3,
                 offset: (2 * std::mem::size_of::<f32>()) as _,
             },
-        ]
+        ],
     };
 
     let blend_state = gpu::BlendState::REPLACE;
@@ -168,20 +180,22 @@ fn main() {
         max_depth: 1.0,
     };
 
-    let mut pipeline = device.create_graphics_pipeline(&gpu::GraphicsPipelineDesc {
-        name: None,
-        layout: &layout,
-        pass: &render_pass,
-        vertex: &vertex_shader,
-        geometry: None,
-        tessellation: None,
-        fragment: Some(&fragment_shader),
-        rasterizer,
-        vertex_states: &[vertex_state],
-        blend_states: &[blend_state],
-        depth_stencil: None,
-        viewport,
-    }).unwrap();
+    let mut pipeline = device
+        .create_graphics_pipeline(&gpu::GraphicsPipelineDesc {
+            name: None,
+            layout: &layout,
+            pass: &render_pass,
+            vertex: &vertex_shader,
+            geometry: None,
+            tessellation: None,
+            fragment: Some(&fragment_shader),
+            rasterizer,
+            vertex_states: &[vertex_state],
+            blend_states: &[blend_state],
+            depth_stencil: None,
+            viewport,
+        })
+        .unwrap();
 
     let mut command_buffer = device.create_command_buffer(None).unwrap();
 
@@ -226,10 +240,12 @@ fn main() {
 
                 let view = match swapchain.acquire(!0) {
                     Ok((view, _)) => view,
-                    Err(e) => if e.can_continue() {
-                        return
-                    } else {
-                        panic!("{}", e)
+                    Err(e) => {
+                        if e.can_continue() {
+                            return;
+                        } else {
+                            panic!("{}", e)
+                        }
                     }
                 };
 
@@ -261,10 +277,12 @@ fn main() {
 
                 match swapchain.present(view) {
                     Ok(_) => (),
-                    Err(e) => if e.can_continue() {
-                        return
-                    } else {
-                        panic!("{}", e);
+                    Err(e) => {
+                        if e.can_continue() {
+                            return;
+                        } else {
+                            panic!("{}", e);
+                        }
                     }
                 }
             }

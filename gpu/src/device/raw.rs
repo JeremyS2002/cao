@@ -1,6 +1,6 @@
 use std::ffi::CString;
-use std::{collections::HashMap, mem::ManuallyDrop as Md, ptr, sync::Arc};
 use std::thread::ThreadId;
+use std::{collections::HashMap, mem::ManuallyDrop as Md, ptr, sync::Arc};
 
 use ash::extensions::ext;
 use ash::vk;
@@ -118,27 +118,15 @@ impl RawDevice {
         module: &crate::ShaderModule,
         name: &str,
     ) -> Result<(), Error> {
-        self.set_name(
-            module.raw.as_raw(),
-            vk::ObjectType::SHADER_MODULE,
-            name,
-        )
+        self.set_name(module.raw.as_raw(), vk::ObjectType::SHADER_MODULE, name)
     }
 
     pub fn set_buffer_name(&self, buffer: &crate::Buffer, name: &str) -> Result<(), Error> {
-        self.set_name(
-            buffer.raw.as_raw(),
-            vk::ObjectType::BUFFER,
-            name,
-        )
+        self.set_name(buffer.raw.as_raw(), vk::ObjectType::BUFFER, name)
     }
 
     pub fn set_texture_name(&self, texture: &crate::Texture, name: &str) -> Result<(), Error> {
-        self.set_name(
-            texture.raw.as_raw(),
-            vk::ObjectType::IMAGE,
-            name,
-        )
+        self.set_name(texture.raw.as_raw(), vk::ObjectType::IMAGE, name)
     }
 
     pub fn set_texture_view_name(
@@ -146,11 +134,7 @@ impl RawDevice {
         view: &crate::TextureView,
         name: &str,
     ) -> Result<(), Error> {
-        self.set_name(
-            view.raw.as_raw(),
-            vk::ObjectType::IMAGE_VIEW,
-            name,
-        )
+        self.set_name(view.raw.as_raw(), vk::ObjectType::IMAGE_VIEW, name)
     }
 
     pub fn set_command_buffer_name(
@@ -158,24 +142,12 @@ impl RawDevice {
         buffer: &crate::CommandBuffer,
         name: &str,
     ) -> Result<(), Error> {
-        self.set_name(
-            buffer.pool.as_raw(),
-            vk::ObjectType::COMMAND_POOL,
-            name,
-        )?;
-        self.set_name(
-            buffer.buffer.as_raw(),
-            vk::ObjectType::COMMAND_BUFFER,
-            name,
-        )
+        self.set_name(buffer.pool.as_raw(), vk::ObjectType::COMMAND_POOL, name)?;
+        self.set_name(buffer.buffer.as_raw(), vk::ObjectType::COMMAND_BUFFER, name)
     }
 
     pub fn set_sampler_name(&self, sampler: &crate::Sampler, name: &str) -> Result<(), Error> {
-        self.set_name(
-            sampler.raw.as_raw(),
-            vk::ObjectType::SAMPLER,
-            name,
-        )
+        self.set_name(sampler.raw.as_raw(), vk::ObjectType::SAMPLER, name)
     }
 
     pub fn set_descriptor_set_name(
@@ -183,16 +155,8 @@ impl RawDevice {
         set: &crate::DescriptorSet,
         name: &str,
     ) -> Result<(), Error> {
-        self.set_name(
-            set.pool.as_raw(),
-            vk::ObjectType::DESCRIPTOR_POOL,
-            name,
-        )?;
-        self.set_name(
-            set.set.as_raw(),
-            vk::ObjectType::DESCRIPTOR_SET,
-            name,
-        )
+        self.set_name(set.pool.as_raw(), vk::ObjectType::DESCRIPTOR_POOL, name)?;
+        self.set_name(set.set.as_raw(), vk::ObjectType::DESCRIPTOR_SET, name)
     }
 
     pub fn set_descriptor_layout_name(
@@ -212,19 +176,11 @@ impl RawDevice {
         layout: &crate::PipelineLayout,
         name: &str,
     ) -> Result<(), Error> {
-        self.set_name(
-            layout.raw.as_raw(),
-            vk::ObjectType::PIPELINE_LAYOUT,
-            name,
-        )
+        self.set_name(layout.raw.as_raw(), vk::ObjectType::PIPELINE_LAYOUT, name)
     }
 
     pub fn set_render_pass_name(&self, pass: &crate::RenderPass, name: &str) -> Result<(), Error> {
-        self.set_name(
-            pass.raw.as_raw(),
-            vk::ObjectType::RENDER_PASS,
-            name,
-        )
+        self.set_name(pass.raw.as_raw(), vk::ObjectType::RENDER_PASS, name)
     }
 
     pub fn set_graphics_pipeline_name(
@@ -232,11 +188,7 @@ impl RawDevice {
         pipeline: &crate::GraphicsPipeline,
         name: &str,
     ) -> Result<(), Error> {
-        self.set_name(
-            pipeline.raw.as_raw(),
-            vk::ObjectType::PIPELINE,
-            name,
-        )
+        self.set_name(pipeline.raw.as_raw(), vk::ObjectType::PIPELINE, name)
     }
 
     pub fn set_compute_pipeline_name(
@@ -244,11 +196,7 @@ impl RawDevice {
         pipeline: &crate::ComputePipeline,
         name: &str,
     ) -> Result<(), Error> {
-        self.set_name(
-            pipeline.raw.as_raw(),
-            vk::ObjectType::PIPELINE,
-            name,
-        )
+        self.set_name(pipeline.raw.as_raw(), vk::ObjectType::PIPELINE, name)
     }
 }
 

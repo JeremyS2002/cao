@@ -54,7 +54,11 @@ impl ReflectedCompute {
         })?;
 
         let (descriptor_set_layouts, descriptor_set_types) =
-            super::reflect_raw::combine_descriptor_set_layouts(device, descriptor_set_layouts, &name)?;
+            super::reflect_raw::combine_descriptor_set_layouts(
+                device,
+                descriptor_set_layouts,
+                &name,
+            )?;
 
         let pipeline_layout_name = name.as_ref().map(|n| format!("{}_pipeline_layout", n));
 

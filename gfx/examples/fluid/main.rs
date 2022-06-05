@@ -1,13 +1,12 @@
-
 use std::borrow::Cow;
 
 use winit_input_helper::WinitInputHelper;
 
 use winit::{
     dpi::PhysicalSize,
-    event_loop::{ControlFlow, EventLoop},
-    window::{WindowBuilder, Window},
     event::VirtualKeyCode,
+    event_loop::{ControlFlow, EventLoop},
+    window::{Window, WindowBuilder},
 };
 
 const WIDTH: u32 = 800;
@@ -49,8 +48,8 @@ pub struct Vertex {
     pub uv: [f32; 2],
 }
 
-unsafe impl bytemuck::Zeroable for Vertex { }
-unsafe impl bytemuck::Pod for Vertex { }
+unsafe impl bytemuck::Zeroable for Vertex {}
+unsafe impl bytemuck::Pod for Vertex {}
 
 impl gfx::Vertex for Vertex {
     fn get(name: &str) -> Option<(u32, gpu::VertexFormat)> {
@@ -71,8 +70,8 @@ pub struct VertexParams {
     pub texel_size: [f32; 2],
 }
 
-unsafe impl bytemuck::Zeroable for VertexParams { }
-unsafe impl bytemuck::Pod for VertexParams { }
+unsafe impl bytemuck::Zeroable for VertexParams {}
+unsafe impl bytemuck::Pod for VertexParams {}
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
@@ -208,43 +207,69 @@ impl Fluid {
 
         // some of the fields can work with multiple formats
         let vel_a = gfx::GTexture2D::from_formats(
-            &device, 
-            SIM_RESOLUTION, 
-            SIM_RESOLUTION, 
-            gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT, 
-            1, 
-            [gpu::Format::Rg32Float, gpu::Format::Rgb32Float, gpu::Format::Rgba32Float], 
+            &device,
+            SIM_RESOLUTION,
+            SIM_RESOLUTION,
+            gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
+            1,
+            [
+                gpu::Format::Rg32Float,
+                gpu::Format::Rgb32Float,
+                gpu::Format::Rgba32Float,
+            ],
             None,
-        )?.unwrap();
+        )?
+        .unwrap();
         let vel_b = gfx::GTexture2D::from_formats(
-            &device, 
-            SIM_RESOLUTION, 
-            SIM_RESOLUTION, 
-            gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT, 
-            1, 
-            [gpu::Format::Rg32Float, gpu::Format::Rgb32Float, gpu::Format::Rgba32Float], 
+            &device,
+            SIM_RESOLUTION,
+            SIM_RESOLUTION,
+            gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
+            1,
+            [
+                gpu::Format::Rg32Float,
+                gpu::Format::Rgb32Float,
+                gpu::Format::Rgba32Float,
+            ],
             None,
-        )?.unwrap();
+        )?
+        .unwrap();
         let pressure_a = gfx::GTexture2D::from_formats(
-            &device, 
-            SIM_RESOLUTION, 
-            SIM_RESOLUTION, 
-            gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT
-                | gpu::TextureUsage::COPY_SRC | gpu::TextureUsage::COPY_DST, 
-            1, 
-            [gpu::Format::R32Float, gpu::Format::Rg32Float, gpu::Format::Rgb32Float, gpu::Format::Rgba32Float], 
+            &device,
+            SIM_RESOLUTION,
+            SIM_RESOLUTION,
+            gpu::TextureUsage::SAMPLED
+                | gpu::TextureUsage::COLOR_OUTPUT
+                | gpu::TextureUsage::COPY_SRC
+                | gpu::TextureUsage::COPY_DST,
+            1,
+            [
+                gpu::Format::R32Float,
+                gpu::Format::Rg32Float,
+                gpu::Format::Rgb32Float,
+                gpu::Format::Rgba32Float,
+            ],
             None,
-        )?.unwrap();
+        )?
+        .unwrap();
         let pressure_b = gfx::GTexture2D::from_formats(
-            &device, 
-            SIM_RESOLUTION, 
-            SIM_RESOLUTION, 
-            gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT
-                | gpu::TextureUsage::COPY_SRC | gpu::TextureUsage::COPY_DST, 
-            1, 
-            [gpu::Format::R32Float, gpu::Format::Rg32Float, gpu::Format::Rgb32Float, gpu::Format::Rgba32Float], 
+            &device,
+            SIM_RESOLUTION,
+            SIM_RESOLUTION,
+            gpu::TextureUsage::SAMPLED
+                | gpu::TextureUsage::COLOR_OUTPUT
+                | gpu::TextureUsage::COPY_SRC
+                | gpu::TextureUsage::COPY_DST,
+            1,
+            [
+                gpu::Format::R32Float,
+                gpu::Format::Rg32Float,
+                gpu::Format::Rgb32Float,
+                gpu::Format::Rgba32Float,
+            ],
             None,
-        )?.unwrap();
+        )?
+        .unwrap();
         let ink_a = gfx::GTexture2D::new(
             &device,
             INK_RESOLUTION,
@@ -269,18 +294,30 @@ impl Fluid {
             SIM_RESOLUTION,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
             1,
-            [gpu::Format::R32Float, gpu::Format::Rg32Float, gpu::Format::Rgb32Float, gpu::Format::Rgba32Float],
+            [
+                gpu::Format::R32Float,
+                gpu::Format::Rg32Float,
+                gpu::Format::Rgb32Float,
+                gpu::Format::Rgba32Float,
+            ],
             None,
-        )?.unwrap();
+        )?
+        .unwrap();
         let divergence = gfx::GTexture2D::from_formats(
             &device,
             SIM_RESOLUTION,
             SIM_RESOLUTION,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
             1,
-            [gpu::Format::R32Float, gpu::Format::Rg32Float, gpu::Format::Rgb32Float, gpu::Format::Rgba32Float],
+            [
+                gpu::Format::R32Float,
+                gpu::Format::Rg32Float,
+                gpu::Format::Rgb32Float,
+                gpu::Format::Rgba32Float,
+            ],
             None,
-        )?.unwrap();
+        )?
+        .unwrap();
 
         let sampler = device.create_sampler(&gpu::SamplerDesc {
             wrap_x: gpu::WrapMode::ClampToEdge,
@@ -824,16 +861,14 @@ impl Fluid {
     ) -> Result<(), anyhow::Error> {
         let mut pass = encoder.graphics_pass_reflected(
             &device,
-            &[
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Owned(output.clone()), 
-                        gpu::ClearValue::ColorFloat([0.0; 4])
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                }
-            ],
+            &[gfx::Attachment {
+                raw: gpu::Attachment::View(
+                    Cow::Owned(output.clone()),
+                    gpu::ClearValue::ColorFloat([0.0; 4]),
+                ),
+                load,
+                store: gpu::StoreOp::Store,
+            }],
             &[],
             None,
             graphics,
@@ -864,17 +899,17 @@ impl Fluid {
     }
 
     fn render_offscreen_t(
-        device: &gpu::Device, 
-        mesh: &gfx::IndexedMesh<Vertex>, 
-        u: &mut UniqueFields, 
-        a: &DoubleFields, 
+        device: &gpu::Device,
+        mesh: &gfx::IndexedMesh<Vertex>,
+        u: &mut UniqueFields,
+        a: &DoubleFields,
         b: &DoubleFields,
         c: &mut gpu::CommandBuffer,
     ) -> Result<(), anyhow::Error> {
-        // at the start 
+        // at the start
         // a.vel must hold the data
         // a.ink must hold the data
-        // 
+        //
         let mut encoder = gfx::CommandEncoder::new();
 
         // apply force into velocity field
@@ -901,7 +936,7 @@ impl Fluid {
             gpu::LoadOp::Load, // ink_a needs to have the current data in already
         )?;
 
-        // calculate curl 
+        // calculate curl
         // reading from current velocity in a.vel
         Self::update_pass(
             &mut encoder,
@@ -951,7 +986,7 @@ impl Fluid {
         )?;
 
         // pressure iterations
-        for _ in 0..(PRESSURE_ITERATIONS/2) {
+        for _ in 0..(PRESSURE_ITERATIONS / 2) {
             // render into a.pressure reading from b.pressure
             Self::update_pass(
                 &mut encoder,
@@ -967,7 +1002,7 @@ impl Fluid {
             Self::update_pass(
                 &mut encoder,
                 device,
-                mesh, 
+                mesh,
                 &u.pressure_stage,
                 &a.pressure_bundle,
                 &b.pressure.view,
@@ -975,7 +1010,7 @@ impl Fluid {
             )?;
         }
 
-        // if odd need perform one more iteration and copy a.pressure into b.pressure 
+        // if odd need perform one more iteration and copy a.pressure into b.pressure
         // as next cycle will assume that b has the current data
         if PRESSURE_ITERATIONS % 2 == 1 {
             Self::update_pass(
@@ -1015,7 +1050,7 @@ impl Fluid {
             &u.advection_stage,
             &a.advect_vel_bundle,
             &b.vel.view,
-            gpu::LoadOp::DontCare
+            gpu::LoadOp::DontCare,
         )?;
 
         // advect ink
@@ -1106,19 +1141,14 @@ impl Fluid {
             self.ink_splat_params.update_gpu_ref(&mut encoder);
             self.vel_splat_params.update_gpu_ref(&mut encoder);
         }
-        
+
         let mut pass = encoder.graphics_pass_reflected(
             &self.device,
-            &[
-                gfx::Attachment {
-                    raw: gpu::Attachment::Swapchain(
-                        &frame, 
-                        gpu::ClearValue::ColorFloat([0.0; 4]),
-                    ),
-                    load: gpu::LoadOp::DontCare,
-                    store: gpu::StoreOp::Store,
-                }
-            ],
+            &[gfx::Attachment {
+                raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
+                load: gpu::LoadOp::DontCare,
+                store: gpu::StoreOp::Store,
+            }],
             &[],
             None,
             &mut self.u.display_stage,
@@ -1166,11 +1196,11 @@ fn main() {
                 Err(e) => {
                     if let Some(e) = e.downcast_ref::<gpu::Error>() {
                         if e.can_continue() {
-                            return
-                        } 
+                            return;
+                        }
                     }
                     panic!("{}", e);
-                },
+                }
             }
 
             if input_helper.quit() {

@@ -342,7 +342,7 @@ impl CommandBuffer {
         resolve_attachments: &[B],
         depth_attachment: Option<B>,
         render_pass: &crate::RenderPass,
-    ) -> Result<(), crate::Error> 
+    ) -> Result<(), crate::Error>
     where
         B: std::borrow::Borrow<crate::Attachment<'a>>,
     {

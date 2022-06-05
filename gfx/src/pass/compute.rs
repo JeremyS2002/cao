@@ -97,8 +97,8 @@ impl<'a> ComputePassCommand<'a> {
         match self {
             ComputePassCommand::BindDescriptorSet { descriptor, .. } => {
                 for (texture, layout) in descriptor.textures() {
-                    for i in texture.base_mip_level()
-                        ..(texture.base_mip_level() + texture.mip_levels())
+                    for i in
+                        texture.base_mip_level()..(texture.base_mip_level() + texture.mip_levels())
                     {
                         for j in texture.base_array_layer()
                             ..(texture.base_array_layer() + texture.array_layers())
@@ -113,7 +113,7 @@ impl<'a> ComputePassCommand<'a> {
                         }
                     }
                 }
-            },
+            }
             ComputePassCommand::BindDescriptorSets { descriptors, .. } => {
                 for descriptor in descriptors.as_ref() {
                     for (texture, layout) in descriptor.textures() {
@@ -123,10 +123,9 @@ impl<'a> ComputePassCommand<'a> {
                             for j in texture.base_array_layer()
                                 ..(texture.base_array_layer() + texture.array_layers())
                             {
-                                if let Some(l) = result.insert(
-                                    (texture.texture().clone(), i, j),
-                                    *layout,
-                                ) {
+                                if let Some(l) =
+                                    result.insert((texture.texture().clone(), i, j), *layout)
+                                {
                                     if *layout != l {
                                         panic!("ERROR: ComputePassCommand::BindDescriptorSet uses descriptor with texture using different layouts {:?}, {:?}", *layout, l);
                                     }

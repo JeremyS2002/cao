@@ -51,7 +51,7 @@ pub trait AsPrimitive {
     fn ty(&self) -> crate::data::PrimitiveType;
 }
 
-pub trait IsPrimitiveType: AsPrimitiveType { }
+pub trait IsPrimitiveType: AsPrimitiveType {}
 
 pub trait AsDataType {
     const TY: crate::data::DataType;
@@ -63,7 +63,7 @@ pub trait AsData {
     fn ty(&self) -> crate::data::DataType;
 }
 
-pub trait IsDataType: AsDataType { }
+pub trait IsDataType: AsDataType {}
 
 pub trait FromId {
     fn from_id(id: usize) -> Self;

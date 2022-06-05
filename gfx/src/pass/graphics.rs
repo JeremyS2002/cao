@@ -167,8 +167,8 @@ impl<'a> GraphicsPassCommand<'a> {
         match self {
             GraphicsPassCommand::BindDescriptorSet { descriptor, .. } => {
                 for (texture, layout) in descriptor.textures() {
-                    for i in texture.base_mip_level()
-                        ..(texture.base_mip_level() + texture.mip_levels())
+                    for i in
+                        texture.base_mip_level()..(texture.base_mip_level() + texture.mip_levels())
                     {
                         for j in texture.base_array_layer()
                             ..(texture.base_array_layer() + texture.array_layers())
@@ -183,7 +183,7 @@ impl<'a> GraphicsPassCommand<'a> {
                         }
                     }
                 }
-            },
+            }
             GraphicsPassCommand::BindDescriptorSets { descriptors, .. } => {
                 for descriptor in descriptors.as_ref() {
                     for (texture, layout) in descriptor.textures() {
@@ -193,10 +193,9 @@ impl<'a> GraphicsPassCommand<'a> {
                             for j in texture.base_array_layer()
                                 ..(texture.base_array_layer() + texture.array_layers())
                             {
-                                if let Some(l) = result.insert(
-                                    (texture.texture().clone(), i, j),
-                                    *layout,
-                                ) {
+                                if let Some(l) =
+                                    result.insert((texture.texture().clone(), i, j), *layout)
+                                {
                                     if *layout != l {
                                         panic!("ERROR: GraphicsPassCommand::BindDescriptorSet uses descriptor with texture using different layouts {:?}, {:?}", *layout, l);
                                     }

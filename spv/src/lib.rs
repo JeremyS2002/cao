@@ -36,7 +36,7 @@
 
 use data::IsPrimitiveType;
 use either::*;
-use interface::{SpvInput, SpvOutput, SpvStorage, StorageAccessDesc, SpvUniform};
+use interface::{SpvInput, SpvOutput, SpvStorage, SpvUniform, StorageAccessDesc};
 use rspirv::binary::Assemble;
 
 use std::cell::RefCell;
@@ -51,9 +51,9 @@ pub mod builder;
 pub mod data;
 pub mod function;
 pub mod interface;
+pub mod sampler;
 pub mod specialisation;
 pub mod texture;
-pub mod sampler;
 
 pub use specialisation::{
     ComputeBuilder, FragmentBuilder, GeometryBuilder, TessControlBuilder, TessEvalBuilder,
@@ -65,15 +65,15 @@ pub use sampler::*;
 pub use texture::*;
 
 pub struct Builder<T> {
-    /// Well well well, look who wants implement more features and can't remember how this works. 
-    /// 
+    /// Well well well, look who wants implement more features and can't remember how this works.
+    ///
     /// Overview:
     ///     - stage 1. build a vector of [`Instruction`] for each function
     ///     - stage 2. iterate over the instructions to compile a spir-v module
-    /// 
+    ///
     /// Stage 1 and 2 should be combined and done at the same time. There is no reason not to do this other than
     /// I got confused and it would be alot of work to change it now.
-    /// 
+    ///
     /// Stage 1.
     ///     - Each variable (Primitives, Structs and Arrays) is represented by a unique usize
     ///     - There are multiple Builder types to make creating instructions easier
@@ -86,13 +86,13 @@ pub struct Builder<T> {
     ///         - MainBuilder and FunctionBuilder both point to RawBaseBuilder
     ///         - ConditionBuilder and LoopBuilder can point to any other builder
     ///     - RawBuilders provide an interface to push instructions and get new id's
-    /// 
+    ///
     /// Stage 2.
     ///     - basically just ```for instruction in instructions { instruction.process(..) }```
     ///     - maps store relation between my (usize) variables id's and rspirv (u32) variable ids
     ///     - all data is stored as spri-v variables behind function local pointers
     ///     - map from StructDesc to spir-v struct id caches based on pointers not data so if anything breaks this could be it
-    
+
     /// Always BaseBuilder
     raw: Rc<RawBaseBuilder>,
     _marker: PhantomData<T>,
@@ -110,11 +110,23 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         (*self.raw.main.borrow()).clone()
     }
 
-    pub fn inputs(&self) -> Vec<(PrimitiveType, Either<(u32, bool), rspirv::spirv::BuiltIn>, Option<&'static str>)> {
+    pub fn inputs(
+        &self,
+    ) -> Vec<(
+        PrimitiveType,
+        Either<(u32, bool), rspirv::spirv::BuiltIn>,
+        Option<&'static str>,
+    )> {
         (*self.raw.inputs.borrow()).clone()
     }
 
-    pub fn outputs(&self) -> Vec<(PrimitiveType, Either<(u32, bool), rspirv::spirv::BuiltIn>, Option<&'static str>)> {
+    pub fn outputs(
+        &self,
+    ) -> Vec<(
+        PrimitiveType,
+        Either<(u32, bool), rspirv::spirv::BuiltIn>,
+        Option<&'static str>,
+    )> {
         (*self.raw.outputs.borrow()).clone()
     }
 
@@ -124,7 +136,9 @@ impl<T: specialisation::ShaderTY> Builder<T> {
 
     //pub fn storage(&self) -> Vec<()
 
-    pub fn textures(&self) -> Vec<(
+    pub fn textures(
+        &self,
+    ) -> Vec<(
         rspirv::spirv::Dim,
         crate::texture::Component,
         bool,
@@ -139,7 +153,9 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         (*self.raw.samplers.borrow()).clone()
     }
 
-    pub fn sampled_textures(&self) -> Vec<(
+    pub fn sampled_textures(
+        &self,
+    ) -> Vec<(
         rspirv::spirv::Dim,
         crate::texture::Component,
         bool,
@@ -151,12 +167,18 @@ impl<T: specialisation::ShaderTY> Builder<T> {
     }
 
     #[cfg(feature = "gpu")]
-    pub fn descriptor_layout_entry(&self, set: u32, binding: u32) -> Option<(gpu::DescriptorLayoutEntry, Option<&'static str>)> {
+    pub fn descriptor_layout_entry(
+        &self,
+        set: u32,
+        binding: u32,
+    ) -> Option<(gpu::DescriptorLayoutEntry, Option<&'static str>)> {
         self.raw.map.borrow().get(&(set, binding)).cloned()
     }
 
     #[cfg(feature = "gpu")]
-    pub fn descriptor_layout_entries(&self) -> HashMap<(u32, u32), (gpu::DescriptorLayoutEntry, Option<&'static str>)> {
+    pub fn descriptor_layout_entries(
+        &self,
+    ) -> HashMap<(u32, u32), (gpu::DescriptorLayoutEntry, Option<&'static str>)> {
         (*self.raw.map.borrow()).clone()
     }
 
@@ -187,7 +209,12 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         }
     }
 
-    pub fn input<P: IsPrimitiveType>(&self, location: u32, flat: bool, name: Option<&'static str>) -> SpvInput<P> {
+    pub fn input<P: IsPrimitiveType>(
+        &self,
+        location: u32,
+        flat: bool,
+        name: Option<&'static str>,
+    ) -> SpvInput<P> {
         let index = self.raw.inputs.borrow().len();
         self.raw
             .inputs
@@ -199,7 +226,12 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         }
     }
 
-    pub fn output<P: IsPrimitiveType>(&self, location: u32, flat: bool, name: Option<&'static str>) -> SpvOutput<P> {
+    pub fn output<P: IsPrimitiveType>(
+        &self,
+        location: u32,
+        flat: bool,
+        name: Option<&'static str>,
+    ) -> SpvOutput<P> {
         let index = self.raw.outputs.borrow().len();
         self.raw
             .outputs
@@ -211,48 +243,67 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         }
     }
 
-    pub fn uniform<D: IsDataType>(&self, set: u32, binding: u32, name: Option<&'static str>) -> SpvUniform<D> {
+    pub fn uniform<D: IsDataType>(
+        &self,
+        set: u32,
+        binding: u32,
+        name: Option<&'static str>,
+    ) -> SpvUniform<D> {
         let index = self.raw.uniforms.borrow().len();
-        self.raw.uniforms.borrow_mut().push((
-            D::TY,
-            set,
-            binding,
-            name,
-        ));
+        self.raw
+            .uniforms
+            .borrow_mut()
+            .push((D::TY, set, binding, name));
         #[cfg(feature = "gpu")]
         self.raw.map.borrow_mut().insert(
-            (set, binding), 
-            (gpu::DescriptorLayoutEntry {
-                ty: gpu::DescriptorLayoutEntryType::UniformBuffer,
-                stage: T::GPU_STAGE,
-                count: std::num::NonZeroU32::new(1).unwrap(),
-            }, name)
+            (set, binding),
+            (
+                gpu::DescriptorLayoutEntry {
+                    ty: gpu::DescriptorLayoutEntryType::UniformBuffer,
+                    stage: T::GPU_STAGE,
+                    count: std::num::NonZeroU32::new(1).unwrap(),
+                },
+                name,
+            ),
         );
-        SpvUniform { 
+        SpvUniform {
             index,
             _marker: PhantomData,
         }
     }
 
-    pub fn uniform_struct<S: AsSpvStruct>(&self, set: u32, binding: u32, name: Option<&'static str>) -> SpvUniform<SpvStruct<S>> {
+    pub fn uniform_struct<S: AsSpvStruct>(
+        &self,
+        set: u32,
+        binding: u32,
+        name: Option<&'static str>,
+    ) -> SpvUniform<SpvStruct<S>> {
         self.uniform(set, binding, name)
     }
 
-    pub fn storage<D: IsDataType>(&self, _desc: StorageAccessDesc, set: u32, binding: u32, read_only: bool, name: Option<&'static str>) -> SpvStorage<D> {
-        self.raw.storages.borrow_mut().push((
-            D::TY,
-            set,
-            binding,
-            name,
-        ));
+    pub fn storage<D: IsDataType>(
+        &self,
+        _desc: StorageAccessDesc,
+        set: u32,
+        binding: u32,
+        read_only: bool,
+        name: Option<&'static str>,
+    ) -> SpvStorage<D> {
+        self.raw
+            .storages
+            .borrow_mut()
+            .push((D::TY, set, binding, name));
         #[cfg(feature = "gpu")]
         self.raw.map.borrow_mut().insert(
-            (set, binding), 
-            (gpu::DescriptorLayoutEntry {
-                ty: gpu::DescriptorLayoutEntryType::StorageBuffer { read_only },
-                stage: T::GPU_STAGE,
-                count: std::num::NonZeroU32::new(1).unwrap(),
-            }, name)
+            (set, binding),
+            (
+                gpu::DescriptorLayoutEntry {
+                    ty: gpu::DescriptorLayoutEntryType::StorageBuffer { read_only },
+                    stage: T::GPU_STAGE,
+                    count: std::num::NonZeroU32::new(1).unwrap(),
+                },
+                name,
+            ),
         );
         // Storage {
         //     set: todo!(),
@@ -262,24 +313,29 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         todo!();
     }
 
-    pub fn texture<D: AsDimension, C: AsComponent>(&self, set: u32, binding: u32, arrayed: bool, name: Option<&'static str>) -> SpvGTexture<D, C> {
+    pub fn texture<D: AsDimension, C: AsComponent>(
+        &self,
+        set: u32,
+        binding: u32,
+        arrayed: bool,
+        name: Option<&'static str>,
+    ) -> SpvGTexture<D, C> {
         let index = self.raw.textures.borrow().len();
-        self.raw.textures.borrow_mut().push((
-            D::DIM,
-            C::COMPONENT,
-            arrayed,
-            set,
-            binding,
-            name,
-        ));
+        self.raw
+            .textures
+            .borrow_mut()
+            .push((D::DIM, C::COMPONENT, arrayed, set, binding, name));
         #[cfg(feature = "gpu")]
         self.raw.map.borrow_mut().insert(
-            (set, binding), 
-            (gpu::DescriptorLayoutEntry {
-                ty: gpu::DescriptorLayoutEntryType::SampledTexture,
-                stage: T::GPU_STAGE,
-                count: std::num::NonZeroU32::new(1).unwrap(),
-            }, name)
+            (set, binding),
+            (
+                gpu::DescriptorLayoutEntry {
+                    ty: gpu::DescriptorLayoutEntryType::SampledTexture,
+                    stage: T::GPU_STAGE,
+                    count: std::num::NonZeroU32::new(1).unwrap(),
+                },
+                name,
+            ),
         );
         SpvGTexture {
             index,
@@ -290,26 +346,29 @@ impl<T: specialisation::ShaderTY> Builder<T> {
 
     pub fn sampler(&self, set: u32, binding: u32, name: Option<&'static str>) -> SpvSampler {
         let index = self.raw.samplers.borrow().len();
-        self.raw.samplers.borrow_mut().push((
-            set,
-            binding,
-            name,
-        ));
+        self.raw.samplers.borrow_mut().push((set, binding, name));
         #[cfg(feature = "gpu")]
         self.raw.map.borrow_mut().insert(
-            (set, binding), 
-            (gpu::DescriptorLayoutEntry {
-                ty: gpu::DescriptorLayoutEntryType::Sampler,
-                stage: T::GPU_STAGE,
-                count: std::num::NonZeroU32::new(1).unwrap(),
-            }, name)
+            (set, binding),
+            (
+                gpu::DescriptorLayoutEntry {
+                    ty: gpu::DescriptorLayoutEntryType::Sampler,
+                    stage: T::GPU_STAGE,
+                    count: std::num::NonZeroU32::new(1).unwrap(),
+                },
+                name,
+            ),
         );
-        SpvSampler {
-            index,
-        }
+        SpvSampler { index }
     }
 
-    pub fn sampled_texture<D: AsDimension, C: AsComponent>(&self, set: u32, binding: u32, arrayed: bool, name: Option<&'static str>) -> SpvSampledGTexture<D, C> {
+    pub fn sampled_texture<D: AsDimension, C: AsComponent>(
+        &self,
+        set: u32,
+        binding: u32,
+        arrayed: bool,
+        name: Option<&'static str>,
+    ) -> SpvSampledGTexture<D, C> {
         let index = self.raw.sampled_textures.borrow().len();
         self.raw.sampled_textures.borrow_mut().push((
             D::DIM,
@@ -321,12 +380,15 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         ));
         #[cfg(feature = "gpu")]
         self.raw.map.borrow_mut().insert(
-            (set, binding), 
-            (gpu::DescriptorLayoutEntry {
-                ty: gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
-                stage: T::GPU_STAGE,
-                count: std::num::NonZeroU32::new(1).unwrap(),
-            }, name)
+            (set, binding),
+            (
+                gpu::DescriptorLayoutEntry {
+                    ty: gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
+                    stage: T::GPU_STAGE,
+                    count: std::num::NonZeroU32::new(1).unwrap(),
+                },
+                name,
+            ),
         );
         SpvSampledGTexture {
             id: Left(index),
@@ -375,13 +437,23 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             .unwrap();
         builder.name(main, "main");
 
-        let uniforms = process_uniforms(&*self.raw.uniforms.borrow(), &mut builder, &mut struct_map);
+        let uniforms =
+            process_uniforms(&*self.raw.uniforms.borrow(), &mut builder, &mut struct_map);
         let storages = Vec::new();
         let textures = process_textures(&mut builder, &self.raw.textures.borrow());
         let samplers = process_samplers(&mut builder, &self.raw.samplers.borrow());
-        let sampled_textures = process_sampled_textures(&mut builder, &self.raw.sampled_textures.borrow());
-        let inputs = process_io(&mut builder, &self.raw.inputs.borrow(), rspirv::spirv::StorageClass::Input);
-        let outputs = process_io(&mut builder, &self.raw.outputs.borrow(), rspirv::spirv::StorageClass::Output);
+        let sampled_textures =
+            process_sampled_textures(&mut builder, &self.raw.sampled_textures.borrow());
+        let inputs = process_io(
+            &mut builder,
+            &self.raw.inputs.borrow(),
+            rspirv::spirv::StorageClass::Input,
+        );
+        let outputs = process_io(
+            &mut builder,
+            &self.raw.outputs.borrow(),
+            rspirv::spirv::StorageClass::Output,
+        );
 
         let mut interface = inputs.clone();
         interface.extend_from_slice(&outputs);
@@ -408,12 +480,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         };
 
         for mut instruction in self.instructions() {
-            instruction.process(
-                &mut builder,
-                &mut s,
-                None,
-                None,
-            );
+            instruction.process(&mut builder, &mut s, None, None);
         }
 
         builder.ret().unwrap();
@@ -423,40 +490,42 @@ impl<T: specialisation::ShaderTY> Builder<T> {
     }
 }
 
-fn process_uniforms(uniforms: &[(DataType, u32, u32, Option<&'static str>)], builder: &mut rspirv::dr::Builder, struct_map: &mut HashMap<std::any::TypeId, u32>) -> Vec<u32> {
+fn process_uniforms(
+    uniforms: &[(DataType, u32, u32, Option<&'static str>)],
+    builder: &mut rspirv::dr::Builder,
+    struct_map: &mut HashMap<std::any::TypeId, u32>,
+) -> Vec<u32> {
     uniforms
         .iter()
         .map(|(uniform, set, binding, name)| {
             let raw_inner_ty = uniform.base_type(builder, struct_map);
             let raw_outer_ty = builder.type_struct([raw_inner_ty]);
-    
+
             builder.decorate(raw_outer_ty, rspirv::spirv::Decoration::Block, None);
             builder.member_decorate(
-                raw_outer_ty, 
-                0, 
-                rspirv::spirv::Decoration::Offset, 
-                [rspirv::dr::Operand::LiteralInt32(0)]
+                raw_outer_ty,
+                0,
+                rspirv::spirv::Decoration::Offset,
+                [rspirv::dr::Operand::LiteralInt32(0)],
             );
-        
-            let p_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, raw_outer_ty);
+
+            let p_ty =
+                builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, raw_outer_ty);
             let variable = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Uniform, None);
-    
+
             builder.decorate(
-                variable, 
-                rspirv::spirv::Decoration::DescriptorSet, 
-                Some(rspirv::dr::Operand::LiteralInt32(*set))
+                variable,
+                rspirv::spirv::Decoration::DescriptorSet,
+                Some(rspirv::dr::Operand::LiteralInt32(*set)),
             );
             builder.decorate(
-                variable, 
-                rspirv::spirv::Decoration::Binding, 
-                Some(rspirv::dr::Operand::LiteralInt32(*binding))
+                variable,
+                rspirv::spirv::Decoration::Binding,
+                Some(rspirv::dr::Operand::LiteralInt32(*binding)),
             );
 
             if let Some(name) = *name {
-                builder.name(
-                    variable,
-                    name
-                )
+                builder.name(variable, name)
             }
 
             variable
@@ -465,7 +534,7 @@ fn process_uniforms(uniforms: &[(DataType, u32, u32, Option<&'static str>)], bui
 }
 
 fn process_textures(
-    builder: &mut rspirv::dr::Builder, 
+    builder: &mut rspirv::dr::Builder,
     textures: &[(
         rspirv::spirv::Dim,
         crate::texture::Component,
@@ -480,41 +549,40 @@ fn process_textures(
         .map(|(dimension, component, arrayed, set, binding, name)| {
             let c_type = component.base_type(builder);
             let t_type = builder.type_image(
-                c_type, 
-                *dimension, 
-                0, 
-                if *arrayed { 1 } else { 0 }, 
-                0, 
-                1, 
-                rspirv::spirv::ImageFormat::Unknown, 
+                c_type,
+                *dimension,
+                0,
+                if *arrayed { 1 } else { 0 },
+                0,
+                1,
+                rspirv::spirv::ImageFormat::Unknown,
                 None,
             );
 
-            let p_type = builder.type_pointer(
+            let p_type =
+                builder.type_pointer(None, rspirv::spirv::StorageClass::UniformConstant, t_type);
+
+            let variable = builder.variable(
+                p_type,
                 None,
                 rspirv::spirv::StorageClass::UniformConstant,
-                t_type,
-            );
-
-            let variable = builder.variable(p_type, None, rspirv::spirv::StorageClass::UniformConstant, None);
-
-            builder.decorate(
-                variable, 
-                rspirv::spirv::Decoration::DescriptorSet, 
-                Some(rspirv::dr::Operand::LiteralInt32(*set))
+                None,
             );
 
             builder.decorate(
-                variable, 
-                rspirv::spirv::Decoration::Binding, 
-                Some(rspirv::dr::Operand::LiteralInt32(*binding))
+                variable,
+                rspirv::spirv::Decoration::DescriptorSet,
+                Some(rspirv::dr::Operand::LiteralInt32(*set)),
+            );
+
+            builder.decorate(
+                variable,
+                rspirv::spirv::Decoration::Binding,
+                Some(rspirv::dr::Operand::LiteralInt32(*binding)),
             );
 
             if let Some(name) = *name {
-                builder.name(
-                    variable,
-                    name
-                )
+                builder.name(variable, name)
             }
 
             (variable, t_type)
@@ -522,31 +590,37 @@ fn process_textures(
         .collect::<Vec<_>>()
 }
 
-fn process_samplers(builder: &mut rspirv::dr::Builder, samplers: &[(u32, u32, Option<&'static str>)]) -> Vec<(u32, u32)> {
+fn process_samplers(
+    builder: &mut rspirv::dr::Builder,
+    samplers: &[(u32, u32, Option<&'static str>)],
+) -> Vec<(u32, u32)> {
     samplers
         .iter()
         .map(|(set, binding, name)| {
             let b_type = builder.type_sampler();
-            let p_type = builder.type_pointer(None, rspirv::spirv::StorageClass::UniformConstant, b_type);
-            let variable = builder.variable(p_type, None, rspirv::spirv::StorageClass::UniformConstant, None);
-    
-            builder.decorate(
-                variable, 
-                rspirv::spirv::Decoration::DescriptorSet, 
-                Some(rspirv::dr::Operand::LiteralInt32(*set))
+            let p_type =
+                builder.type_pointer(None, rspirv::spirv::StorageClass::UniformConstant, b_type);
+            let variable = builder.variable(
+                p_type,
+                None,
+                rspirv::spirv::StorageClass::UniformConstant,
+                None,
             );
-    
+
             builder.decorate(
-                variable, 
-                rspirv::spirv::Decoration::Binding, 
-                Some(rspirv::dr::Operand::LiteralInt32(*binding))
+                variable,
+                rspirv::spirv::Decoration::DescriptorSet,
+                Some(rspirv::dr::Operand::LiteralInt32(*set)),
             );
-    
+
+            builder.decorate(
+                variable,
+                rspirv::spirv::Decoration::Binding,
+                Some(rspirv::dr::Operand::LiteralInt32(*binding)),
+            );
+
             if let Some(name) = *name {
-                builder.name(
-                    variable,
-                    name
-                )
+                builder.name(variable, name)
             }
 
             (variable, b_type)
@@ -555,7 +629,7 @@ fn process_samplers(builder: &mut rspirv::dr::Builder, samplers: &[(u32, u32, Op
 }
 
 fn process_sampled_textures(
-    builder: &mut rspirv::dr::Builder, 
+    builder: &mut rspirv::dr::Builder,
     textures: &[(
         rspirv::spirv::Dim,
         crate::texture::Component,
@@ -570,43 +644,42 @@ fn process_sampled_textures(
         .map(|(dimension, component, arrayed, set, binding, name)| {
             let c_type = component.base_type(builder);
             let t_type = builder.type_image(
-                c_type, 
-                *dimension, 
-                0, 
-                if *arrayed { 1 } else { 0 }, 
-                0, 
-                1, 
-                rspirv::spirv::ImageFormat::Unknown, 
+                c_type,
+                *dimension,
+                0,
+                if *arrayed { 1 } else { 0 },
+                0,
+                1,
+                rspirv::spirv::ImageFormat::Unknown,
                 None,
             );
 
             let st_type = builder.type_sampled_image(t_type);
 
-            let p_type = builder.type_pointer(
+            let p_type =
+                builder.type_pointer(None, rspirv::spirv::StorageClass::UniformConstant, st_type);
+
+            let variable = builder.variable(
+                p_type,
                 None,
                 rspirv::spirv::StorageClass::UniformConstant,
-                st_type,
-            );
-
-            let variable = builder.variable(p_type, None, rspirv::spirv::StorageClass::UniformConstant, None);
-
-            builder.decorate(
-                variable, 
-                rspirv::spirv::Decoration::DescriptorSet, 
-                Some(rspirv::dr::Operand::LiteralInt32(*set))
+                None,
             );
 
             builder.decorate(
-                variable, 
-                rspirv::spirv::Decoration::Binding, 
-                Some(rspirv::dr::Operand::LiteralInt32(*binding))
+                variable,
+                rspirv::spirv::Decoration::DescriptorSet,
+                Some(rspirv::dr::Operand::LiteralInt32(*set)),
+            );
+
+            builder.decorate(
+                variable,
+                rspirv::spirv::Decoration::Binding,
+                Some(rspirv::dr::Operand::LiteralInt32(*binding)),
             );
 
             if let Some(name) = *name {
-                builder.name(
-                    variable,
-                    name
-                )
+                builder.name(variable, name)
             }
 
             (variable, st_type)
@@ -615,7 +688,7 @@ fn process_sampled_textures(
 }
 
 fn process_io(
-    builder: &mut rspirv::dr::Builder, 
+    builder: &mut rspirv::dr::Builder,
     io: &[(
         PrimitiveType,
         Either<(u32, bool), rspirv::spirv::BuiltIn>,
@@ -638,13 +711,9 @@ fn process_io(
                         [rspirv::dr::Operand::LiteralInt32(*location)],
                     );
                     if *flat {
-                        builder.decorate(
-                            variable, 
-                            rspirv::spirv::Decoration::Flat,
-                            [],
-                        );
+                        builder.decorate(variable, rspirv::spirv::Decoration::Flat, []);
                     }
-                },
+                }
                 Right(built_in) => builder.decorate(
                     variable,
                     rspirv::spirv::Decoration::BuiltIn,
@@ -678,14 +747,9 @@ macro_rules! io_interp_types {
 }
 
 io_interp_types!(
-    in_float, out_float, Float,
-    in_vec2, out_vec2, Vec2,
-    in_vec3, out_vec3, Vec3,
-    in_vec4, out_vec4, Vec4,
-    in_double, out_double, Double,
-    in_dvec2, out_dvec2, DVec2,
-    in_dvec3, out_dvec3, DVec3,
-    in_dvec4, out_dvec4, DVec4,
+    in_float, out_float, Float, in_vec2, out_vec2, Vec2, in_vec3, out_vec3, Vec3, in_vec4,
+    out_vec4, Vec4, in_double, out_double, Double, in_dvec2, out_dvec2, DVec2, in_dvec3, out_dvec3,
+    DVec3, in_dvec4, out_dvec4, DVec4,
 );
 
 macro_rules! io_no_interp_types {
@@ -705,14 +769,7 @@ macro_rules! io_no_interp_types {
 }
 
 io_no_interp_types!(
-    in_bool, out_bool, Bool,
-    in_int, out_int, Int,
-    in_ivec2, out_ivec2, IVec2,
-    in_ivec3, out_ivec3, IVec3,
-    in_ivec4, out_ivec4, IVec4,
-    in_uint, out_uint, UInt,
-    in_uvec2, out_uvec2, UVec2,
-    in_uvec3, out_uvec3, UVec3,
-    in_uvec4, out_uvec4, UVec4,
-    
+    in_bool, out_bool, Bool, in_int, out_int, Int, in_ivec2, out_ivec2, IVec2, in_ivec3, out_ivec3,
+    IVec3, in_ivec4, out_ivec4, IVec4, in_uint, out_uint, UInt, in_uvec2, out_uvec2, UVec2,
+    in_uvec3, out_uvec3, UVec3, in_uvec4, out_uvec4, UVec4,
 );

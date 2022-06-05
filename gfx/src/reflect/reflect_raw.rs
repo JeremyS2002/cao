@@ -55,7 +55,13 @@ pub(crate) fn combine_descriptor_set_layouts(
     device: &gpu::Device,
     descriptor_set_layouts: HashMap<u32, HashMap<u32, gpu::DescriptorLayoutEntry>>,
     name: &Option<String>,
-) -> Result<(Vec<gpu::DescriptorLayout>, Vec<Vec<(gpu::DescriptorLayoutEntryType, u32)>>), gpu::Error> {
+) -> Result<
+    (
+        Vec<gpu::DescriptorLayout>,
+        Vec<Vec<(gpu::DescriptorLayoutEntryType, u32)>>,
+    ),
+    gpu::Error,
+> {
     // sort the hashmaps into ordered vecs
     let mut sorted = descriptor_set_layouts
         .into_iter()
@@ -71,13 +77,7 @@ pub(crate) fn combine_descriptor_set_layouts(
     // get the resource types
     let resource_types = sorted
         .iter()
-        .map(|v| {
-            v.iter()
-                .map(|e| {
-                    (e.ty, e.count.get())
-                })
-                .collect::<Vec<_>>()
-        })
+        .map(|v| v.iter().map(|e| (e.ty, e.count.get())).collect::<Vec<_>>())
         .collect::<Vec<_>>();
 
     let mut i = 0;
@@ -85,7 +85,9 @@ pub(crate) fn combine_descriptor_set_layouts(
     let descriptor_set_layouts = sorted
         .into_iter()
         .map(|v| {
-            let layout_name = name.as_ref().map(|n| format!("{}_descriptor_layout_{}", n, i));
+            let layout_name = name
+                .as_ref()
+                .map(|n| format!("{}_descriptor_layout_{}", n, i));
             let l = device.create_descriptor_layout(&gpu::DescriptorLayoutDesc {
                 name: layout_name,
                 entries: &v,
@@ -339,7 +341,9 @@ pub(crate) fn parse_descriptor_set_layouts(
                         bindings_map.insert(
                             binding.binding,
                             gpu::DescriptorLayoutEntry {
-                                ty: gpu::DescriptorLayoutEntryType::StorageBuffer { read_only: false },
+                                ty: gpu::DescriptorLayoutEntryType::StorageBuffer {
+                                    read_only: false,
+                                },
                                 stage: shader_stage,
                                 count: NonZeroU32::new(binding.count).unwrap(),
                             },
@@ -409,7 +413,9 @@ pub(crate) fn parse_descriptor_set_layouts(
                         bindings_map.insert(
                             binding.binding,
                             gpu::DescriptorLayoutEntry {
-                                ty: gpu::DescriptorLayoutEntryType::StorageTexture { read_only: false },
+                                ty: gpu::DescriptorLayoutEntryType::StorageTexture {
+                                    read_only: false,
+                                },
                                 stage: shader_stage,
                                 count: NonZeroU32::new(binding.count).unwrap(),
                             },

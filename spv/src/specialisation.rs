@@ -7,7 +7,7 @@ pub trait ShaderTY {
     #[cfg(feature = "gpu")]
     const GPU_STAGE: gpu::ShaderStages;
 
-    fn specialize(_b: &mut rspirv::dr::Builder, _main: rspirv::spirv::Word) { }
+    fn specialize(_b: &mut rspirv::dr::Builder, _main: rspirv::spirv::Word) {}
 }
 
 pub struct Vertex {}

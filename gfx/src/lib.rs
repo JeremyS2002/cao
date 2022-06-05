@@ -11,11 +11,11 @@ pub mod uniform;
 pub use encoder::CommandEncoder;
 pub use mesh::*;
 pub use prelude::*;
+#[cfg(any(feature = "reflect", feature = "spirv"))]
+pub use reflect::*;
 pub use storage::*;
 pub use texture::*;
 pub use uniform::*;
-#[cfg(any(feature = "reflect", feature = "spirv"))]
-pub use reflect::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Attachment<'a> {

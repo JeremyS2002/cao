@@ -1,10 +1,10 @@
 #[cfg(feature = "reflect")]
 use std::any::TypeId;
 use std::borrow::Cow;
-use std::collections::HashMap;
-use std::mem::ManuallyDrop as Md;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::hash::Hash;
+use std::mem::ManuallyDrop as Md;
 
 pub mod command;
 
@@ -269,27 +269,39 @@ impl<'a> CommandEncoder<'a> {
             panic!("Cannot begin graphics pass with no color or depth attachments");
         };
 
-        let colors_desc = colors.iter().map(|a| gpu::ColorAttachmentDesc {
-            format: a.raw.view().format(),
-            load: a.load,
-            store: a.store,
-            initial_layout: gpu::TextureLayout::ColorAttachmentOptimal,
-            // for normal textures will just return General but for swapchain will return SwapchainPresent
-            final_layout: a.raw.view().texture().initial_layout(),
-        }).collect::<Vec<_>>();
+        let colors_desc = colors
+            .iter()
+            .map(|a| gpu::ColorAttachmentDesc {
+                format: a.raw.view().format(),
+                load: a.load,
+                store: a.store,
+                initial_layout: gpu::TextureLayout::ColorAttachmentOptimal,
+                // for normal textures will just return General but for swapchain will return SwapchainPresent
+                final_layout: a.raw.view().texture().initial_layout(),
+            })
+            .collect::<Vec<_>>();
 
-        let resolves_desc = resolves.iter().map(|a| gpu::ResolveAttachmentDesc {
-            load: a.load,
-            store: a.store,
-            initial_layout: gpu::TextureLayout::ColorAttachmentOptimal,
-            final_layout: a.raw.view().texture().initial_layout(),
-        }).collect::<Vec<_>>();
+        let resolves_desc = resolves
+            .iter()
+            .map(|a| gpu::ResolveAttachmentDesc {
+                load: a.load,
+                store: a.store,
+                initial_layout: gpu::TextureLayout::ColorAttachmentOptimal,
+                final_layout: a.raw.view().texture().initial_layout(),
+            })
+            .collect::<Vec<_>>();
 
         let depth_desc = depth.as_ref().map(|a| gpu::DepthAttachmentDesc {
             format: a.raw.view().format(),
             load: a.load,
             store: a.store,
-            initial_layout: if a.raw.view().format().aspects().contains(gpu::TextureAspects::STENCIL) {
+            initial_layout: if a
+                .raw
+                .view()
+                .format()
+                .aspects()
+                .contains(gpu::TextureAspects::STENCIL)
+            {
                 gpu::TextureLayout::DepthStencilAttachmentOptimal
             } else {
                 gpu::TextureLayout::DepthAttachmentOptimal
@@ -321,7 +333,11 @@ impl<'a> CommandEncoder<'a> {
 
         if let None = c.get(&key) {
             drop(c);
-            let pass_name = graphics.pipeline_data.name.as_ref().map(|n| format!("{}_pass_{}", n, pass_hash));
+            let pass_name = graphics
+                .pipeline_data
+                .name
+                .as_ref()
+                .map(|n| format!("{}_pass_{}", n, pass_hash));
 
             let pass = device.create_render_pass(&gpu::RenderPassDesc {
                 name: pass_name,
@@ -339,7 +355,11 @@ impl<'a> CommandEncoder<'a> {
 
             let vertex_states = &[vertex_state];
 
-            let pipeline_name = graphics.pipeline_data.name.as_ref().map(|n| format!("{}_pipeline", n));
+            let pipeline_name = graphics
+                .pipeline_data
+                .name
+                .as_ref()
+                .map(|n| format!("{}_pipeline", n));
 
             let mut desc = gpu::GraphicsPipelineDesc {
                 name: pipeline_name,

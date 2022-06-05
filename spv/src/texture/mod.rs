@@ -4,14 +4,13 @@ use either::Either;
 
 use crate::PrimitiveType;
 
-
 pub trait AsDimension {
     const DIM: rspirv::spirv::Dim;
 
     type Coord;
 }
 
-pub struct D1 { }
+pub struct D1 {}
 
 impl AsDimension for D1 {
     const DIM: rspirv::spirv::Dim = rspirv::spirv::Dim::Dim1D;
@@ -19,7 +18,7 @@ impl AsDimension for D1 {
     type Coord = crate::Float;
 }
 
-pub struct D2 { }
+pub struct D2 {}
 
 impl AsDimension for D2 {
     const DIM: rspirv::spirv::Dim = rspirv::spirv::Dim::Dim2D;
@@ -27,7 +26,7 @@ impl AsDimension for D2 {
     type Coord = crate::Vec2;
 }
 
-pub struct D3 { }
+pub struct D3 {}
 
 impl AsDimension for D3 {
     const DIM: rspirv::spirv::Dim = rspirv::spirv::Dim::Dim3D;
@@ -35,7 +34,7 @@ impl AsDimension for D3 {
     type Coord = crate::Vec3;
 }
 
-pub struct Cube { }
+pub struct Cube {}
 
 impl AsDimension for Cube {
     const DIM: rspirv::spirv::Dim = rspirv::spirv::Dim::DimCube;
@@ -104,7 +103,7 @@ impl AsComponent for crate::UInt {
     type Read = crate::UVec2;
 }
 
-/// A Raw texture, can be used to read pixels or combined with a sampler to 
+/// A Raw texture, can be used to read pixels or combined with a sampler to
 /// create a [`SpvSampledGTexture`] which can then be sampled from
 pub struct SpvGTexture<D: AsDimension, C: AsComponent> {
     pub(crate) index: usize,

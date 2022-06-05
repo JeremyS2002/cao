@@ -42,7 +42,7 @@ pub enum BuilderConfigError {
         dst_stage_name: Option<&'static str>,
         src_type: spv::PrimitiveType,
         dst_type: spv::PrimitiveType,
-    }
+    },
 }
 
 impl std::error::Error for BuilderConfigError {}
@@ -50,13 +50,17 @@ impl std::error::Error for BuilderConfigError {}
 impl std::fmt::Display for BuilderConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            BuilderConfigError::StageIncompatibility { 
-                location, 
-                src_stage_name, 
-                dst_stage_name, 
-                src_type, 
-                dst_type 
-            } => writeln!(f, "ERROR: Stage Incompatibility, location: {}, src: ({:?}, {:?}), dst: ({:?}, {:?})", location, src_stage_name, src_type, dst_stage_name, dst_type),
+            BuilderConfigError::StageIncompatibility {
+                location,
+                src_stage_name,
+                dst_stage_name,
+                src_type,
+                dst_type,
+            } => writeln!(
+                f,
+                "ERROR: Stage Incompatibility, location: {}, src: ({:?}, {:?}), dst: ({:?}, {:?})",
+                location, src_stage_name, src_type, dst_stage_name, dst_type
+            ),
         }
     }
 }

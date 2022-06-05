@@ -1226,7 +1226,7 @@ pub enum VertexFormat {
     /// In glsl looks like `layout(location = _) in float in_f;
     Float,
     // /// Input a double
-    // /// 
+    // ///
     // /// In glsl looks like `layout(location = _) in double in_d;
     // Double,
     /// Input a Vec2
@@ -1242,15 +1242,15 @@ pub enum VertexFormat {
     /// In glsl looks like `layout(location = _) in vec4 in_v4;
     Vec4,
     // /// Input a dvec2
-    // /// 
+    // ///
     // /// In glsl looks like `layout(location = _) in dvec2 in_dv2;
     // DVec2,
     // /// Input a dvec3
-    // /// 
+    // ///
     // /// In glsl looks like `layout(location = _) in dvec3 in_dv3;
     // DVec3,
     // /// Input a dvec4
-    // /// 
+    // ///
     // /// In glsl looks like `layout(location = _) in dvec4 in_dv4;
     // DVec4,
 }
@@ -1733,7 +1733,7 @@ pub enum DescriptorLayoutEntryType {
     /// TODO
     StorageTexture {
         /// If the texture is readonly or not
-        read_only: bool
+        read_only: bool,
     },
     /// At this location shaders should accept a combined texture/sampler
     ///

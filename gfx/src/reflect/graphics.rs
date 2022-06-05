@@ -144,11 +144,11 @@ impl ReflectedGraphics {
         let mut push_constant_names = HashMap::new();
 
         super::spirv_raw::process_shader(
-            &vertex, 
-            &mut descriptor_set_layouts, 
-            &mut descriptor_set_names, 
-            &mut push_constants, 
-            &mut push_constant_names
+            &vertex,
+            &mut descriptor_set_layouts,
+            &mut descriptor_set_names,
+            &mut push_constants,
+            &mut push_constant_names,
         );
 
         let vertex_spv = vertex.compile();
@@ -158,40 +158,48 @@ impl ReflectedGraphics {
             spirv: &vertex_spv,
         })?;
 
-        let geometry_module = geometry.map(|g| {
-            super::spirv_raw::process_shader(
-                &g, 
-                &mut descriptor_set_layouts, 
-                &mut descriptor_set_names, 
-                &mut push_constants, 
-                &mut push_constant_names
-            );
-            let spv = g.compile();
-            device.create_shader_module(&gpu::ShaderModuleDesc {
-                name: name.as_ref().map(|n| format!("{}_geometry_module", n)),
-                entries: &[(gpu::ShaderStages::GEOMETRY, "main")],
-                spirv: &spv,
+        let geometry_module = geometry
+            .map(|g| {
+                super::spirv_raw::process_shader(
+                    &g,
+                    &mut descriptor_set_layouts,
+                    &mut descriptor_set_names,
+                    &mut push_constants,
+                    &mut push_constant_names,
+                );
+                let spv = g.compile();
+                device.create_shader_module(&gpu::ShaderModuleDesc {
+                    name: name.as_ref().map(|n| format!("{}_geometry_module", n)),
+                    entries: &[(gpu::ShaderStages::GEOMETRY, "main")],
+                    spirv: &spv,
+                })
             })
-        }).transpose()?;
+            .transpose()?;
 
-        let fragment_module = fragment.map(|f| {
-            super::spirv_raw::process_shader(
-                &f, 
-                &mut descriptor_set_layouts, 
-                &mut descriptor_set_names, 
-                &mut push_constants, 
-                &mut push_constant_names
-            );
-            let spv = f.compile();
-            device.create_shader_module(&gpu::ShaderModuleDesc {
-                name: name.as_ref().map(|n| format!("{}_fragment_module", n)),
-                entries: &[(gpu::ShaderStages::FRAGMENT, "main")],
-                spirv: &spv,
+        let fragment_module = fragment
+            .map(|f| {
+                super::spirv_raw::process_shader(
+                    &f,
+                    &mut descriptor_set_layouts,
+                    &mut descriptor_set_names,
+                    &mut push_constants,
+                    &mut push_constant_names,
+                );
+                let spv = f.compile();
+                device.create_shader_module(&gpu::ShaderModuleDesc {
+                    name: name.as_ref().map(|n| format!("{}_fragment_module", n)),
+                    entries: &[(gpu::ShaderStages::FRAGMENT, "main")],
+                    spirv: &spv,
+                })
             })
-        }).transpose()?;
+            .transpose()?;
 
         let (descriptor_set_layouts, descriptor_set_types) =
-            super::spirv_raw::combine_descriptor_set_layouts(device, descriptor_set_layouts, &name)?;
+            super::spirv_raw::combine_descriptor_set_layouts(
+                device,
+                descriptor_set_layouts,
+                &name,
+            )?;
 
         let pipeline_layout = device.create_pipeline_layout(&gpu::PipelineLayoutDesc {
             name: name.as_ref().map(|n| format!("{}_pipeline_layout", n)),
@@ -317,7 +325,9 @@ impl ReflectedGraphics {
                     "fragment",
                 )?;
             } else {
-                super::reflect_raw::check_stage_compatibility(vertex, "vertex", fragment, "fragment")?;
+                super::reflect_raw::check_stage_compatibility(
+                    vertex, "vertex", fragment, "fragment",
+                )?;
             }
 
             let fragment_name = name.as_ref().map(|n| format!("{}_fragment_module", n));
@@ -340,7 +350,11 @@ impl ReflectedGraphics {
         };
 
         let (descriptor_set_layouts, descriptor_set_types) =
-            super::reflect_raw::combine_descriptor_set_layouts(device, descriptor_set_layouts, &name)?;
+            super::reflect_raw::combine_descriptor_set_layouts(
+                device,
+                descriptor_set_layouts,
+                &name,
+            )?;
 
         let pipeline_layout_name = name.as_ref().map(|n| format!("{}_pipeline_layout", n));
 
