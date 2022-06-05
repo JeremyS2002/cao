@@ -6,28 +6,29 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default       = ["all"]
-all           = ["image", "png", "jpeg", "gif", "tiff", "hdr", "reflect", "spirv"]
+default            = ["all"]
+all                = ["image", "png", "jpeg", "gif", "tiff", "hdr", "reflect", "spirv"]
 
-jpeg          = ["image", "image/jpeg"]
-png           = ["image", "image/png"]
-gif           = ["image", "image/gif"]
-tiff          = ["image", "image/tiff"]
-hdr           = ["image", "image/hdr"]
+jpeg               = ["image", "image/jpeg"]
+png                = ["image", "image/png"]
+gif                = ["image", "image/gif"]
+tiff               = ["image", "image/tiff"]
+hdr                = ["image", "image/hdr"]
 
-reflect       = ["spirv-reflect", "spirv_headers"]
+reflect            = ["spirv-reflect", "spirv_headers"]
 
-spirv           = ["reflect", "spv"]
+spirv              = ["reflect", "spv", "either"]
 
 [dependencies]
-gpu           = { path = "../gpu" }
-smallvec      = "^1.6.1"
-bytemuck      = "^1.4.1"
-parking_lot   = "^0.11.1"
-spirv-reflect = { version = "^0.2.3", optional=true }
-spirv_headers = { version = "^1.5.0", optional=true }
-image         = { version = "^0.23.12", default-features=false, optional=true }
-spv           = { path = "../spv", optional=true }
+gpu                = { path = "../gpu" }
+smallvec           = "^1.6.1"
+bytemuck           = "^1.4.1"
+parking_lot        = "^0.11.1"
+spirv-reflect      = { version = "^0.2.3", optional=true }
+spirv_headers      = { version = "^1.5.0", optional=true }
+image              = { version = "^0.23.12", default-features=false, optional=true }
+spv                = { path = "../spv", optional=true }
+either             = { version = "^1.6.1", optional=true }
 
 [dev-dependencies]
 winit              = "0.26.1"

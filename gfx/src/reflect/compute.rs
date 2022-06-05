@@ -13,7 +13,7 @@ pub struct ReflectedCompute {
     pub(crate) pipeline: gpu::ComputePipeline,
 
     pub(crate) descriptor_set_names: Option<HashMap<String, (usize, usize)>>,
-    pub(crate) descriptor_set_types: Option<Vec<Vec<super::ResourceType>>>,
+    pub(crate) descriptor_set_types: Option<Vec<Vec<(gpu::DescriptorLayoutEntryType, u32)>>>,
     pub(crate) descriptor_set_layouts: Option<Vec<gpu::DescriptorLayout>>,
 
     pub(crate) push_constant_names: Option<HashMap<String, (u32, gpu::ShaderStages, TypeId)>>,
@@ -36,7 +36,7 @@ impl ReflectedCompute {
         let mut descriptor_set_names = HashMap::new();
         let mut push_constants = Vec::new();
         let mut push_constant_names = HashMap::new();
-        let entry = super::raw::parse_spirv(
+        let entry = super::reflect_raw::parse_spirv(
             &mut descriptor_set_layouts,
             &mut descriptor_set_names,
             &mut push_constants,
@@ -54,7 +54,7 @@ impl ReflectedCompute {
         })?;
 
         let (descriptor_set_layouts, descriptor_set_types) =
-            super::raw::combine_descriptor_set_layouts(device, descriptor_set_layouts, &name)?;
+            super::reflect_raw::combine_descriptor_set_layouts(device, descriptor_set_layouts, &name)?;
 
         let pipeline_layout_name = name.as_ref().map(|n| format!("{}_pipeline_layout", n));
 

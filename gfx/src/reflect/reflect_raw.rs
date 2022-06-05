@@ -1,4 +1,3 @@
-use spirv_reflect::types::descriptor::ReflectDescriptorType;
 use spirv_reflect::types::ReflectTypeFlags;
 
 use std::any::TypeId;
@@ -56,7 +55,7 @@ pub(crate) fn combine_descriptor_set_layouts(
     device: &gpu::Device,
     descriptor_set_layouts: HashMap<u32, HashMap<u32, gpu::DescriptorLayoutEntry>>,
     name: &Option<String>,
-) -> Result<(Vec<gpu::DescriptorLayout>, Vec<Vec<super::ResourceType>>), gpu::Error> {
+) -> Result<(Vec<gpu::DescriptorLayout>, Vec<Vec<(gpu::DescriptorLayoutEntryType, u32)>>), gpu::Error> {
     // sort the hashmaps into ordered vecs
     let mut sorted = descriptor_set_layouts
         .into_iter()
@@ -75,43 +74,7 @@ pub(crate) fn combine_descriptor_set_layouts(
         .map(|v| {
             v.iter()
                 .map(|e| {
-                    let count = e.count.get();
-                    match e.ty {
-                        gpu::DescriptorLayoutEntryType::UniformBuffer => {
-                            super::ResourceType {
-                                ty: ReflectDescriptorType::UniformBuffer,
-                                count,
-                            }
-                        }
-                        gpu::DescriptorLayoutEntryType::StorageBuffer { .. }=> {
-                            super::ResourceType {
-                                ty: ReflectDescriptorType::StorageBuffer,
-                                count,
-                            }
-                        }
-                        gpu::DescriptorLayoutEntryType::SampledTexture => {
-                            super::ResourceType {
-                                ty: ReflectDescriptorType::SampledImage,
-                                count,
-                            }
-                        }
-                        gpu::DescriptorLayoutEntryType::StorageTexture { .. }=> {
-                            super::ResourceType {
-                                ty: ReflectDescriptorType::StorageImage,
-                                count,
-                            }
-                        }
-                        gpu::DescriptorLayoutEntryType::Sampler => super::ResourceType {
-                            ty: ReflectDescriptorType::Sampler,
-                            count,
-                        },
-                        gpu::DescriptorLayoutEntryType::CombinedTextureSampler => {
-                            super::ResourceType {
-                                ty: ReflectDescriptorType::CombinedImageSampler,
-                                count,
-                            }
-                        }
-                    }
+                    (e.ty, e.count.get())
                 })
                 .collect::<Vec<_>>()
         })

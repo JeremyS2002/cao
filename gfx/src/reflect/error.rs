@@ -1,7 +1,11 @@
 #[derive(Debug)]
 pub enum ReflectedError {
     /// An error from spirv-reflect
+    #[cfg(feature = "reflect")]
     Parse(ParseSpirvError),
+    /// An error from invalid builder
+    #[cfg(feature = "spirv")]
+    Builder(BuilderConfigError),
     /// An error from the gpu
     Gpu(gpu::Error),
 }
@@ -10,6 +14,7 @@ impl std::fmt::Display for ReflectedError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Parse(e) => writeln!(f, "{}", e),
+            Self::Builder(e) => writeln!(f, "{}", e),
             Self::Gpu(e) => writeln!(f, "{}", e),
         }
     }
@@ -26,6 +31,33 @@ impl From<ParseSpirvError> for ReflectedError {
 impl From<gpu::Error> for ReflectedError {
     fn from(e: gpu::Error) -> Self {
         Self::Gpu(e)
+    }
+}
+
+#[derive(Debug)]
+pub enum BuilderConfigError {
+    StageIncompatibility {
+        location: u32,
+        src_stage_name: Option<&'static str>,
+        dst_stage_name: Option<&'static str>,
+        src_type: spv::PrimitiveType,
+        dst_type: spv::PrimitiveType,
+    }
+}
+
+impl std::error::Error for BuilderConfigError {}
+
+impl std::fmt::Display for BuilderConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BuilderConfigError::StageIncompatibility { 
+                location, 
+                src_stage_name, 
+                dst_stage_name, 
+                src_type, 
+                dst_type 
+            } => writeln!(f, "ERROR: Stage Incompatibility, location: {}, src: ({:?}, {:?}), dst: ({:?}, {:?})", location, src_stage_name, src_type, dst_stage_name, dst_type),
+        }
     }
 }
 
@@ -110,8 +142,8 @@ impl From<&'static str> for ReflectError {
 pub enum SetResourceError {
     /// Expected resource type self.0 found self.1
     WrongType(
-        spirv_reflect::types::descriptor::ReflectDescriptorType,
-        spirv_reflect::types::descriptor::ReflectDescriptorType,
+        gpu::DescriptorLayoutEntryType,
+        gpu::DescriptorLayoutEntryType,
     ),
     /// Attempt to set resource at id self.0 not found
     IdNotFound(String),

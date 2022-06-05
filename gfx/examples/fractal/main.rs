@@ -63,11 +63,11 @@ struct Fractal {
 
     target: gfx::GTexture2D,
 
-    fractal_graphics: gfx::reflect::ReflectedGraphics,
-    fractal_bundle: gfx::reflect::Bundle,
+    fractal_graphics: gfx::ReflectedGraphics,
+    fractal_bundle: gfx::Bundle,
 
-    display_graphics: gfx::reflect::ReflectedGraphics,
-    display_bundle: gfx::reflect::Bundle,
+    display_graphics: gfx::ReflectedGraphics,
+    display_bundle: gfx::Bundle,
 
     mesh: gfx::IndexedMesh<Vertex>,
     uniform: gfx::Uniform<Uniform>,
@@ -158,11 +158,11 @@ impl Fractal {
         //     samples: gpu::Samples::S1,
         // })?;
 
-        let fractal_graphics = gfx::reflect::ReflectedGraphics::new(
+        let fractal_graphics = gfx::ReflectedGraphics::from_spv(
             &device,
             &gpu::include_spirv!("vert.spv"),
-            Some(&gpu::include_spirv!("fractal_frag.spv")),
             None,
+            Some(&gpu::include_spirv!("fractal_frag.spv")),
             // fractal_pass,
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
@@ -190,11 +190,11 @@ impl Fractal {
         //     samples: gpu::Samples::S1,
         // })?;
 
-        let display_graphics = gfx::reflect::ReflectedGraphics::new(
+        let display_graphics = gfx::ReflectedGraphics::from_spv(
             &device,
             &gpu::include_spirv!("vert.spv"),
-            Some(&gpu::include_spirv!("display_frag.spv")),
             None,
+            Some(&gpu::include_spirv!("display_frag.spv")),
             // display_pass,
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],

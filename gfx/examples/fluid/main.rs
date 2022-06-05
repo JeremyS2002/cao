@@ -110,18 +110,18 @@ unsafe impl bytemuck::Pod for VorticityParams {}
 
 #[allow(dead_code)]
 pub struct UniqueFields {
-    splat_stage: gfx::reflect::ReflectedGraphics,
-    advection_stage: gfx::reflect::ReflectedGraphics,
-    divergence_stage: gfx::reflect::ReflectedGraphics,
-    curl_stage: gfx::reflect::ReflectedGraphics,
-    vorticity_stage: gfx::reflect::ReflectedGraphics,
-    clear_stage: gfx::reflect::ReflectedGraphics,
-    pressure_stage: gfx::reflect::ReflectedGraphics,
-    grad_sub_stage: gfx::reflect::ReflectedGraphics,
-    display_stage: gfx::reflect::ReflectedGraphics,
+    splat_stage: gfx::ReflectedGraphics,
+    advection_stage: gfx::ReflectedGraphics,
+    divergence_stage: gfx::ReflectedGraphics,
+    curl_stage: gfx::ReflectedGraphics,
+    vorticity_stage: gfx::ReflectedGraphics,
+    clear_stage: gfx::ReflectedGraphics,
+    pressure_stage: gfx::ReflectedGraphics,
+    grad_sub_stage: gfx::ReflectedGraphics,
+    display_stage: gfx::ReflectedGraphics,
 
-    ink_splat_bundle: gfx::reflect::Bundle,
-    vel_splat_bundle: gfx::reflect::Bundle,
+    ink_splat_bundle: gfx::Bundle,
+    vel_splat_bundle: gfx::Bundle,
 
     curl: gfx::GTexture2D,
     divergence: gfx::GTexture2D,
@@ -133,15 +133,15 @@ pub struct DoubleFields {
     pressure: gfx::GTexture2D,
     ink: gfx::GTexture2D,
 
-    advect_vel_bundle: gfx::reflect::Bundle,
-    advect_ink_bundle: gfx::reflect::Bundle,
-    divergence_bundle: gfx::reflect::Bundle,
-    curl_bundle: gfx::reflect::Bundle,
-    vorticity_bundle: gfx::reflect::Bundle,
-    clear_bundle: gfx::reflect::Bundle,
-    pressure_bundle: gfx::reflect::Bundle,
-    grad_sub_bundle: gfx::reflect::Bundle,
-    display_bundle: gfx::reflect::Bundle,
+    advect_vel_bundle: gfx::Bundle,
+    advect_ink_bundle: gfx::Bundle,
+    divergence_bundle: gfx::Bundle,
+    curl_bundle: gfx::Bundle,
+    vorticity_bundle: gfx::Bundle,
+    clear_bundle: gfx::Bundle,
+    pressure_bundle: gfx::Bundle,
+    grad_sub_bundle: gfx::Bundle,
+    display_bundle: gfx::Bundle,
 }
 
 #[allow(dead_code)]
@@ -412,11 +412,11 @@ impl Fluid {
         let rasterizer = gpu::Rasterizer::default();
         let depth_state = None;
 
-        let splat_stage = gfx::reflect::ReflectedGraphics::new(
+        let splat_stage = gfx::ReflectedGraphics::from_spv(
             &device,
             &basic_vertex,
-            Some(&splat_fragment),
             None,
+            Some(&splat_fragment),
             rasterizer,
             &[gpu::BlendState::ADD],
             depth_state,
@@ -441,11 +441,11 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let advection_stage = gfx::reflect::ReflectedGraphics::new(
+        let advection_stage = gfx::ReflectedGraphics::from_spv(
             &device,
             &basic_vertex,
-            Some(&advection_fragment),
             None,
+            Some(&advection_fragment),
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
@@ -496,11 +496,11 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let divergence_stage = gfx::reflect::ReflectedGraphics::new(
+        let divergence_stage = gfx::ReflectedGraphics::from_spv(
             &device,
             &basic_vertex,
-            Some(&divergence_fragment),
             None,
+            Some(&divergence_fragment),
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
@@ -527,11 +527,11 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let curl_stage = gfx::reflect::ReflectedGraphics::new(
+        let curl_stage = gfx::ReflectedGraphics::from_spv(
             &device,
             &basic_vertex,
-            Some(&curl_fragment),
             None,
+            Some(&curl_fragment),
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
@@ -558,11 +558,11 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let vorticity_stage = gfx::reflect::ReflectedGraphics::new(
+        let vorticity_stage = gfx::ReflectedGraphics::from_spv(
             &device,
             &basic_vertex,
-            Some(&vorticity_fragment),
             None,
+            Some(&vorticity_fragment),
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
@@ -593,11 +593,11 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let clear_stage = gfx::reflect::ReflectedGraphics::new(
+        let clear_stage = gfx::ReflectedGraphics::from_spv(
             &device,
             &basic_vertex,
-            Some(&clear_fragment),
             None,
+            Some(&clear_fragment),
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
@@ -626,11 +626,11 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let pressure_stage = gfx::reflect::ReflectedGraphics::new(
+        let pressure_stage = gfx::ReflectedGraphics::from_spv(
             &device,
             &basic_vertex,
-            Some(&pressure_fragment),
             None,
+            Some(&pressure_fragment),
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
@@ -659,11 +659,11 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let grad_sub_stage = gfx::reflect::ReflectedGraphics::new(
+        let grad_sub_stage = gfx::ReflectedGraphics::from_spv(
             &device,
             &basic_vertex,
-            Some(&grad_sub_fragment),
             None,
+            Some(&grad_sub_fragment),
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
@@ -692,11 +692,11 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let display_stage = gfx::reflect::ReflectedGraphics::new(
+        let display_stage = gfx::ReflectedGraphics::from_spv(
             &device,
             &basic_vertex,
-            Some(&display_fragment),
             None,
+            Some(&display_fragment),
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
@@ -817,8 +817,8 @@ impl Fluid {
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         mesh: &'a gfx::IndexedMesh<Vertex>,
-        graphics: &gfx::reflect::ReflectedGraphics,
-        bundle: &gfx::reflect::Bundle,
+        graphics: &gfx::ReflectedGraphics,
+        bundle: &gfx::Bundle,
         output: &gpu::TextureView,
         load: gpu::LoadOp,
     ) -> Result<(), anyhow::Error> {

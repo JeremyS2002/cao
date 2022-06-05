@@ -242,7 +242,7 @@ impl<'a> CommandEncoder<'a> {
     }
 
     /// Begin a reflected graphics pass owning the data
-    #[cfg(feature = "reflect")]
+    #[cfg(any(feature = "reflect", feature = "spirv"))]
     pub fn graphics_pass_reflected<'b, V: crate::Vertex>(
         &'b mut self,
         device: &gpu::Device,
@@ -406,7 +406,7 @@ impl<'a> CommandEncoder<'a> {
     }
 
     /// Begin a reflected compute pass without borrowning the ReflectedCompute
-    #[cfg(feature = "reflect")]
+    #[cfg(any(feature = "reflect", feature = "spirv"))]
     pub fn compute_pass_reflected_ref<'b>(
         &'b mut self,
         compute: &'a crate::reflect::ReflectedCompute,
@@ -422,7 +422,7 @@ impl<'a> CommandEncoder<'a> {
     }
 
     /// Begin a reflected compute pass without borrowning the ReflectedCompute
-    #[cfg(feature = "reflect")]
+    #[cfg(any(feature = "reflect", feature = "spirv"))]
     pub fn compute_pass_reflected_owned<'b>(
         &'b mut self,
         compute: &crate::reflect::ReflectedCompute,

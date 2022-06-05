@@ -92,11 +92,11 @@ struct Slime {
 
     command: gpu::CommandBuffer,
 
-    update: gfx::reflect::ReflectedCompute,
-    update_bundle: gfx::reflect::Bundle,
+    update: gfx::ReflectedCompute,
+    update_bundle: gfx::Bundle,
 
-    fade: gfx::reflect::ReflectedCompute,
-    fade_bundle: gfx::reflect::Bundle,
+    fade: gfx::ReflectedCompute,
+    fade_bundle: gfx::Bundle,
 
     trail_map: gfx::GTexture2D,
     sampler: gpu::Sampler,
@@ -104,8 +104,8 @@ struct Slime {
     uniform: gfx::Uniform<Data>,
     agents: gfx::Storage<Agent>,
 
-    graphics: gfx::reflect::ReflectedGraphics,
-    graphics_bundle: gfx::reflect::Bundle,
+    graphics: gfx::ReflectedGraphics,
+    graphics_bundle: gfx::Bundle,
 
     prev_time: std::time::Instant,
     paused: bool,
@@ -161,7 +161,7 @@ impl Slime {
             None,
         )?;
 
-        let update = gfx::reflect::ReflectedCompute::new(
+        let update = gfx::ReflectedCompute::new(
             &device,
             &gpu::include_spirv!("update.spv"),
             None,
@@ -175,7 +175,7 @@ impl Slime {
             .set_resource("u_agents", &agents)?
             .build(&device)?;
 
-        let fade = gfx::reflect::ReflectedCompute::new(
+        let fade = gfx::ReflectedCompute::new(
             &device,
             &gpu::include_spirv!("fade.spv"),
             None,
@@ -204,12 +204,11 @@ impl Slime {
         //     samples: gpu::Samples::S1,
         // })?;
 
-        let graphics = gfx::reflect::ReflectedGraphics::new(
+        let graphics = gfx::ReflectedGraphics::from_spv(
             &device,
             &gpu::include_spirv!("display_vert.spv"),
-            Some(&gpu::include_spirv!("display_frag.spv")),
             None,
-            // display_pass,
+            Some(&gpu::include_spirv!("display_frag.spv")),
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,

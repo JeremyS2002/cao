@@ -5,8 +5,6 @@
 
 use std::collections::HashMap;
 
-use spirv_reflect::types::descriptor::ReflectDescriptorType;
-
 use super::error;
 use super::resource::Resource;
 
@@ -24,7 +22,7 @@ pub struct BundleBuilder<'a> {
     /// stores the name of a binding to its location
     pub(crate) map: &'a HashMap<String, (usize, usize)>,
     /// stores the types of bindings so check that the DescriptorSets created are valid
-    pub(crate) types: &'a [Vec<super::ResourceType>],
+    pub(crate) types: &'a [Vec<(gpu::DescriptorLayoutEntryType, u32)>],
     /// stores the bind descriptor layouts to create bind descriptors from
     pub(crate) layouts: &'a [gpu::DescriptorLayout],
     /// stores DescriptorSetEntries as options so that they can be filled in in any order
@@ -265,27 +263,27 @@ impl<'a> BundleBuilder<'a> {
             .expect("ERROR: Bundle created with largest set greater that max number of sets")
             .get(binding)
             .expect("ERROR: Bundle created with largest binding greater than max bindings")
-            .count
+            .1
             != 1
         {
             Err(error::SetResourceError::SingleExpected)?;
         }
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::SampledImage => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::SampledTexture => {
                 self.descriptors[set][binding] = Some(gpu::DescriptorSetEntry::texture_ref(
                     texture,
                     gpu::TextureLayout::General,
                 ))
             }
-            ReflectDescriptorType::StorageImage => {
+            gpu::DescriptorLayoutEntryType::StorageTexture { .. } => {
                 self.descriptors[set][binding] = Some(gpu::DescriptorSetEntry::texture_ref(
                     texture,
                     gpu::TextureLayout::General,
                 ))
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::SampledImage,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::SampledTexture,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)
@@ -304,27 +302,27 @@ impl<'a> BundleBuilder<'a> {
             .expect("ERROR: Bundle created with largest set greater that max number of sets")
             .get(binding)
             .expect("ERROR: Bundle created with largest binding greater than max bindings")
-            .count
+            .1
             != 1
         {
             Err(error::SetResourceError::SingleExpected)?;
         }
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::SampledImage => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::SampledTexture => {
                 self.descriptors[set][binding] = Some(gpu::DescriptorSetEntry::texture_owned(
                     texture,
                     gpu::TextureLayout::General,
                 ))
             }
-            ReflectDescriptorType::StorageImage => {
+            gpu::DescriptorLayoutEntryType::StorageTexture { .. } => {
                 self.descriptors[set][binding] = Some(gpu::DescriptorSetEntry::texture_owned(
                     texture,
                     gpu::TextureLayout::General,
                 ))
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::SampledImage,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::SampledTexture,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)
@@ -343,21 +341,21 @@ impl<'a> BundleBuilder<'a> {
             .expect("ERROR: Bundle created with largest set greater that max number of sets")
             .get(binding)
             .expect("ERROR: Bundle created with largest binding greater than max bindings")
-            .count
+            .1
             != 1
         {
             Err(error::SetResourceError::SingleExpected)?;
         }
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::UniformBuffer => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::UniformBuffer => {
                 self.descriptors[set][binding] = Some(gpu::DescriptorSetEntry::buffer(buffer))
             }
-            ReflectDescriptorType::StorageBuffer => {
+            gpu::DescriptorLayoutEntryType::StorageBuffer { .. } => {
                 self.descriptors[set][binding] = Some(gpu::DescriptorSetEntry::buffer(buffer))
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::UniformBuffer,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::UniformBuffer,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)
@@ -376,18 +374,18 @@ impl<'a> BundleBuilder<'a> {
             .expect("ERROR: Bundle created with largest set greater that max number of sets")
             .get(binding)
             .expect("ERROR: Bundle created with largest binding greater than max bindings")
-            .count
+            .1
             != 1
         {
             Err(error::SetResourceError::SingleExpected)?;
         }
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::Sampler => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::Sampler => {
                 self.descriptors[set][binding] = Some(gpu::DescriptorSetEntry::sampler_ref(sampler))
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::Sampler,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::Sampler,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)
@@ -406,19 +404,19 @@ impl<'a> BundleBuilder<'a> {
             .expect("ERROR: Bundle created with largest set greater that max number of sets")
             .get(binding)
             .expect("ERROR: Bundle created with largest binding greater than max bindings")
-            .count
+            .1
             != 1
         {
             Err(error::SetResourceError::SingleExpected)?;
         }
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::Sampler => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::Sampler => {
                 self.descriptors[set][binding] =
                     Some(gpu::DescriptorSetEntry::sampler_owned(sampler))
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::Sampler,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::Sampler,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)
@@ -437,13 +435,13 @@ impl<'a> BundleBuilder<'a> {
             .expect("ERROR: Bundle created with largest set greater that max number of sets")
             .get(binding)
             .expect("ERROR: Bundle created with largest binding greater than max bindings")
-            .count
+            .1
             != 1
         {
             Err(error::SetResourceError::SingleExpected)?;
         }
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::CombinedImageSampler => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::CombinedTextureSampler => {
                 self.descriptors[set][binding] =
                     Some(gpu::DescriptorSetEntry::combined_texture_sampler_ref(
                         combined.0,
@@ -452,8 +450,8 @@ impl<'a> BundleBuilder<'a> {
                     ))
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::CombinedImageSampler,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)
@@ -472,13 +470,13 @@ impl<'a> BundleBuilder<'a> {
             .expect("ERROR: Bundle created with largest set greater that max number of sets")
             .get(binding)
             .expect("ERROR: Bundle created with largest binding greater than max bindings")
-            .count
+            .1
             != 1
         {
             Err(error::SetResourceError::SingleExpected)?;
         }
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::CombinedImageSampler => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::CombinedTextureSampler => {
                 self.descriptors[set][binding] =
                     Some(gpu::DescriptorSetEntry::combined_texture_sampler_owned(
                         combined.0,
@@ -487,8 +485,8 @@ impl<'a> BundleBuilder<'a> {
                     ))
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::CombinedImageSampler,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)
@@ -501,8 +499,8 @@ impl<'a> BundleBuilder<'a> {
         binding: usize,
         textures: &[&'a gpu::TextureView],
     ) -> Result<Self, error::SetResourceError> {
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::SampledImage => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::SampledTexture => {
                 self.descriptors[set][binding] = Some(gpu::DescriptorSetEntry::texture_array_ref(
                     &textures
                         .iter()
@@ -510,7 +508,7 @@ impl<'a> BundleBuilder<'a> {
                         .collect::<Vec<_>>(),
                 ))
             }
-            ReflectDescriptorType::StorageImage => {
+            gpu::DescriptorLayoutEntryType::StorageTexture { .. } => {
                 self.descriptors[set][binding] = Some(gpu::DescriptorSetEntry::texture_array_ref(
                     &textures
                         .iter()
@@ -519,8 +517,8 @@ impl<'a> BundleBuilder<'a> {
                 ))
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::SampledImage,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::SampledTexture,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)
@@ -539,13 +537,13 @@ impl<'a> BundleBuilder<'a> {
             .expect("ERROR: Bundle created with largest set greater that max number of sets")
             .get(binding)
             .expect("ERROR: Bundle created with largest binding greater than max bindings")
-            .count
+            .1
             == 1
         {
             Err(error::SetResourceError::ArrayExpected)?;
         }
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::SampledImage => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::SampledTexture => {
                 self.descriptors[set][binding] = Some(gpu::DescriptorSetEntry::texture_array_owned(
                     textures
                         .into_iter()
@@ -553,7 +551,7 @@ impl<'a> BundleBuilder<'a> {
                         .collect::<Vec<_>>(),
                 ))
             }
-            ReflectDescriptorType::StorageImage => {
+            gpu::DescriptorLayoutEntryType::StorageTexture { .. } => {
                 self.descriptors[set][binding] = Some(gpu::DescriptorSetEntry::texture_array_owned(
                     textures
                         .into_iter()
@@ -562,8 +560,8 @@ impl<'a> BundleBuilder<'a> {
                 ))
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::SampledImage,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::SampledTexture,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)
@@ -582,23 +580,23 @@ impl<'a> BundleBuilder<'a> {
             .expect("ERROR: Bundle created with largest set greater that max number of sets")
             .get(binding)
             .expect("ERROR: Bundle created with largest binding greater than max bindings")
-            .count
+            .1
             == 1
         {
             Err(error::SetResourceError::ArrayExpected)?;
         }
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::UniformBuffer => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::UniformBuffer => {
                 self.descriptors[set][binding] =
                     Some(gpu::DescriptorSetEntry::buffer_array_ref(buffers))
             }
-            ReflectDescriptorType::StorageBuffer => {
+            gpu::DescriptorLayoutEntryType::StorageBuffer { .. } => {
                 self.descriptors[set][binding] =
                     Some(gpu::DescriptorSetEntry::buffer_array_ref(buffers))
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::UniformBuffer,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::UniformBuffer,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)
@@ -617,23 +615,23 @@ impl<'a> BundleBuilder<'a> {
             .expect("ERROR: Bundle created with largest set greater that max number of sets")
             .get(binding)
             .expect("ERROR: Bundle created with largest binding greater than max bindings")
-            .count
+            .1
             == 1
         {
             Err(error::SetResourceError::ArrayExpected)?;
         }
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::UniformBuffer => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::UniformBuffer => {
                 self.descriptors[set][binding] =
                     Some(gpu::DescriptorSetEntry::buffer_array_owned(buffers))
             }
-            ReflectDescriptorType::StorageBuffer => {
+            gpu::DescriptorLayoutEntryType::StorageBuffer { .. } => {
                 self.descriptors[set][binding] =
                     Some(gpu::DescriptorSetEntry::buffer_array_owned(buffers))
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::UniformBuffer,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::UniformBuffer,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)
@@ -652,19 +650,19 @@ impl<'a> BundleBuilder<'a> {
             .expect("ERROR: Bundle created with largest set greater that max number of sets")
             .get(binding)
             .expect("ERROR: Bundle created with largest binding greater than max bindings")
-            .count
+            .1
             == 1
         {
             Err(error::SetResourceError::ArrayExpected)?;
         }
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::Sampler => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::Sampler => {
                 self.descriptors[set][binding] =
                     Some(gpu::DescriptorSetEntry::sampler_array_ref(samplers))
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::Sampler,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::Sampler,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)
@@ -683,19 +681,19 @@ impl<'a> BundleBuilder<'a> {
             .expect("ERROR: Bundle created with largest set greater that max number of sets")
             .get(binding)
             .expect("ERROR: Bundle created with largest binding greater than max bindings")
-            .count
+            .1
             == 1
         {
             Err(error::SetResourceError::ArrayExpected)?;
         }
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::Sampler => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::Sampler => {
                 self.descriptors[set][binding] =
                     Some(gpu::DescriptorSetEntry::sampler_array_owned(samplers))
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::Sampler,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::Sampler,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)
@@ -714,13 +712,13 @@ impl<'a> BundleBuilder<'a> {
             .expect("ERROR: Bundle created with largest set greater that max number of sets")
             .get(binding)
             .expect("ERROR: Bundle created with largest binding greater than max bindings")
-            .count
+            .1
             == 1
         {
             Err(error::SetResourceError::ArrayExpected)?;
         }
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::CombinedImageSampler => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::CombinedTextureSampler => {
                 self.descriptors[set][binding] =
                     Some(gpu::DescriptorSetEntry::combined_texture_sampler_array_ref(
                         &combined
@@ -730,8 +728,8 @@ impl<'a> BundleBuilder<'a> {
                     ))
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::CombinedImageSampler,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)
@@ -750,13 +748,13 @@ impl<'a> BundleBuilder<'a> {
             .expect("ERROR: Bundle created with largest set greater that max number of sets")
             .get(binding)
             .expect("ERROR: Bundle created with largest binding greater than max bindings")
-            .count
+            .1
             == 1
         {
             Err(error::SetResourceError::ArrayExpected)?;
         }
-        match self.types[set][binding].ty {
-            ReflectDescriptorType::CombinedImageSampler => {
+        match self.types[set][binding].0 {
+            gpu::DescriptorLayoutEntryType::CombinedTextureSampler => {
                 self.descriptors[set][binding] = Some(
                     gpu::DescriptorSetEntry::combined_texture_sampler_array_owned(
                         combined
@@ -767,8 +765,8 @@ impl<'a> BundleBuilder<'a> {
                 )
             }
             _ => Err(error::SetResourceError::WrongType(
-                ReflectDescriptorType::CombinedImageSampler,
-                self.types[set][binding].ty,
+                gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
+                self.types[set][binding].0,
             ))?,
         }
         Ok(self)

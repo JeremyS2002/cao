@@ -2,7 +2,7 @@ pub mod encoder;
 pub mod mesh;
 pub mod pass;
 pub mod prelude;
-#[cfg(feature = "reflect")]
+#[cfg(any(feature = "reflect", feature = "spirv"))]
 pub mod reflect;
 pub mod storage;
 pub mod texture;
@@ -14,6 +14,8 @@ pub use prelude::*;
 pub use storage::*;
 pub use texture::*;
 pub use uniform::*;
+#[cfg(any(feature = "reflect", feature = "spirv"))]
+pub use reflect::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Attachment<'a> {
