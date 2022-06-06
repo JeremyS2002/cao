@@ -4,11 +4,13 @@ fn main() {
     let src = "
         #version 450
 
-        layout(set = 0, binding = 0) uniform texture2D u_tex;
-        layout(set = 0, binding = 1) uniform sampler u_sam;
+        layout(push_constant) uniform Data {
+            float x;
+            float y;
+        } p_data;
 
         void main() {
-            vec4 t = texture(sampler2D(u_tex, u_sam), vec2(0.0));
+            float z = p_data.x + p_data.y;
         }
     ";
 

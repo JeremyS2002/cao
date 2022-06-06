@@ -143,6 +143,27 @@ impl ReflectedGraphics {
         let mut push_constants = Vec::new();
         let mut push_constant_names = HashMap::new();
 
+        if let Some(geometry) = &geometry {
+            super::spirv_raw::check_stage_compatibility(
+                &vertex, 
+                geometry,
+            )?;
+            
+            if let Some(fragment) = &fragment {
+                super::spirv_raw::check_stage_compatibility(
+                    geometry, 
+                    fragment,
+                )?;
+            }
+        } else {
+            if let Some(fragment) = &fragment {
+                super::spirv_raw::check_stage_compatibility(
+                    &vertex, 
+                    fragment,
+                )?;
+            }
+        }
+
         super::spirv_raw::process_shader(
             &vertex,
             &mut descriptor_set_layouts,

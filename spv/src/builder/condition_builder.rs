@@ -45,6 +45,10 @@ impl RawBuilder for RawConditionBuilder {
     fn in_loop(&self) -> bool {
         self.builder.in_loop()
     }
+
+    fn push_constant(&self) -> Option<(DataType, Option<&'static str>)> {
+        self.builder.push_constant()
+    }
 }
 
 impl Drop for RawConditionBuilder {

@@ -106,11 +106,11 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         }
     }
 
-    pub fn instructions(&self) -> Vec<builder::Instruction> {
+    pub fn get_instructions(&self) -> Vec<builder::Instruction> {
         (*self.raw.main.borrow()).clone()
     }
 
-    pub fn inputs(
+    pub fn get_inputs(
         &self,
     ) -> Vec<(
         PrimitiveType,
@@ -120,7 +120,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         (*self.raw.inputs.borrow()).clone()
     }
 
-    pub fn outputs(
+    pub fn get_outputs(
         &self,
     ) -> Vec<(
         PrimitiveType,
@@ -130,13 +130,17 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         (*self.raw.outputs.borrow()).clone()
     }
 
-    pub fn uniforms(&self) -> Vec<(DataType, u32, u32, Option<&'static str>)> {
+    pub fn get_push_constant(&self) -> Option<(DataType, Option<&'static str>)> {
+        (*self.raw.push_constant.borrow()).clone()
+    }
+
+    pub fn get_uniforms(&self) -> Vec<(DataType, u32, u32, Option<&'static str>)> {
         (*self.raw.uniforms.borrow()).clone()
     }
 
-    //pub fn storage(&self) -> Vec<()
+    //pub fn get_storage(&self) -> Vec<()
 
-    pub fn textures(
+    pub fn get_textures(
         &self,
     ) -> Vec<(
         rspirv::spirv::Dim,
@@ -149,11 +153,11 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         (*self.raw.textures.borrow()).clone()
     }
 
-    pub fn samplers(&self) -> Vec<(u32, u32, Option<&'static str>)> {
+    pub fn get_samplers(&self) -> Vec<(u32, u32, Option<&'static str>)> {
         (*self.raw.samplers.borrow()).clone()
     }
 
-    pub fn sampled_textures(
+    pub fn get_sampled_textures(
         &self,
     ) -> Vec<(
         rspirv::spirv::Dim,
@@ -167,7 +171,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
     }
 
     #[cfg(feature = "gpu")]
-    pub fn descriptor_layout_entry(
+    pub fn get_descriptor_layout_entry(
         &self,
         set: u32,
         binding: u32,
@@ -176,13 +180,13 @@ impl<T: specialisation::ShaderTY> Builder<T> {
     }
 
     #[cfg(feature = "gpu")]
-    pub fn descriptor_layout_entries(
+    pub fn get_descriptor_layout_entries(
         &self,
     ) -> HashMap<(u32, u32), (gpu::DescriptorLayoutEntry, Option<&'static str>)> {
         (*self.raw.map.borrow()).clone()
     }
 
-    pub fn functions(&self) -> HashMap<usize, Vec<Instruction>> {
+    pub fn get_functions(&self) -> HashMap<usize, Vec<Instruction>> {
         (*self.raw.functions.borrow()).clone()
     }
 
@@ -241,6 +245,13 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             index,
             _marker: PhantomData,
         }
+    }
+
+    pub fn push_constant<D: IsDataType>(&self, name: Option<&'static str>) {
+        if self.raw.push_constant.borrow().is_some() {
+            panic!("ERROR: Cannot create shader module with more than one set of push constants");
+        }
+        *self.raw.push_constant.borrow_mut() = Some((D::TY, name))
     }
 
     pub fn uniform<D: IsDataType>(
@@ -454,6 +465,11 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             &self.raw.outputs.borrow(),
             rspirv::spirv::StorageClass::Output,
         );
+        let push_constant = process_push_constant(
+            &mut builder, 
+            &self.raw.push_constant.borrow(), 
+            &mut struct_map
+        );
 
         let mut interface = inputs.clone();
         interface.extend_from_slice(&outputs);
@@ -476,10 +492,11 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             textures: &textures,
             samplers: &samplers,
             sampled_textures: &sampled_textures,
+            push_constant,
             var_block,
         };
 
-        for mut instruction in self.instructions() {
+        for mut instruction in self.get_instructions() {
             instruction.process(&mut builder, &mut s, None, None);
         }
 
@@ -488,6 +505,35 @@ impl<T: specialisation::ShaderTY> Builder<T> {
 
         builder.module().assemble()
     }
+}
+
+fn process_push_constant(
+    builder: &mut rspirv::dr::Builder, 
+    borrow: &std::cell::Ref<Option<(DataType, Option<&str>)>>, 
+    struct_map: &mut HashMap<std::any::TypeId, u32>
+) -> Option<(u32, DataType)> {
+    borrow.map(|b| {
+        let base_type = b.0.pointer_type(builder, struct_map);
+        let outer_type = builder.type_struct([base_type]);
+
+        builder.decorate(outer_type, rspirv::spirv::Decoration::Block, None);
+        builder.member_decorate(
+            outer_type,
+            0,
+            rspirv::spirv::Decoration::Offset,
+            [rspirv::dr::Operand::LiteralInt32(0)],
+        );
+
+        let pointer_type = builder.type_pointer(None, rspirv::spirv::StorageClass::PushConstant, outer_type);
+
+        let variable = builder.variable(pointer_type, None, rspirv::spirv::StorageClass::PushConstant, None);
+
+        if let Some(name) = b.1 {
+            builder.name(variable, name)
+        }
+
+        (variable, b.0)
+    })
 }
 
 fn process_uniforms(

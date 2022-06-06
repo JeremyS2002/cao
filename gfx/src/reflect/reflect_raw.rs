@@ -170,8 +170,10 @@ pub(crate) fn check_stage_compatibility(
 
     inputs.sort_unstable_by(|a, b| a.location.cmp(&b.location));
 
-    for output in outputs.iter() {
-        if let Some(input) = inputs.iter().find(|v| v.location == output.location) {
+    for input in inputs.iter() {
+        // I don't know why I did this when they are already sorted by location but don't want to change it
+        // TODO test this
+        if let Some(output) = outputs.iter().find(|v| v.location == input.location) {
             let undefined = spirv_reflect::types::ReflectFormat::Undefined;
             if output.format != input.format
                 && output.format != undefined

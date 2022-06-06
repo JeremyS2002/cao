@@ -19,6 +19,7 @@ pub(crate) struct RawBaseBuilder {
             Option<&'static str>,
         )>,
     >,
+    pub(crate) push_constant: RefCell<Option<(DataType, Option<&'static str>)>>,
     pub(crate) uniforms: RefCell<Vec<(DataType, u32, u32, Option<&'static str>)>>,
     pub(crate) storages: RefCell<Vec<(DataType, u32, u32, Option<&'static str>)>>,
     pub(crate) textures: RefCell<
@@ -54,6 +55,7 @@ impl RawBaseBuilder {
         Self {
             inputs: RefCell::new(Vec::new()),
             outputs: RefCell::new(Vec::new()),
+            push_constant: RefCell::new(None),
             uniforms: RefCell::new(Vec::new()),
             storages: RefCell::new(Vec::new()),
             textures: RefCell::new(Vec::new()),

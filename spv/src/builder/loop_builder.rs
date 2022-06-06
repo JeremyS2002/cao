@@ -33,6 +33,10 @@ impl RawBuilder for RawLoopBuilder {
     fn in_loop(&self) -> bool {
         true
     }
+
+    fn push_constant(&self) -> Option<(DataType, Option<&'static str>)> {
+        self.builder.push_constant()
+    }
 }
 
 impl Drop for RawLoopBuilder {

@@ -25,6 +25,12 @@ impl RawBuilder for RawMainBuilder {
     fn in_loop(&self) -> bool {
         false
     }
+
+    fn push_constant(&self) -> Option<(crate::DataType, Option<&'static str>)> {
+        (*self.builder.push_constant.borrow()).clone()
+    }
+
+    
 }
 
 impl Drop for RawMainBuilder {

@@ -79,6 +79,8 @@ pub trait RawBuilder: AsAny {
     fn get_new_id(&self) -> usize;
 
     fn in_loop(&self) -> bool;
+
+    fn push_constant(&self) -> Option<(DataType, Option<&'static str>)>;
 }
 
 impl dyn RawBuilder {
@@ -357,6 +359,48 @@ macro_rules! gen_intrinsics {
                     });
 
                     T::from_id(new_id)
+                }
+
+                /// Load the push constant into a new variable
+                /// 
+                /// will panic if the builder has no push constant 
+                /// or if the push constant is a primitive or array
+                pub fn load_push_constant<T: IsDataType + FromId>(&self) -> T {
+                    if self.raw.push_constant().is_some() {
+                        let new_id = self.raw.get_new_id();
+                        self.raw.push_instruction(Instruction::LoadPushConstant {
+                            store: new_id,
+                        });
+                        T::from_id(new_id)
+                    } else {
+                        panic!("ERROR: Cannot load_push_constant when no push constant on builder")
+                    }
+                    
+                }
+
+                /// Load one field from the push_constant containing a struct
+                ///
+                /// Will panic if the struct has no field by the name supplied or if the builder has
+                /// no push constant or if the push constant is a primitive or array
+                pub fn load_push_constant_field<T: FromId>(&self, field: &str) -> T {
+                    if let Some((ty, _)) = self.raw.push_constant() {
+                        if let DataType::Struct(_, _, names, fields) = ty {
+                            let f_index = names.iter().position(|&f| f == field).unwrap();
+                            let f_ty = *fields.get(f_index).unwrap();
+                            let new_id = self.raw.get_new_id();
+                            self.raw.push_instruction(Instruction::LoadPushConstantField {
+                                f_index,
+                                store: new_id,
+                                f_ty,
+                            });
+        
+                            T::from_id(new_id)
+                        } else {
+                            panic!("ERROR: Cannot load_push_constant_field when push constant isn't a struct");
+                        }
+                    } else {
+                        panic!("ERROR: Cannot load_push_constant field when no push constant on builder");
+                    }
                 }
 
                 /// Load one field from the uniform containing a struct by the index of the field

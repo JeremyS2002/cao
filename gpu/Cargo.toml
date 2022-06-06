@@ -3,8 +3,6 @@ name = "gpu"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [features]
 default            = ["logging"]
 
@@ -34,19 +32,19 @@ winit              = "0.26.1"
 env_logger         = "0.9.0"
 
 [[example]]
-name="basic"
+name = "basic"
 
 [[example]]
-name="clear"
+name = "clear"
 
 [[example]]
-name="triangle"
+name = "triangle"
 
 [[example]]
-name="texture"
+name = "texture"
 
 [[example]]
-name="push_constants"
+name = "push_constants"
 
 [[example]]
-name="compute"
+name = "compute"

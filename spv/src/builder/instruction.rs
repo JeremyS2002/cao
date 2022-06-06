@@ -140,6 +140,14 @@ pub enum Instruction {
     },
     LoadStorage {},
     StoreStorage {},
+    LoadPushConstant {
+        store: usize,
+    },
+    LoadPushConstantField {
+        f_index: usize,
+        f_ty: DataType,
+        store: usize,
+    },
     Break,
     Continue,
     FnCall {
@@ -210,6 +218,7 @@ pub(crate) struct CompileState<'a> {
     pub textures: &'a [(u32, u32)],
     pub samplers: &'a [(u32, u32)],
     pub sampled_textures: &'a [(u32, u32)],
+    pub push_constant: Option<(u32, DataType)>,
     pub var_block: usize,
 }
 
@@ -622,6 +631,62 @@ impl Instruction {
 
                 s.var_map.insert(*store, res_var);
             }
+            Instruction::LoadPushConstant { 
+                store
+            } => {
+                // The following is based on how shaderc compiles glsl
+                // TODO afaik there is no reason not to use copy_memory instead
+                // let pointer_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, base_ty);
+                // let res_var = builder.variable(pointer_ty, None, rspirv::spirv::StorageClass::Function, None, s.var_block);
+                // builder.copy_memory(res_var, variable, None, None, None).unwrap();
+                // var_map.insert(*store, res_var);
+                let (variable, ty) = s.push_constant.unwrap();
+                let base_ty = ty.base_type(builder, s.struct_map);
+                let base_p_ty =
+                    builder.type_pointer(None, rspirv::spirv::StorageClass::PushConstant, base_ty);
+                let index_obj = PrimitiveVal::UInt(0).set_constant(builder).0;
+                let field_pointer = builder
+                    .access_chain(base_p_ty, None, variable, Some(index_obj))
+                    .unwrap();
+
+                let obj = builder
+                    .load(base_ty, None, field_pointer, None, None)
+                    .unwrap();
+
+                let res_var = ty.variable(builder, s.struct_map, s.var_block);
+
+                copy_composite(&ty, builder, res_var, obj, s.struct_map);
+
+                s.var_map.insert(*store, res_var);
+            },
+            Instruction::LoadPushConstantField { 
+                f_index, 
+                f_ty, 
+                store 
+            } => {
+                let (variable, ty) = s.push_constant.unwrap();
+                let struct_index = PrimitiveVal::UInt(0).set_constant(builder).0;
+                let struct_ty = ty.base_type(builder, s.struct_map);
+                let struct_p_ty =
+                    builder.type_pointer(None, rspirv::spirv::StorageClass::PushConstant, struct_ty);
+                let struct_p = builder
+                    .access_chain(struct_p_ty, None, variable, Some(struct_index))
+                    .unwrap();
+
+                let index_obj = PrimitiveVal::UInt(*f_index as u32).set_constant(builder).0;
+                let field_ty = f_ty.base_type(builder, s.struct_map);
+                let field_p_ty =
+                    builder.type_pointer(None, rspirv::spirv::StorageClass::PushConstant, field_ty);
+                let pointer = builder
+                    .access_chain(field_p_ty, None, struct_p, Some(index_obj))
+                    .unwrap();
+
+                let res_var = f_ty.variable(builder, s.struct_map, s.var_block);
+
+                let field_obj = builder.load(field_ty, None, pointer, None, None).unwrap();
+                builder.store(res_var, field_obj, None, None).unwrap();
+                s.var_map.insert(*store, res_var);
+            },
         }
     }
 }

@@ -9,11 +9,9 @@ cargo run --example basic
 ```
 
 # TODO
+- Error handling
 - For Loops
 - More intuitive loops (allow b.spv_while(x < 3, |b| { .. }) syntax)
-- Push constants
-- Uniform / Storage Buffers
-- Texture support
 - Testing
 - Stop parent builders being used while they have children
 - utility user facing macros

@@ -22,6 +22,12 @@ impl std::fmt::Display for ReflectedError {
 
 impl std::error::Error for ReflectedError {}
 
+impl From<BuilderConfigError> for ReflectedError {
+    fn from(e: BuilderConfigError) -> Self {
+        Self::Builder(e)
+    }
+}
+
 impl From<ParseSpirvError> for ReflectedError {
     fn from(e: ParseSpirvError) -> Self {
         Self::Parse(e)
@@ -38,8 +44,8 @@ impl From<gpu::Error> for ReflectedError {
 pub enum BuilderConfigError {
     StageIncompatibility {
         location: u32,
-        src_stage_name: Option<&'static str>,
-        dst_stage_name: Option<&'static str>,
+        src_stage_name: String,
+        dst_stage_name: String,
         src_type: spv::PrimitiveType,
         dst_type: spv::PrimitiveType,
     },
