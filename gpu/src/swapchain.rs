@@ -34,7 +34,7 @@ impl SwapchainDesc {
         Ok(Self {
             format: info.formats[0],
             present_mode: info.present_modes[0],
-            texture_count: if info.min_images < 3 {
+            texture_count: if info.min_images > 3 {
                 info.min_images
             } else {
                 3
@@ -231,13 +231,17 @@ impl Swapchain {
             caps.current_transform
         };
 
+        let mut image_extent = caps.current_extent;
+        image_extent.width = image_extent.width.min(caps.max_image_extent.width).max(caps.min_image_extent.width);
+        image_extent.height = image_extent.height.min(caps.max_image_extent.height).max(caps.min_image_extent.height);
+
         let create_info = vk::SwapchainCreateInfoKHR {
             s_type: vk::StructureType::SWAPCHAIN_CREATE_INFO_KHR,
             p_next: ptr::null(),
             surface: **surface.raw,
             old_swapchain: vk::SwapchainKHR::null(),
             min_image_count: desc.texture_count,
-            image_extent: caps.current_extent,
+            image_extent,
             image_format: format.format,
             image_color_space: format.color_space,
             image_usage: vk::ImageUsageFlags::COLOR_ATTACHMENT,

@@ -29,8 +29,8 @@ spv                = { path = "../spv", optional=true }
 either             = { version = "^1.6.1", optional=true }
 
 [dev-dependencies]
-winit              = "0.26.1"
-winit_input_helper = "0.12.0"
+winit              = { version = "0.26.1", default-features = false, features = ["x11"] }
+winit_input_helper = { git = "https://github.com/JeremyS2002/winit_input_helper.git", branch = "master" }
 env_logger         = "0.9.0"
 anyhow             = "1.0.57"
 rand               = "0.8.5"
