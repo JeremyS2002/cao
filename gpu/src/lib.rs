@@ -333,7 +333,7 @@ impl Instance {
     }
 
     /// Get the names of all supported validation layers
-    pub fn validation_layers() -> Result<Vec<&'static str>, crate::Error> {
+    pub fn validation_layers() -> Result<Vec<String>, crate::Error> {
         let available_validation_result = VK_ENTRY.enumerate_instance_layer_properties();
         let available_validation = match available_validation_result {
             Ok(e) => e,
@@ -346,6 +346,7 @@ impl Instance {
                 unsafe { CStr::from_ptr(&l.layer_name[0]) }
                     .to_str()
                     .unwrap()
+                    .to_string()
             })
             .collect::<Vec<_>>();
 
@@ -353,7 +354,7 @@ impl Instance {
     }
 
     /// Get the names of all supported extensions
-    pub fn extensions() -> Result<Vec<&'static str>, crate::Error> {
+    pub fn extensions() -> Result<Vec<String>, crate::Error> {
         let available_extensions_result = VK_ENTRY.enumerate_instance_extension_properties(None);
         let available_extensions = match available_extensions_result {
             Ok(e) => e,
@@ -366,6 +367,7 @@ impl Instance {
                 unsafe { CStr::from_ptr(&e.extension_name[0]) }
                     .to_str()
                     .unwrap()
+                    .to_string()
             })
             .collect::<Vec<_>>();
 
