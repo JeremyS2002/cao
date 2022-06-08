@@ -129,9 +129,9 @@ impl std::fmt::Debug for ReflectedGraphics {
 impl ReflectedGraphics {
     pub fn from_builders(
         device: &gpu::Device,
-        vertex: spv::VertexBuilder,
-        geometry: Option<spv::GeometryBuilder>,
-        fragment: Option<spv::FragmentBuilder>,
+        vertex: &spv::VertexBuilder,
+        geometry: Option<&spv::GeometryBuilder>,
+        fragment: Option<&spv::FragmentBuilder>,
         rasterizer: gpu::Rasterizer,
         blend_states: &[gpu::BlendState],
         depth_stencil: Option<gpu::DepthStencilState>,
