@@ -8,7 +8,6 @@ default     = ["gpu"]
 
 [dependencies]
 rspirv      = "^0.11.0"
-glam        = "^0.20.5"
 slab        = "^0.4.6"
 either      = "^1.6.1"
 gpu         = { path = "../gpu", optional=true }

@@ -1,11 +1,10 @@
 fn main() {
-    use rspirv::binary::Disassemble;
 
     let src = "
         #version 450
 
         layout(push_constant) uniform Data {
-            float x;
+            layout(offset = 4) float x;
             float y;
         } p_data;
 
@@ -18,6 +17,8 @@ fn main() {
     let spv = compiler
         .compile_into_spirv(src, shaderc::ShaderKind::Fragment, "", "main", None)
         .unwrap();
+
+    use rspirv::binary::Disassemble;
 
     let mut loader = rspirv::dr::Loader::new();
     rspirv::binary::parse_words(spv.as_binary(), &mut loader).unwrap();

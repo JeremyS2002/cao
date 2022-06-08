@@ -2,24 +2,25 @@ use std::marker::PhantomData;
 
 use crate::builder::RawBuilder;
 
-use glam::DMat2 as GlamDMat2;
-use glam::DMat3 as GlamDMat3;
-use glam::DMat4 as GlamDMat4;
-use glam::DVec2 as GlamDVec2;
-use glam::DVec3 as GlamDVec3;
-use glam::DVec4 as GlamDVec4;
-use glam::IVec2 as GlamIVec2;
-use glam::IVec3 as GlamIVec3;
-use glam::IVec4 as GlamIVec4;
-use glam::Mat2 as GlamMat2;
-use glam::Mat3 as GlamMat3;
-use glam::Mat4 as GlamMat4;
-use glam::UVec2 as GlamUVec2;
-use glam::UVec3 as GlamUVec3;
-use glam::UVec4 as GlamUVec4;
-use glam::Vec2 as GlamVec2;
-use glam::Vec3 as GlamVec3;
-use glam::Vec4 as GlamVec4;
+// if I could write better macros then this wouldn't be necissary
+type RustDMat2 = [[f64; 2]; 2];
+type RustDMat3 = [[f64; 3]; 3];
+type RustDMat4 = [[f64; 4]; 4];
+type RustDVec2 = [f64; 2];
+type RustDVec3 = [f64; 3];
+type RustDVec4 = [f64; 4];
+type RustIVec2 = [i32; 2];
+type RustIVec3 = [i32; 3];
+type RustIVec4 = [i32; 4];
+type RustMat2 = [[f32; 2]; 2];
+type RustMat3 = [[f32; 3]; 3];
+type RustMat4 = [[f32; 4]; 4];
+type RustUVec2 = [u32; 2];
+type RustUVec3 = [u32; 3];
+type RustUVec4 = [u32; 4];
+type RustVec2 = [f32; 2];
+type RustVec3 = [f32; 3];
+type RustVec4 = [f32; 4];
 
 use super::PrimitiveType;
 
@@ -168,10 +169,10 @@ macro_rules! gen_as_data {
 }
 
 gen_as_data!(
-    Bool, bool, Int, i32, UInt, u32, Float, f32, Double, f64, IVec2, GlamIVec2, IVec3, GlamIVec3,
-    IVec4, GlamIVec4, UVec2, GlamUVec2, UVec3, GlamUVec3, UVec4, GlamUVec4, Vec2, GlamVec2, Vec3,
-    GlamVec3, Vec4, GlamVec4, DVec2, GlamDVec2, DVec3, GlamDVec3, DVec4, GlamDVec4, Mat2, GlamMat2,
-    Mat3, GlamMat3, Mat4, GlamMat4, DMat2, GlamDMat2, DMat3, GlamDMat3, DMat4, GlamDMat4,
+    Bool, bool, Int, i32, UInt, u32, Float, f32, Double, f64, IVec2, RustIVec2, IVec3, RustIVec3,
+    IVec4, RustIVec4, UVec2, RustUVec2, UVec3, RustUVec3, UVec4, RustUVec4, Vec2, RustVec2, Vec3,
+    RustVec3, Vec4, RustVec4, DVec2, RustDVec2, DVec3, RustDVec3, DVec4, RustDVec4, Mat2, RustMat2,
+    Mat3, RustMat3, Mat4, RustMat4, DMat2, RustDMat2, DMat3, RustDMat3, DMat4, RustDMat4,
 );
 
 pub struct VectorShuffle<T: AsPrimitiveType> {

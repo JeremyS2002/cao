@@ -12,6 +12,26 @@ pub use spv_array::*;
 pub use spv_struct::*;
 pub use ty_structs::*;
 
+// if I could write better macros then this wouldn't be necissary
+type RustDMat2 = [[f64; 2]; 2];
+type RustDMat3 = [[f64; 3]; 3];
+type RustDMat4 = [[f64; 4]; 4];
+type RustDVec2 = [f64; 2];
+type RustDVec3 = [f64; 3];
+type RustDVec4 = [f64; 4];
+type RustIVec2 = [i32; 2];
+type RustIVec3 = [i32; 3];
+type RustIVec4 = [i32; 4];
+type RustMat2 = [[f32; 2]; 2];
+type RustMat3 = [[f32; 3]; 3];
+type RustMat4 = [[f32; 4]; 4];
+type RustUVec2 = [u32; 2];
+type RustUVec3 = [u32; 3];
+type RustUVec4 = [u32; 4];
+type RustVec2 = [f32; 2];
+type RustVec3 = [f32; 3];
+type RustVec4 = [f32; 4];
+
 pub trait DataRef {
     fn ty(&self) -> PrimitiveType;
 }
@@ -340,24 +360,24 @@ pub enum PrimitiveVal {
     UInt(u32),
     Float(f32),
     Double(f64),
-    IVec2(glam::IVec2),
-    IVec3(glam::IVec3),
-    IVec4(glam::IVec4),
-    UVec2(glam::UVec2),
-    UVec3(glam::UVec3),
-    UVec4(glam::UVec4),
-    Vec2(glam::Vec2),
-    Vec3(glam::Vec3),
-    Vec4(glam::Vec4),
-    DVec2(glam::DVec2),
-    DVec3(glam::DVec3),
-    DVec4(glam::DVec4),
-    Mat2(glam::Mat2),
-    Mat3(glam::Mat3),
-    Mat4(glam::Mat4),
-    DMat2(glam::DMat2),
-    DMat3(glam::DMat3),
-    DMat4(glam::DMat4),
+    IVec2(RustIVec2),
+    IVec3(RustIVec3),
+    IVec4(RustIVec4),
+    UVec2(RustUVec2),
+    UVec3(RustUVec3),
+    UVec4(RustUVec4),
+    Vec2(RustVec2),
+    Vec3(RustVec3),
+    Vec4(RustVec4),
+    DVec2(RustDVec2),
+    DVec3(RustDVec3),
+    DVec4(RustDVec4),
+    Mat2(RustMat2),
+    Mat3(RustMat3),
+    Mat4(RustMat4),
+    DMat2(RustDMat2),
+    DMat3(RustDMat3),
+    DMat4(RustDMat4),
 }
 
 // impl From<DataVal> for DataType {
@@ -435,145 +455,145 @@ impl PrimitiveVal {
                 (c, ty)
             }
             PrimitiveVal::IVec2(v) => {
-                let x = Self::Int(v.x).set_constant(b).0;
-                let y = Self::Int(v.y).set_constant(b).0;
+                let x = Self::Int(v[0]).set_constant(b).0;
+                let y = Self::Int(v[1]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y]);
                 (c, ty)
             }
             PrimitiveVal::IVec3(v) => {
-                let x = Self::Int(v.x).set_constant(b).0;
-                let y = Self::Int(v.y).set_constant(b).0;
-                let z = Self::Int(v.z).set_constant(b).0;
+                let x = Self::Int(v[0]).set_constant(b).0;
+                let y = Self::Int(v[1]).set_constant(b).0;
+                let z = Self::Int(v[2]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z]);
                 (c, ty)
             }
             PrimitiveVal::IVec4(v) => {
-                let x = Self::Int(v.x).set_constant(b).0;
-                let y = Self::Int(v.y).set_constant(b).0;
-                let z = Self::Int(v.z).set_constant(b).0;
-                let w = Self::Int(v.w).set_constant(b).0;
+                let x = Self::Int(v[0]).set_constant(b).0;
+                let y = Self::Int(v[1]).set_constant(b).0;
+                let z = Self::Int(v[2]).set_constant(b).0;
+                let w = Self::Int(v[3]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z, w]);
                 (c, ty)
             }
             PrimitiveVal::UVec2(v) => {
-                let x = Self::UInt(v.x).set_constant(b).0;
-                let y = Self::UInt(v.y).set_constant(b).0;
+                let x = Self::UInt(v[0]).set_constant(b).0;
+                let y = Self::UInt(v[1]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y]);
                 (c, ty)
             }
             PrimitiveVal::UVec3(v) => {
-                let x = Self::UInt(v.x).set_constant(b).0;
-                let y = Self::UInt(v.y).set_constant(b).0;
-                let z = Self::UInt(v.z).set_constant(b).0;
+                let x = Self::UInt(v[0]).set_constant(b).0;
+                let y = Self::UInt(v[1]).set_constant(b).0;
+                let z = Self::UInt(v[2]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z]);
                 (c, ty)
             }
             PrimitiveVal::UVec4(v) => {
-                let x = Self::UInt(v.x).set_constant(b).0;
-                let y = Self::UInt(v.y).set_constant(b).0;
-                let z = Self::UInt(v.z).set_constant(b).0;
-                let w = Self::UInt(v.w).set_constant(b).0;
+                let x = Self::UInt(v[0]).set_constant(b).0;
+                let y = Self::UInt(v[1]).set_constant(b).0;
+                let z = Self::UInt(v[2]).set_constant(b).0;
+                let w = Self::UInt(v[3]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z, w]);
                 (c, ty)
             }
             PrimitiveVal::Vec2(v) => {
-                let x = Self::Float(v.x).set_constant(b).0;
-                let y = Self::Float(v.y).set_constant(b).0;
+                let x = Self::Float(v[0]).set_constant(b).0;
+                let y = Self::Float(v[1]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y]);
                 (c, ty)
             }
             PrimitiveVal::Vec3(v) => {
-                let x = Self::Float(v.x).set_constant(b).0;
-                let y = Self::Float(v.y).set_constant(b).0;
-                let z = Self::Float(v.z).set_constant(b).0;
+                let x = Self::Float(v[0]).set_constant(b).0;
+                let y = Self::Float(v[1]).set_constant(b).0;
+                let z = Self::Float(v[2]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z]);
                 (c, ty)
             }
             PrimitiveVal::Vec4(v) => {
-                let x = Self::Float(v.x).set_constant(b).0;
-                let y = Self::Float(v.y).set_constant(b).0;
-                let z = Self::Float(v.z).set_constant(b).0;
-                let w = Self::Float(v.w).set_constant(b).0;
+                let x = Self::Float(v[0]).set_constant(b).0;
+                let y = Self::Float(v[1]).set_constant(b).0;
+                let z = Self::Float(v[2]).set_constant(b).0;
+                let w = Self::Float(v[3]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z, w]);
                 (c, ty)
             }
             PrimitiveVal::DVec2(v) => {
-                let x = Self::Double(v.x).set_constant(b).0;
-                let y = Self::Double(v.y).set_constant(b).0;
+                let x = Self::Double(v[0]).set_constant(b).0;
+                let y = Self::Double(v[1]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y]);
                 (c, ty)
             }
             PrimitiveVal::DVec3(v) => {
-                let x = Self::Double(v.x).set_constant(b).0;
-                let y = Self::Double(v.y).set_constant(b).0;
-                let z = Self::Double(v.z).set_constant(b).0;
+                let x = Self::Double(v[0]).set_constant(b).0;
+                let y = Self::Double(v[1]).set_constant(b).0;
+                let z = Self::Double(v[2]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z]);
                 (c, ty)
             }
             PrimitiveVal::DVec4(v) => {
-                let x = Self::Double(v.x).set_constant(b).0;
-                let y = Self::Double(v.y).set_constant(b).0;
-                let z = Self::Double(v.z).set_constant(b).0;
-                let w = Self::Double(v.w).set_constant(b).0;
+                let x = Self::Double(v[0]).set_constant(b).0;
+                let y = Self::Double(v[1]).set_constant(b).0;
+                let z = Self::Double(v[2]).set_constant(b).0;
+                let w = Self::Double(v[3]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z, w]);
                 (c, ty)
             }
             PrimitiveVal::Mat2(v) => {
-                let x = Self::Vec2(v.col(0)).set_constant(b).0;
-                let y = Self::Vec2(v.col(1)).set_constant(b).0;
+                let x = Self::Vec2(v[0]).set_constant(b).0;
+                let y = Self::Vec2(v[1]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y]);
                 (c, ty)
             }
             PrimitiveVal::Mat3(v) => {
-                let x = Self::Vec3(v.col(0)).set_constant(b).0;
-                let y = Self::Vec3(v.col(1)).set_constant(b).0;
-                let z = Self::Vec3(v.col(2)).set_constant(b).0;
+                let x = Self::Vec3(v[0]).set_constant(b).0;
+                let y = Self::Vec3(v[1]).set_constant(b).0;
+                let z = Self::Vec3(v[2]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z]);
                 (c, ty)
             }
             PrimitiveVal::Mat4(v) => {
-                let x = Self::Vec4(v.col(0)).set_constant(b).0;
-                let y = Self::Vec4(v.col(1)).set_constant(b).0;
-                let z = Self::Vec4(v.col(2)).set_constant(b).0;
-                let w = Self::Vec4(v.col(3)).set_constant(b).0;
+                let x = Self::Vec4(v[0]).set_constant(b).0;
+                let y = Self::Vec4(v[1]).set_constant(b).0;
+                let z = Self::Vec4(v[2]).set_constant(b).0;
+                let w = Self::Vec4(v[3]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z, w]);
                 (c, ty)
             }
             PrimitiveVal::DMat2(v) => {
-                let x = Self::DVec2(v.col(0)).set_constant(b).0;
-                let y = Self::DVec2(v.col(1)).set_constant(b).0;
+                let x = Self::DVec2(v[0]).set_constant(b).0;
+                let y = Self::DVec2(v[1]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y]);
                 (c, ty)
             }
             PrimitiveVal::DMat3(v) => {
-                let x = Self::DVec3(v.col(0)).set_constant(b).0;
-                let y = Self::DVec3(v.col(1)).set_constant(b).0;
-                let z = Self::DVec3(v.col(2)).set_constant(b).0;
+                let x = Self::DVec3(v[0]).set_constant(b).0;
+                let y = Self::DVec3(v[1]).set_constant(b).0;
+                let z = Self::DVec3(v[2]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z]);
                 (c, ty)
             }
             PrimitiveVal::DMat4(v) => {
-                let x = Self::DVec4(v.col(0)).set_constant(b).0;
-                let y = Self::DVec4(v.col(1)).set_constant(b).0;
-                let z = Self::DVec4(v.col(2)).set_constant(b).0;
-                let w = Self::DVec4(v.col(3)).set_constant(b).0;
+                let x = Self::DVec4(v[0]).set_constant(b).0;
+                let y = Self::DVec4(v[1]).set_constant(b).0;
+                let z = Self::DVec4(v[2]).set_constant(b).0;
+                let w = Self::DVec4(v[3]).set_constant(b).0;
                 let ty = PrimitiveType::from(*self).base_type(b);
                 let c = b.constant_composite(ty, [x, y, z, w]);
                 (c, ty)

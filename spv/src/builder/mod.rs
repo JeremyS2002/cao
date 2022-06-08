@@ -6,24 +6,25 @@ use std::rc::Rc;
 use either::*;
 
 // If I knew how to write macros properly this wouldn't be here but this is easier than learning proper macros
-use glam::DMat2 as GlamDMat2;
-use glam::DMat3 as GlamDMat3;
-use glam::DMat4 as GlamDMat4;
-use glam::DVec2 as GlamDVec2;
-use glam::DVec3 as GlamDVec3;
-use glam::DVec4 as GlamDVec4;
-use glam::IVec2 as GlamIVec2;
-use glam::IVec3 as GlamIVec3;
-use glam::IVec4 as GlamIVec4;
-use glam::Mat2 as GlamMat2;
-use glam::Mat3 as GlamMat3;
-use glam::Mat4 as GlamMat4;
-use glam::UVec2 as GlamUVec2;
-use glam::UVec3 as GlamUVec3;
-use glam::UVec4 as GlamUVec4;
-use glam::Vec2 as GlamVec2;
-use glam::Vec3 as GlamVec3;
-use glam::Vec4 as GlamVec4;
+// if I could write better macros then this wouldn't be necissary
+type RustDMat2 = [[f64; 2]; 2];
+type RustDMat3 = [[f64; 3]; 3];
+type RustDMat4 = [[f64; 4]; 4];
+type RustDVec2 = [f64; 2];
+type RustDVec3 = [f64; 3];
+type RustDVec4 = [f64; 4];
+type RustIVec2 = [i32; 2];
+type RustIVec3 = [i32; 3];
+type RustIVec4 = [i32; 4];
+type RustMat2 = [[f32; 2]; 2];
+type RustMat3 = [[f32; 3]; 3];
+type RustMat4 = [[f32; 4]; 4];
+type RustUVec2 = [u32; 2];
+type RustUVec3 = [u32; 3];
+type RustUVec4 = [u32; 4];
+type RustVec2 = [f32; 2];
+type RustVec3 = [f32; 3];
+type RustVec4 = [f32; 4];
 
 pub mod base_builder;
 pub mod condition_builder;
@@ -80,7 +81,7 @@ pub trait RawBuilder: AsAny {
 
     fn in_loop(&self) -> bool;
 
-    fn push_constant(&self) -> Option<(DataType, Option<&'static str>)>;
+    fn push_constant(&self) -> Option<(DataType, u32, Option<&'static str>)>;
 }
 
 impl dyn RawBuilder {
@@ -216,24 +217,24 @@ macro_rules! gen_const_types {
                     const_int, Int, i32,
                     const_uint, UInt, u32,
                     const_double, Double, f64,
-                    const_ivec2, IVec2, GlamIVec2,
-                    const_ivec3, IVec3, GlamIVec3,
-                    const_ivec4, IVec4, GlamIVec4,
-                    const_uvec2, UVec2, GlamUVec2,
-                    const_uvec3, UVec3, GlamUVec3,
-                    const_uvec4, UVec4, GlamUVec4,
-                    const_vec2, Vec2, GlamVec2,
-                    const_vec3, Vec3, GlamVec3,
-                    const_vec4, Vec4, GlamVec4,
-                    const_dvec2, DVec2, GlamDVec2,
-                    const_dvec3, DVec3, GlamDVec3,
-                    const_dvec4, DVec4, GlamDVec4,
-                    const_mat2, Mat2, GlamMat2,
-                    const_mat3, Mat3, GlamMat3,
-                    const_mat4, Mat4, GlamMat4,
-                    const_dmat2, DMat2, GlamDMat2,
-                    const_dmat3, DMat3, GlamDMat3,
-                    const_dmat4, DMat4, GlamDMat4,
+                    const_ivec2, IVec2, RustIVec2,
+                    const_ivec3, IVec3, RustIVec3,
+                    const_ivec4, IVec4, RustIVec4,
+                    const_uvec2, UVec2, RustUVec2,
+                    const_uvec3, UVec3, RustUVec3,
+                    const_uvec4, UVec4, RustUVec4,
+                    const_vec2, Vec2, RustVec2,
+                    const_vec3, Vec3, RustVec3,
+                    const_vec4, Vec4, RustVec4,
+                    const_dvec2, DVec2, RustDVec2,
+                    const_dvec3, DVec3, RustDVec3,
+                    const_dvec4, DVec4, RustDVec4,
+                    const_mat2, Mat2, RustMat2,
+                    const_mat3, Mat3, RustMat3,
+                    const_mat4, Mat4, RustMat4,
+                    const_dmat2, DMat2, RustDMat2,
+                    const_dmat3, DMat3, RustDMat3,
+                    const_dmat4, DMat4, RustDMat4,
                 );
             }
         )*
@@ -383,7 +384,7 @@ macro_rules! gen_intrinsics {
                 /// Will panic if the struct has no field by the name supplied or if the builder has
                 /// no push constant or if the push constant is a primitive or array
                 pub fn load_push_constant_field<T: FromId>(&self, field: &str) -> T {
-                    if let Some((ty, _)) = self.raw.push_constant() {
+                    if let Some((ty, _, _)) = self.raw.push_constant() {
                         if let DataType::Struct(_, _, names, fields) = ty {
                             let f_index = names.iter().position(|&f| f == field).unwrap();
                             let f_ty = *fields.get(f_index).unwrap();

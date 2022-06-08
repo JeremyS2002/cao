@@ -26,7 +26,7 @@ impl RawBuilder for RawMainBuilder {
         false
     }
 
-    fn push_constant(&self) -> Option<(crate::DataType, Option<&'static str>)> {
+    fn push_constant(&self) -> Option<(crate::DataType, u32, Option<&'static str>)> {
         (*self.builder.push_constant.borrow()).clone()
     }
 

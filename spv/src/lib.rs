@@ -45,7 +45,8 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use builder::{Instruction, RawBaseBuilder};
-pub use glam;
+
+pub use rspirv;
 
 pub mod builder;
 pub mod data;
@@ -130,7 +131,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         (*self.raw.outputs.borrow()).clone()
     }
 
-    pub fn get_push_constant(&self) -> Option<(DataType, Option<&'static str>)> {
+    pub fn get_push_constant(&self) -> Option<(DataType, u32, Option<&'static str>)> {
         (*self.raw.push_constant.borrow()).clone()
     }
 
@@ -247,11 +248,11 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         }
     }
 
-    pub fn push_constant<D: IsDataType>(&self, name: Option<&'static str>) {
+    pub fn push_constant<D: IsDataType>(&self, offset: Option<u32>, name: Option<&'static str>) {
         if self.raw.push_constant.borrow().is_some() {
             panic!("ERROR: Cannot create shader module with more than one set of push constants");
         }
-        *self.raw.push_constant.borrow_mut() = Some((D::TY, name))
+        *self.raw.push_constant.borrow_mut() = Some((D::TY, offset.unwrap_or(0), name))
     }
 
     pub fn uniform<D: IsDataType>(
@@ -420,7 +421,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         f(&b)
     }
 
-    pub fn compile(self) -> Vec<u32> {
+    pub fn compile(&self) -> Vec<u32> {
         let mut builder = rspirv::dr::Builder::new();
 
         //let _ext = builder.ext_inst_import("GLSL.std.450");
@@ -509,11 +510,11 @@ impl<T: specialisation::ShaderTY> Builder<T> {
 
 fn process_push_constant(
     builder: &mut rspirv::dr::Builder, 
-    borrow: &std::cell::Ref<Option<(DataType, Option<&str>)>>, 
+    borrow: &std::cell::Ref<Option<(DataType, u32, Option<&str>)>>, 
     struct_map: &mut HashMap<std::any::TypeId, u32>
 ) -> Option<(u32, DataType)> {
     borrow.map(|b| {
-        let base_type = b.0.pointer_type(builder, struct_map);
+        let base_type = b.0.base_type(builder, struct_map);
         let outer_type = builder.type_struct([base_type]);
 
         builder.decorate(outer_type, rspirv::spirv::Decoration::Block, None);
@@ -521,14 +522,14 @@ fn process_push_constant(
             outer_type,
             0,
             rspirv::spirv::Decoration::Offset,
-            [rspirv::dr::Operand::LiteralInt32(0)],
+            [rspirv::dr::Operand::LiteralInt32(b.1)],
         );
 
         let pointer_type = builder.type_pointer(None, rspirv::spirv::StorageClass::PushConstant, outer_type);
 
         let variable = builder.variable(pointer_type, None, rspirv::spirv::StorageClass::PushConstant, None);
 
-        if let Some(name) = b.1 {
+        if let Some(name) = b.2 {
             builder.name(variable, name)
         }
 

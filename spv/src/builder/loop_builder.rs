@@ -34,7 +34,7 @@ impl RawBuilder for RawLoopBuilder {
         true
     }
 
-    fn push_constant(&self) -> Option<(DataType, Option<&'static str>)> {
+    fn push_constant(&self) -> Option<(DataType, u32, Option<&'static str>)> {
         self.builder.push_constant()
     }
 }

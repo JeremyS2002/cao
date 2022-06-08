@@ -22,6 +22,18 @@ pub struct PushConstants {
 unsafe impl bytemuck::Pod for PushConstants {}
 unsafe impl bytemuck::Zeroable for PushConstants {}
 
+unsafe impl spv::AsSpvStruct for PushConstants {
+    const DESC: spv::StructDesc = spv::StructDesc {
+        name: "PushConstants",
+        names: &["color"],
+        fields: &[spv::DataType::Primitive(spv::PrimitiveType::Vec4)],
+    };
+
+    fn fields<'a>(&'a self) -> Vec<&'a dyn spv::AsData> {
+        vec![&self.color]
+    }
+}
+
 fn main() {
     env_logger::init();
 
@@ -68,6 +80,18 @@ fn main() {
     let vertex_spv = {
         let builder = spv::VertexBuilder::new();
 
+        let in_pos = builder.in_vec2(0, false, Some("in_pos"));
+
+        let position = builder.position();
+
+        builder.main(|b| {
+            let pos = b.load_in(in_pos);
+            let x = b.vector_shuffle(pos.x());
+            let y = b.vector_shuffle(pos.y());
+            let pos = b.vec4(&x, &y, &0.0, &1.0);
+            b.store_out(position, pos);
+        });
+
         builder.compile()
     };
     let vertex_shader = device
@@ -81,8 +105,20 @@ fn main() {
     let fragment_spv = {
         let builder = spv::FragmentBuilder::new();
 
+        builder.push_constant::<spv::SpvStruct<PushConstants>>(None, Some("p_data"));
+
+        let out_col = builder.out_vec4(0, false, Some("out_color"));
+
+        builder.main(|b| {
+            // load the field
+            let col = b.load_push_constant_field::<spv::Vec4>("color");
+            // store composite into output
+            b.store_out(out_col, col);
+        });
+
         builder.compile()
     };
+
     let fragment_shader = device
         .create_shader_module(&gpu::ShaderModuleDesc {
             name: None,
@@ -169,7 +205,7 @@ fn main() {
     let mut resized = false;
 
     let mut constants = PushConstants {
-        color: [0.0, 0.0, 0.0, 0.0],
+        color: [0.0, 0.0, 0.0, 1.0],
     };
 
     let start = std::time::Instant::now();
