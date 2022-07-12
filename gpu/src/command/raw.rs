@@ -919,9 +919,11 @@ pub(crate) fn submit(
     semaphores.insert(std::thread::current().id(), semaphore);
 
     let wait_dst_stage_mask = if wait_semaphores.len() == 0 {
-        vk::PipelineStageFlags::empty()
+        [vk::PipelineStageFlags::empty(); 2]
+    } else if wait_semaphores.len() == 1 {
+        [vk::PipelineStageFlags::BOTTOM_OF_PIPE, vk::PipelineStageFlags::empty()]
     } else {
-        vk::PipelineStageFlags::BOTTOM_OF_PIPE
+        [vk::PipelineStageFlags::BOTTOM_OF_PIPE, vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT]
     };
 
     let submit_info = vk::SubmitInfo {
@@ -929,7 +931,7 @@ pub(crate) fn submit(
         p_next: ptr::null(),
         wait_semaphore_count: wait_semaphores.len() as _,
         p_wait_semaphores: wait_semaphores.as_ptr(),
-        p_wait_dst_stage_mask: &wait_dst_stage_mask,
+        p_wait_dst_stage_mask: &wait_dst_stage_mask[0],
         signal_semaphore_count: signal_semaphores.len() as _,
         p_signal_semaphores: signal_semaphores.as_ptr(),
         command_buffer_count: 1,
