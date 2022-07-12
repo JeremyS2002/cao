@@ -22,6 +22,28 @@ type RustVec2 = [f32; 2];
 type RustVec3 = [f32; 3];
 type RustVec4 = [f32; 4];
 
+#[cfg(feature = "glam")]
+use glam::{
+    IVec2 as GlamIVec2,
+    IVec3 as GlamIVec3,
+    IVec4 as GlamIVec4,
+    UVec2 as GlamUVec2,
+    UVec3 as GlamUVec3,
+    UVec4 as GlamUVec4,
+    Vec2 as GlamVec2,
+    Vec3 as GlamVec3,
+    Vec4 as GlamVec4,
+    DVec2 as GlamDVec2,
+    DVec3 as GlamDVec3,
+    DVec4 as GlamDVec4,
+    Mat2 as GlamMat2,
+    Mat3 as GlamMat3,
+    Mat4 as GlamMat4,
+    DMat2 as GlamDMat2,
+    DMat3 as GlamDMat3,
+    DMat4 as GlamDMat4,
+};
+
 use super::PrimitiveType;
 
 macro_rules! gen_types {
@@ -74,20 +96,61 @@ pub trait SpvStore<Rhs: AsPrimitiveType>: AsPrimitiveType + AsPrimitive {
     fn val(rhs: Rhs) -> crate::data::PrimitiveVal;
 }
 
-macro_rules! gen_as_data {
-    ($($name:ident, $rust:ident,)*) => {
-        $(
-            impl SpvRustEq<$name> for $name { }
+macro_rules! gen_relation {
+    ($name:ident, $rust:ident, $conv:ident) => {
+        impl SpvRustEq<$rust> for $name { }
 
-            impl SpvRustEq<$rust> for $name { }
+        impl SpvRustEq<$name> for $rust { }
 
-            impl SpvRustEq<$name> for $rust { }
-
-            impl SpvStore<$rust> for $name {
-                fn val(rhs: $rust) -> crate::data::PrimitiveVal {
-                    crate::data::PrimitiveVal::$name(rhs)
-                }
+        impl SpvStore<$rust> for $name {
+            fn val(rhs: $rust) -> crate::data::PrimitiveVal {
+                crate::data::PrimitiveVal::$name((rhs).$conv())
             }
+        }
+
+        impl AsPrimitiveType for $rust {
+            const TY: crate::data::PrimitiveType = crate::data::PrimitiveType::$name;
+        }
+
+        impl AsPrimitive for $rust {
+            fn id(&self, b: &dyn RawBuilder) -> usize {
+                let id = b.get_new_id();
+                b.push_instruction(crate::builder::Instruction::Store {
+                    val: crate::data::PrimitiveVal::$name((*self).$conv()),
+                    store: id,
+                });
+                id
+            }
+
+            fn ty(&self) -> crate::data::PrimitiveType {
+                <Self as AsPrimitiveType>::TY
+            }
+        }
+
+        impl AsDataType for $rust {
+            const TY: crate::data::DataType = crate::data::DataType::Primitive(crate::data::PrimitiveType::$name);
+        }
+
+        impl AsData for $rust {
+            fn id(&self, b: &dyn RawBuilder) -> usize {
+                let id = b.get_new_id();
+                b.push_instruction(crate::builder::Instruction::Store {
+                    val: crate::data::PrimitiveVal::$name((*self).$conv()),
+                    store: id,
+                });
+                id
+            }
+
+            fn ty(&self) -> crate::data::DataType {
+                <Self as AsDataType>::TY
+            }
+        }
+    };
+}
+
+macro_rules! gen_as_data_single {
+    ($name:ident) => {
+        impl SpvRustEq<$name> for $name { }
 
             impl AsPrimitiveType for $name {
                 const TY: crate::data::PrimitiveType = crate::data::PrimitiveType::$name;
@@ -98,25 +161,6 @@ macro_rules! gen_as_data {
             impl AsPrimitive for $name {
                 fn id(&self, _: &dyn RawBuilder) -> usize {
                     self.id
-                }
-
-                fn ty(&self) -> crate::data::PrimitiveType {
-                    <Self as AsPrimitiveType>::TY
-                }
-            }
-
-            impl AsPrimitiveType for $rust {
-                const TY: crate::data::PrimitiveType = crate::data::PrimitiveType::$name;
-            }
-
-            impl AsPrimitive for $rust {
-                fn id(&self, b: &dyn RawBuilder) -> usize {
-                    let id = b.get_new_id();
-                    b.push_instruction(crate::builder::Instruction::Store {
-                        val: crate::data::PrimitiveVal::$name(*self),
-                        store: id,
-                    });
-                    id
                 }
 
                 fn ty(&self) -> crate::data::PrimitiveType {
@@ -140,39 +184,78 @@ macro_rules! gen_as_data {
                 }
             }
 
-            impl AsDataType for $rust {
-                const TY: crate::data::DataType = crate::data::DataType::Primitive(crate::data::PrimitiveType::$name);
-            }
-
-            impl AsData for $rust {
-                fn id(&self, b: &dyn RawBuilder) -> usize {
-                    let id = b.get_new_id();
-                    b.push_instruction(crate::builder::Instruction::Store {
-                        val: crate::data::PrimitiveVal::$name(*self),
-                        store: id,
-                    });
-                    id
-                }
-
-                fn ty(&self) -> crate::data::DataType {
-                    <Self as AsDataType>::TY
-                }
-            }
-
             impl FromId for $name {
                 fn from_id(id: usize) -> Self {
                     Self { id }
                 }
             }
+    };
+}
+
+macro_rules! gen_as_data_primitive {
+    ($($name1:ident, $rust1:ident,)*) => {
+        $(
+            gen_as_data_single!($name1);
+            gen_relation!($name1, $rust1, into);
         )*
     };
 }
 
-gen_as_data!(
-    Bool, bool, Int, i32, UInt, u32, Float, f32, Double, f64, IVec2, RustIVec2, IVec3, RustIVec3,
-    IVec4, RustIVec4, UVec2, RustUVec2, UVec3, RustUVec3, UVec4, RustUVec4, Vec2, RustVec2, Vec3,
-    RustVec3, Vec4, RustVec4, DVec2, RustDVec2, DVec3, RustDVec3, DVec4, RustDVec4, Mat2, RustMat2,
-    Mat3, RustMat3, Mat4, RustMat4, DMat2, RustDMat2, DMat3, RustDMat3, DMat4, RustDMat4,
+macro_rules! gen_as_data_vec {
+    ($($name2:ident, $rust2:ident, $glm:ident,)*) => {
+        $(
+            gen_as_data_single!($name2);
+            gen_relation!($name2, $rust2, into);
+            gen_relation!($name2, $glm, into);
+        )*
+    };
+}
+
+macro_rules! gen_as_data_mat {
+    ($($name2:ident, $rust2:ident, $glm:ident,)*) => {
+        $(
+            gen_as_data_single!($name2);
+            gen_relation!($name2, $rust2, into);
+            gen_relation!($name2, $glm, to_cols_array_2d);
+        )*
+    };
+}
+
+#[rustfmt::skip]
+gen_as_data_primitive!(
+    Bool, bool, 
+    Int, i32, 
+    UInt, u32, 
+    Float, f32, 
+    Double, f64, 
+);
+
+#[rustfmt::skip]
+gen_as_data_vec!(
+    IVec2, RustIVec2, GlamIVec2, 
+    IVec3, RustIVec3, GlamIVec3,
+    IVec4, RustIVec4, GlamIVec4, 
+    UVec2, RustUVec2, GlamUVec2, 
+    UVec3, RustUVec3, GlamUVec3, 
+    UVec4, RustUVec4, GlamUVec4, 
+    Vec2, RustVec2, GlamVec2, 
+    Vec3, RustVec3, GlamVec3,
+    Vec4, RustVec4, GlamVec4, 
+    DVec2, RustDVec2, GlamDVec2, 
+    DVec3, RustDVec3, GlamDVec3, 
+    DVec4, RustDVec4, GlamDVec4, 
+    
+    
+);
+
+#[rustfmt::skip]
+gen_as_data_mat!(
+    Mat2, RustMat2, GlamMat2,
+    Mat3, RustMat3, GlamMat3, 
+    Mat4, RustMat4, GlamMat4, 
+    DMat2, RustDMat2, GlamDMat2, 
+    DMat3, RustDMat3, GlamDMat3, 
+    DMat4, RustDMat4, GlamDMat4,
 );
 
 pub struct VectorShuffle<T: AsPrimitiveType> {
