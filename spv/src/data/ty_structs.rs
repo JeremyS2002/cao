@@ -211,12 +211,27 @@ macro_rules! gen_as_data_vec {
     };
 }
 
-macro_rules! gen_as_data_mat {
-    ($($name2:ident, $rust2:ident, $glm:ident,)*) => {
+pub trait Matrix {
+    type Vector: FromId;
+}
+
+macro_rules! impl_mat_vec {
+    ($($mat:ident, $vec:ident)*) => {
         $(
-            gen_as_data_single!($name2);
-            gen_relation!($name2, $rust2, into);
-            gen_relation!($name2, $glm, to_cols_array_2d);
+            impl Matrix for $mat {
+                type Vector = $vec;
+            }
+        )*
+    };
+}
+
+macro_rules! gen_as_data_mat {
+    ($($name:ident, $rust:ident, $glm:ident, $vec:ident,)*) => {
+        $(
+            gen_as_data_single!($name);
+            gen_relation!($name, $rust, into);
+            gen_relation!($name, $glm, to_cols_array_2d);
+            impl_mat_vec!($name, $vec);
         )*
     };
 }
@@ -244,18 +259,16 @@ gen_as_data_vec!(
     DVec2, RustDVec2, GlamDVec2, 
     DVec3, RustDVec3, GlamDVec3, 
     DVec4, RustDVec4, GlamDVec4, 
-    
-    
 );
 
 #[rustfmt::skip]
 gen_as_data_mat!(
-    Mat2, RustMat2, GlamMat2,
-    Mat3, RustMat3, GlamMat3, 
-    Mat4, RustMat4, GlamMat4, 
-    DMat2, RustDMat2, GlamDMat2, 
-    DMat3, RustDMat3, GlamDMat3, 
-    DMat4, RustDMat4, GlamDMat4,
+    Mat2, RustMat2, GlamMat2, Vec2,
+    Mat3, RustMat3, GlamMat3, Vec3, 
+    Mat4, RustMat4, GlamMat4, Vec4, 
+    DMat2, RustDMat2, GlamDMat2, DVec2, 
+    DMat3, RustDMat3, GlamDMat3, DVec3, 
+    DMat4, RustDMat4, GlamDMat4, DVec4,
 );
 
 pub struct VectorShuffle<T: AsPrimitiveType> {
@@ -890,9 +903,12 @@ macro_rules! impl_vector_shuffle {
     };
 }
 
+#[rustfmt::skip]
 impl_vector_shuffle!(
-    Float, Vec2, Vec3, Vec4, Int, IVec2, IVec3, IVec4, UInt, UVec2, UVec3, UVec4, Double, DVec2,
-    DVec3, DVec4,
+    Float, Vec2, Vec3, Vec4, 
+    Int, IVec2, IVec3, IVec4, 
+    UInt, UVec2, UVec3, UVec4, 
+    Double, DVec2, DVec3, DVec4,
 );
 
 // macro_rules! impl_vector_shuffle {

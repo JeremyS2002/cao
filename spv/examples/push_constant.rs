@@ -105,7 +105,7 @@ fn main() {
     let fragment_spv = {
         let builder = spv::FragmentBuilder::new();
 
-        builder.push_constant::<spv::SpvStruct<PushConstants>>(None, Some("p_data"));
+        builder.push_constant::<spv::Struct<PushConstants>>(None, Some("p_data"));
 
         let out_col = builder.out_vec4(0, false, Some("out_color"));
 

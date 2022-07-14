@@ -86,14 +86,14 @@ macro_rules! impl_specialisation {
         $(
             impl $name {
                 $(
-                    pub fn $spec_in(&self) -> crate::interface::SpvInput<$ty_in> {
+                    pub fn $spec_in(&self) -> crate::interface::Input<$ty_in> {
                         let index = self.raw.inputs.borrow().len();
                         self.raw.inputs.borrow_mut().push((
                             crate::data::PrimitiveType::$ty_in,
                             Right(rspirv::spirv::BuiltIn::$built_in_a),
                             Some(stringify!($spec_in)),
                         ));
-                        crate::interface::SpvInput {
+                        crate::interface::Input {
                             index,
                             _marker: std::marker::PhantomData
                         }
@@ -101,14 +101,14 @@ macro_rules! impl_specialisation {
                 )*
 
                 $(
-                    pub fn $spec_out(&self) -> crate::interface::SpvOutput<$ty_out> {
+                    pub fn $spec_out(&self) -> crate::interface::Output<$ty_out> {
                         let index = self.raw.outputs.borrow().len();
                         self.raw.outputs.borrow_mut().push((
                             crate::data::PrimitiveType::$ty_out,
                             Right(rspirv::spirv::BuiltIn::$built_in_b),
                             Some(stringify!($spec_out)),
                         ));
-                        crate::interface::SpvOutput {
+                        crate::interface::Output {
                             index,
                             _marker: std::marker::PhantomData
                         }

@@ -3,13 +3,9 @@ fn main() {
     let src = "
         #version 450
 
-        layout(push_constant) uniform Data {
-            layout(offset = 4) float x;
-            float y;
-        } p_data;
-
         void main() {
-            float z = p_data.x + p_data.y;
+            mat4 m = mat4(1.0);
+            mat3 n = mat3(m);
         }
     ";
 

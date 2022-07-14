@@ -116,6 +116,30 @@ impl PrimitiveType {
         }
     }
 
+    pub fn vector_components(&self) -> Option<u32> {
+        match self {
+            PrimitiveType::Mat2 => Some(2),
+            PrimitiveType::Mat3 => Some(3),
+            PrimitiveType::Mat4 => Some(4),
+            PrimitiveType::DMat2 => Some(2),
+            PrimitiveType::DMat3 => Some(3),
+            PrimitiveType::DMat4 => Some(4),
+            _ => None,
+        }
+    }
+
+    pub fn vector_type(&self) -> Option<PrimitiveType> {
+        match self {
+            PrimitiveType::Mat2 => Some(PrimitiveType::Vec2),
+            PrimitiveType::Mat3 => Some(PrimitiveType::Vec3),
+            PrimitiveType::Mat4 => Some(PrimitiveType::Vec4),
+            PrimitiveType::DMat2 => Some(PrimitiveType::DVec2),
+            PrimitiveType::DMat3 => Some(PrimitiveType::DVec3),
+            PrimitiveType::DMat4 => Some(PrimitiveType::DVec4),
+            _ => None,
+        }
+    }
+
     /// Returns the number of bytes between rows of a matrix
     /// TODO test this matches with spirv and rust data.
     /// shaderc compiling glsl marks all matrices as having a stride of 16

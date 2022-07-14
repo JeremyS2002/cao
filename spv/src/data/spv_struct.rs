@@ -30,7 +30,7 @@ pub unsafe trait AsSpvStruct: 'static {
     fn fields<'a>(&'a self) -> Vec<&'a dyn AsData>;
 }
 
-impl<T: AsSpvStruct> AsDataType for SpvStruct<T> {
+impl<T: AsSpvStruct> AsDataType for Struct<T> {
     const TY: DataType = DataType::Struct(
         TypeId::of::<T>(),
         T::DESC.name,
@@ -39,7 +39,7 @@ impl<T: AsSpvStruct> AsDataType for SpvStruct<T> {
     );
 }
 
-impl<T: AsSpvStruct> AsData for SpvStruct<T> {
+impl<T: AsSpvStruct> AsData for Struct<T> {
     fn id(&self, _: &dyn crate::builder::RawBuilder) -> usize {
         // let id = b.get_new_id();
         // let data = self.fields().iter().map(|d| d.id(b)).collect::<Vec<_>>();
@@ -62,15 +62,15 @@ impl<T: AsSpvStruct> AsData for SpvStruct<T> {
     }
 }
 
-impl<T: AsSpvStruct> IsDataType for SpvStruct<T> {}
+impl<T: AsSpvStruct> IsDataType for Struct<T> {}
 
 #[derive(Clone, Copy, Debug)]
-pub struct SpvStruct<S: AsSpvStruct> {
+pub struct Struct<S: AsSpvStruct> {
     pub(crate) id: usize,
     pub(crate) _marker: PhantomData<S>,
 }
 
-impl<S: AsSpvStruct> FromId for SpvStruct<S> {
+impl<S: AsSpvStruct> FromId for Struct<S> {
     fn from_id(id: usize) -> Self {
         Self {
             id,

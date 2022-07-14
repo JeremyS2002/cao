@@ -36,7 +36,7 @@
 
 use data::IsPrimitiveType;
 use either::*;
-use interface::{SpvInput, SpvOutput, SpvStorage, SpvUniform, StorageAccessDesc};
+pub use interface::{Input, Output, Storage, Uniform, StorageAccessDesc};
 use rspirv::binary::Assemble;
 
 use std::cell::RefCell;
@@ -64,6 +64,7 @@ pub use specialisation::{
 pub use data::*;
 pub use sampler::*;
 pub use texture::*;
+
 
 pub struct Builder<T> {
     /// Well well well, look who wants implement more features and can't remember how this works.
@@ -219,13 +220,13 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         location: u32,
         flat: bool,
         name: Option<&'static str>,
-    ) -> SpvInput<P> {
+    ) -> Input<P> {
         let index = self.raw.inputs.borrow().len();
         self.raw
             .inputs
             .borrow_mut()
             .push((P::TY, Left((location, flat)), name));
-        SpvInput {
+        Input {
             index,
             _marker: PhantomData,
         }
@@ -236,13 +237,13 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         location: u32,
         flat: bool,
         name: Option<&'static str>,
-    ) -> SpvOutput<P> {
+    ) -> Output<P> {
         let index = self.raw.outputs.borrow().len();
         self.raw
             .outputs
             .borrow_mut()
             .push((P::TY, Left((location, flat)), name));
-        SpvOutput {
+        Output {
             index,
             _marker: PhantomData,
         }
@@ -260,7 +261,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         set: u32,
         binding: u32,
         name: Option<&'static str>,
-    ) -> SpvUniform<D> {
+    ) -> Uniform<D> {
         let index = self.raw.uniforms.borrow().len();
         self.raw
             .uniforms
@@ -278,7 +279,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
                 name,
             ),
         );
-        SpvUniform {
+        Uniform {
             index,
             _marker: PhantomData,
         }
@@ -289,18 +290,17 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         set: u32,
         binding: u32,
         name: Option<&'static str>,
-    ) -> SpvUniform<SpvStruct<S>> {
+    ) -> Uniform<Struct<S>> {
         self.uniform(set, binding, name)
     }
 
     pub fn storage<D: IsDataType>(
         &self,
-        _desc: StorageAccessDesc,
+        desc: StorageAccessDesc,
         set: u32,
         binding: u32,
-        read_only: bool,
         name: Option<&'static str>,
-    ) -> SpvStorage<D> {
+    ) -> Storage<D> {
         self.raw
             .storages
             .borrow_mut()
@@ -310,7 +310,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             (set, binding),
             (
                 gpu::DescriptorLayoutEntry {
-                    ty: gpu::DescriptorLayoutEntryType::StorageBuffer { read_only },
+                    ty: gpu::DescriptorLayoutEntryType::StorageBuffer { read_only: !desc.write },
                     stage: T::GPU_STAGE,
                     count: std::num::NonZeroU32::new(1).unwrap(),
                 },
@@ -781,11 +781,11 @@ macro_rules! io_interp_types {
     ($($i_name:ident, $o_name:ident, $t_name:ident,)*) => {
         impl<T: specialisation::ShaderTY> Builder<T> {
             $(
-                pub fn $i_name(&self, location: u32, flat: bool, name: Option<&'static str>) -> SpvInput<$t_name> {
+                pub fn $i_name(&self, location: u32, flat: bool, name: Option<&'static str>) -> Input<$t_name> {
                     self.input(location, flat, name)
                 }
 
-                pub fn $o_name(&self, location: u32, flat: bool, name: Option<&'static str>) -> SpvOutput<$t_name> {
+                pub fn $o_name(&self, location: u32, flat: bool, name: Option<&'static str>) -> Output<$t_name> {
                     self.output(location, flat, name)
                 }
             )*
@@ -803,11 +803,11 @@ macro_rules! io_no_interp_types {
     ($($i_name:ident, $o_name:ident, $t_name:ident,)*) => {
         impl<T: specialisation::ShaderTY> Builder<T> {
             $(
-                pub fn $i_name(&self, location: u32, name: Option<&'static str>) -> SpvInput<$t_name> {
+                pub fn $i_name(&self, location: u32, name: Option<&'static str>) -> Input<$t_name> {
                     self.input(location, true, name)
                 }
 
-                pub fn $o_name(&self, location: u32, name: Option<&'static str>) -> SpvOutput<$t_name> {
+                pub fn $o_name(&self, location: u32, name: Option<&'static str>) -> Output<$t_name> {
                     self.output(location, true, name)
                 }
             )*

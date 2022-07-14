@@ -204,6 +204,16 @@ pub enum Instruction {
         res_ty: PrimitiveType,
         store: usize,
     },
+    MatCol {
+        src: (usize, PrimitiveType),
+        dst: usize,
+        col: u32,
+    },
+    MatConstruct {
+        components: [usize; 4],
+        ty: PrimitiveType,
+        store: usize,
+    },
 }
 
 #[allow(dead_code)]
@@ -686,6 +696,37 @@ impl Instruction {
                 let field_obj = builder.load(field_ty, None, pointer, None, None).unwrap();
                 builder.store(res_var, field_obj, None, None).unwrap();
                 s.var_map.insert(*store, res_var);
+            },
+            Instruction::MatCol { src, dst, col } => {
+                let spv_src_obj_ty = src.1.base_type(builder);
+                let spv_src = *s.var_map.get(&src.0).unwrap();
+                let spv_src_obj = builder.load(spv_src_obj_ty, None, spv_src, None, None).unwrap();
+
+                let dst_ty = src.1.vector_type().unwrap();
+                let spv_dst_obj_ty = dst_ty.base_type(builder);
+                let spv_dst_obj = builder.composite_extract(spv_dst_obj_ty, None, spv_src_obj, Some(*col)).unwrap();
+                let spv_dst_var = dst_ty.variable(builder, s.var_block);
+                builder.store(spv_dst_var, spv_dst_obj, None, None).unwrap();
+                s.var_map.insert(*dst, spv_dst_var);
+            },
+            Instruction::MatConstruct { 
+                components, 
+                ty, 
+                store 
+            } => {
+                let num_components = ty.vector_components().unwrap() as usize;
+                let component_ty = ty.vector_type().unwrap().base_type(builder);
+
+                let res_spv_obj_ty = ty.base_type(builder);
+                let spv_components = components.iter().take(num_components).map(|i| {
+                    let spv_var = *s.var_map.get(i).unwrap();
+                    builder.load(component_ty, None, spv_var, None, None).unwrap()
+                }).collect::<Vec<_>>();
+                let res_spv_obj = builder.composite_construct(res_spv_obj_ty, None, spv_components).unwrap();
+                
+                let res_spv_var = ty.variable(builder, s.var_block);
+                builder.store(res_spv_var, res_spv_obj, None, None).unwrap();
+                s.var_map.insert(*store, res_spv_var); 
             },
         }
     }

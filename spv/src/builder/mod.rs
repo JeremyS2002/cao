@@ -159,7 +159,61 @@ macro_rules! gen_vec4_construct {
     };
 }
 
-macro_rules! gen_vec_construct {
+macro_rules! gen_mat2_construct {
+    ($($f_name:ident, $mat_ty:ident, $comp_ty:ident,)*) => {
+        $(
+            pub fn $f_name(&self, x: &dyn SpvRustEq<$comp_ty>, y: &dyn SpvRustEq<$comp_ty>) -> $mat_ty {
+                let id = self.raw.get_new_id();
+                self.raw.push_instruction(Instruction::MatConstruct {
+                    components: [x.id(&*self.raw), y.id(&*self.raw), 0, 0],
+                    ty: crate::data::PrimitiveType::$mat_ty,
+                    store: id,
+                });
+                $mat_ty {
+                    id,
+                }
+            }
+        )*
+    };
+}
+
+macro_rules! gen_mat3_construct {
+    ($($f_name:ident, $mat_ty:ident, $comp_ty:ident,)*) => {
+        $(
+            pub fn $f_name(&self, x: &dyn SpvRustEq<$comp_ty>, y: &dyn SpvRustEq<$comp_ty>, z: &dyn SpvRustEq<$comp_ty>) -> $mat_ty {
+                let id = self.raw.get_new_id();
+                self.raw.push_instruction(Instruction::MatConstruct {
+                    components: [x.id(&*self.raw), y.id(&*self.raw), z.id(&*self.raw), 0],
+                    ty: crate::data::PrimitiveType::$mat_ty,
+                    store: id,
+                });
+                $mat_ty {
+                    id,
+                }
+            }
+        )*
+    };
+}
+
+macro_rules! gen_mat4_construct {
+    ($($f_name:ident, $mat_ty:ident, $comp_ty:ident,)*) => {
+        $(
+            pub fn $f_name(&self, x: &dyn SpvRustEq<$comp_ty>, y: &dyn SpvRustEq<$comp_ty>, z: &dyn SpvRustEq<$comp_ty>, w: &dyn SpvRustEq<$comp_ty>) -> $mat_ty {
+                let id = self.raw.get_new_id();
+                self.raw.push_instruction(Instruction::MatConstruct {
+                    components: [x.id(&*self.raw), y.id(&*self.raw), z.id(&*self.raw), w.id(&*self.raw)],
+                    ty: crate::data::PrimitiveType::$mat_ty,
+                    store: id,
+                });
+                $mat_ty {
+                    id,
+                }
+            }
+        )*
+    };
+}
+
+macro_rules! gen_construct {
     ($($name:ident,)*) => {
         $(
             impl $name {
@@ -183,12 +237,27 @@ macro_rules! gen_vec_construct {
                     uvec4, UVec4, UInt,
                     dvec4, DVec4, Double,
                 );
+
+                gen_mat2_construct!(
+                    mat2, Mat2, Vec2,
+                    dmat2, DMat2, DVec2,
+                );
+
+                gen_mat3_construct!(
+                    mat3, Mat3, Vec3,
+                    dmat3, DMat3, DVec3,
+                );
+
+                gen_mat4_construct!(
+                    mat4, Mat4, Vec4,
+                    dmat4, DMat4, DVec4,
+                );
             }
         )*
     };
 }
 
-gen_vec_construct!(FnBuilder, ConditionBuilder, LoopBuilder, MainBuilder,);
+gen_construct!(FnBuilder, ConditionBuilder, LoopBuilder, MainBuilder,);
 
 macro_rules! gen_const_type {
     ($($f:ident, $t:ident, $rust:ident,)*) => {
@@ -247,6 +316,17 @@ macro_rules! gen_intrinsics {
     ($($name:ident,)*) => {
         $(
             impl $name {
+                pub fn mat_col<M: Matrix + AsPrimitive + AsPrimitiveType>(&self, mat: M, col: u32) -> M::Vector {
+                    let res = self.raw.get_new_id();
+
+                    self.raw.push_instruction(Instruction::MatCol {
+                        src: (mat.id(&*self.raw), M::TY),
+                        col,
+                        dst: res,
+                    });
+
+                    todo!();
+                }
 
                 /// Adds an if condition to the current function
                 pub fn spv_if<F: FnOnce(&ConditionBuilder)>(&self, b: impl crate::data::SpvRustEq<Bool>, f: F) -> ConditionBuilder {
@@ -311,7 +391,7 @@ macro_rules! gen_intrinsics {
                     R::from_id(store_id)
                 }
 
-                pub fn load_in<T: crate::data::IsPrimitiveType + FromId>(&self, input: SpvInput<T>) -> T {
+                pub fn load_in<T: crate::data::IsPrimitiveType + FromId>(&self, input: Input<T>) -> T {
                     let store = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::LoadIn {
                         index: input.index,
@@ -321,7 +401,7 @@ macro_rules! gen_intrinsics {
                     T::from_id(store)
                 }
 
-                pub fn store_out<T, S>(&self, output: SpvOutput<T>, store: S)
+                pub fn store_out<T, S>(&self, output: Output<T>, store: S)
                 where
                     T: crate::IsPrimitiveType + crate::data::SpvRustEq<S>,
                     S: AsPrimitive,
@@ -334,7 +414,7 @@ macro_rules! gen_intrinsics {
                 }
 
                 /// Load the uniform into a new variable
-                pub fn load_uniform<T: IsDataType + FromId>(&self, uniform: SpvUniform<T>) -> T {
+                pub fn load_uniform<T: IsDataType + FromId>(&self, uniform: Uniform<T>) -> T {
                     let new_id = self.raw.get_new_id();
                     self.raw.push_instruction(Instruction::LoadUniform {
                         index: uniform.index,
@@ -347,7 +427,7 @@ macro_rules! gen_intrinsics {
                 /// Load one field from the uniform containing a struct
                 ///
                 /// Will panic if the struct has no field by the name supplied
-                pub fn load_uniform_field<S: AsSpvStruct, T: FromId>(&self, uniform: SpvUniform<SpvStruct<S>>, field: &str) -> T {
+                pub fn load_uniform_field<S: AsSpvStruct, T: FromId>(&self, uniform: Uniform<Struct<S>>, field: &str) -> T {
                     let f_index = S::DESC.names.iter().position(|&f| f == field).unwrap();
                     let f_ty = *S::DESC.fields.get(f_index).unwrap();
                     let new_id = self.raw.get_new_id();
@@ -356,7 +436,7 @@ macro_rules! gen_intrinsics {
                         f_index,
                         store: new_id,
                         f_ty,
-                        ty: SpvStruct::<S>::TY,
+                        ty: Struct::<S>::TY,
                     });
 
                     T::from_id(new_id)
@@ -407,7 +487,7 @@ macro_rules! gen_intrinsics {
                 /// Load one field from the uniform containing a struct by the index of the field
                 ///
                 /// Will panic if the index is out of bounds of the number of structs fields
-                pub fn load_uniform_field_by_index<S: AsSpvStruct, T: FromId>(&self, uniform: SpvUniform<SpvStruct<S>>, field_index: usize) -> T {
+                pub fn load_uniform_field_by_index<S: AsSpvStruct, T: FromId>(&self, uniform: Uniform<Struct<S>>, field_index: usize) -> T {
                     let new_id = self.raw.get_new_id();
 
                     let f_ty = *S::DESC.fields.get(field_index).unwrap();
@@ -417,7 +497,7 @@ macro_rules! gen_intrinsics {
                         f_index: field_index,
                         store: new_id,
                         f_ty,
-                        ty: SpvStruct::<S>::TY,
+                        ty: Struct::<S>::TY,
                     });
 
                     T::from_id(new_id)
@@ -626,7 +706,7 @@ macro_rules! gen_intrinsics {
                 /// storing &dyn AsData and implement require Into for that associated type. Could be
                 /// implemented as a proc macro and also a duplicate type that could have fields of Int, Float ...
                 /// or maybe different constructors idk i'm rambling.
-                pub fn new_struct<S: AsSpvStruct>(&self, data: &[&dyn AsData]) -> SpvStruct<S> {
+                pub fn new_struct<S: AsSpvStruct>(&self, data: &[&dyn AsData]) -> Struct<S> {
                     let id = self.raw.get_new_id();
                     let data = data.iter().map(|d| d.id(&*self.raw)).collect::<Vec<_>>();
                     self.raw.push_instruction(Instruction::NewStruct {
@@ -635,7 +715,7 @@ macro_rules! gen_intrinsics {
                         ty: DataType::Struct(TypeId::of::<S>(), S::DESC.name, S::DESC.names, S::DESC.fields)
                     });
 
-                    SpvStruct {
+                    Struct {
                         id,
                         _marker: PhantomData,
                     }
@@ -644,7 +724,7 @@ macro_rules! gen_intrinsics {
                 /// Store the variable into the struct field
                 ///
                 /// Will panic if the field type doesn't match the type of T
-                pub fn struct_store<S, T>(&self, s: SpvStruct<S>, field: &str, data: T)
+                pub fn struct_store<S, T>(&self, s: Struct<S>, field: &str, data: T)
                 where
                     S: AsSpvStruct,
                     T: AsData,
@@ -662,7 +742,7 @@ macro_rules! gen_intrinsics {
                 /// Load a struct field and return a variable containing the data from that field
                 ///
                 /// Will panic if the field types doesn't match the type of T
-                pub fn struct_load<S, T>(&self, s: SpvStruct<S>, field: &str) -> T
+                pub fn struct_load<S, T>(&self, s: Struct<S>, field: &str) -> T
                 where
                     S: AsSpvStruct,
                     T: AsData + AsDataType + FromId,
