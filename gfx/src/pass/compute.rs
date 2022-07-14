@@ -377,46 +377,46 @@ impl<'a, 'b> ReflectedComputePass<'a, 'b> {
     }
 }
 
-// macro_rules! push {
-//     ($(($f:tt, $ty:tt),)*) => {
-//         impl<'a, 'b> ReflectedComputePass<'a, 'b> {
-//             $(
-//                 #[allow(missing_docs)]
-//                 pub fn $f(&mut self, name: &str, constant: $ty) {
-//                     self.push_constant(name, constant);
-//                 }
-//             )*
-//         }
-//     };
-// }
+macro_rules! push {
+    ($(($f:tt, $ty:tt),)*) => {
+        impl<'a, 'b> ReflectedComputePass<'a, 'b> {
+            $(
+                #[allow(missing_docs)]
+                pub fn $f(&mut self, name: &str, constant: $ty) {
+                    self.push_constant(name, constant);
+                }
+            )*
+        }
+    };
+}
 
-// push!(
-//     (push_u8, u8),
-//     (push_u16, u16),
-//     (push_u32, u32),
-//     (push_u64, u64),
-//     (push_uvec2, [u32; 2]),
-//     (push_uvec3, [u32; 3]),
-//     (push_uvec4, [u32; 4]),
-//     (push_i8, i8),
-//     (push_i16, i16),
-//     (push_i32, i32),
-//     (push_i64, i64),
-//     (push_svec2, [i32; 2]),
-//     (push_svec3, [i32; 3]),
-//     (push_svec4, [i32; 4]),
-//     (push_f32, f32),
-//     (push_f64, f64),
-//     (push_vec2, [f32; 2]),
-//     (push_vec3, [f32; 3]),
-//     (push_vec4, [f32; 4]),
-//     (push_mat2, [f32; 4]),
-//     (push_mat3, [f32; 9]),
-//     (push_mat4, [f32; 16]),
-//     (push_dvec2, [f64; 2]),
-//     (push_dvec3, [f64; 3]),
-//     (push_dvec4, [f64; 4]),
-//     (push_dmat2, [f64; 4]),
-//     (push_dmat3, [f64; 9]),
-//     (push_dmat4, [f64; 16]),
-// );
+push!(
+    (push_u8, u8),
+    (push_u16, u16),
+    (push_u32, u32),
+    (push_u64, u64),
+    (push_uvec2, [u32; 2]),
+    (push_uvec3, [u32; 3]),
+    (push_uvec4, [u32; 4]),
+    (push_i8, i8),
+    (push_i16, i16),
+    (push_i32, i32),
+    (push_i64, i64),
+    (push_svec2, [i32; 2]),
+    (push_svec3, [i32; 3]),
+    (push_svec4, [i32; 4]),
+    (push_f32, f32),
+    (push_f64, f64),
+    (push_vec2, [f32; 2]),
+    (push_vec3, [f32; 3]),
+    (push_vec4, [f32; 4]),
+    (push_mat2, [f32; 4]),
+    (push_mat3, [f32; 9]),
+    (push_mat4, [f32; 16]),
+    (push_dvec2, [f64; 2]),
+    (push_dvec3, [f64; 3]),
+    (push_dvec4, [f64; 4]),
+    (push_dmat2, [f64; 4]),
+    (push_dmat3, [f64; 9]),
+    (push_dmat4, [f64; 16]),
+);

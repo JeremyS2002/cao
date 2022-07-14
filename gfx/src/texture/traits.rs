@@ -1,5 +1,8 @@
 pub trait AsDimension: std::fmt::Debug {
     fn as_dimension(&self) -> gpu::TextureDimension;
+
+    #[cfg(feature = "spv")]
+    type Spirv: spv::AsDimension;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -15,6 +18,9 @@ impl AsDimension for D1 {
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::D1(self.0)
     }
+
+    #[cfg(feature = "spv")]
+    type Spirv = spv::D1;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -30,6 +36,9 @@ impl AsDimension for D1Array {
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::D1Array(self.0, self.1)
     }
+
+    #[cfg(feature = "spv")]
+    type Spirv = spv::D1;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -45,6 +54,9 @@ impl AsDimension for D2 {
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::D2(self.0, self.1, gpu::Samples::S1)
     }
+
+    #[cfg(feature = "spv")]
+    type Spirv = spv::D2;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -60,6 +72,9 @@ impl AsDimension for D2Ms {
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::D2(self.0, self.1, self.2)
     }
+
+    #[cfg(feature = "spv")]
+    type Spirv = spv::D2;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -85,6 +100,9 @@ impl AsDimension for D2Array {
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::D2Array(self.0, self.1, self.2, self.3)
     }
+
+    #[cfg(feature = "spv")]
+    type Spirv = spv::D2;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -94,6 +112,9 @@ impl AsDimension for D3 {
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::D3(self.0, self.1, self.2)
     }
+
+    #[cfg(feature = "spv")]
+    type Spirv = spv::D3;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -103,6 +124,9 @@ impl AsDimension for Cube {
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::Cube(self.0, self.1)
     }
+
+    #[cfg(feature = "spv")]
+    type Spirv = spv::Cube;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -112,6 +136,9 @@ impl AsDimension for CubeArray {
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::CubeArray(self.0, self.1, self.2)
     }
+
+    #[cfg(feature = "spv")]
+    type Spirv = spv::Cube;
 }
 
 /*#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
