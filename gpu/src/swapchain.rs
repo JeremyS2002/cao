@@ -1,3 +1,7 @@
+//! A [`Swapchain`] is used to present images to a window
+//!
+//! A Swapchain is really a series of images so that while one is being shown on screen another can be drawn to
+
 use std::cell::Cell;
 use std::mem::ManuallyDrop as Md;
 use std::ptr;
@@ -232,8 +236,14 @@ impl Swapchain {
         };
 
         let mut image_extent = caps.current_extent;
-        image_extent.width = image_extent.width.min(caps.max_image_extent.width).max(caps.min_image_extent.width);
-        image_extent.height = image_extent.height.min(caps.max_image_extent.height).max(caps.min_image_extent.height);
+        image_extent.width = image_extent
+            .width
+            .min(caps.max_image_extent.width)
+            .max(caps.min_image_extent.width);
+        image_extent.height = image_extent
+            .height
+            .min(caps.max_image_extent.height)
+            .max(caps.min_image_extent.height);
 
         let create_info = vk::SwapchainCreateInfoKHR {
             s_type: vk::StructureType::SWAPCHAIN_CREATE_INFO_KHR,

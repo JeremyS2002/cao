@@ -1,22 +1,22 @@
 //! Utilities for manipulating textures
-//! 
+//!
 //! [`GTexture`]
-//! Wraps a [`gpu::Texture`] and [`gpu::TextureView`] providing utilities for generating mipmaps, 
+//! Wraps a [`gpu::Texture`] and [`gpu::TextureView`] providing utilities for generating mipmaps,
 //! slicing more intuitivly and writing data, as well as statically typed texture dimension
-//! 
-//! The specific type aliases for each dimensions provide more intuitive methods for creating texture from 
-//! images from the image crate as well as more robust methods for dealing with specific format dimension 
+//!
+//! The specific type aliases for each dimensions provide more intuitive methods for creating texture from
+//! images from the image crate as well as more robust methods for dealing with specific format dimension
 //! combinations not being available on the current system.
-//! 
+//!
 //! The _Texture_ types statically enforce both the dimension and the component type, for example:
 //! [`Texture2D`] enforces a 2 dimensional texture with floating point components
 //! [`DTexture1D`] enforces a 1 dimensional texture with double precision components
 //! [`ITextureCube`] enforces a cube dimensional texture with signed integer components
 //! [`UTexture2DArray`] enforces a 2d array texture with unsigned integer components
 //! Be aware that not all combinations of components and dimension are supported on all systems
-//! 
+//!
 //! TODO:
-//! Robust methods for loading textures from dynamic images. Check what format the image is in and then 
+//! Robust methods for loading textures from dynamic images. Check what format the image is in and then
 //! find a format that works (If necissary can use image methods to change the pixel type of the image)
 //!
 
@@ -27,14 +27,14 @@ pub use formats::*;
 pub use traits::*;
 
 /// Multiple textures formats can be suited to the same job.
-/// 
+///
 /// For example when rendering to a buffer it doesn't really matter if the buffer
 /// is Rgb16Float Rgb32Float or Rgb64Float as long as it has at least 3 components and has floating point value pixels
 /// this is important as different systems have support for different formats so it is good
 /// to be able to choose between those options at runtime
-/// 
+///
 /// This function returns alternative formats that can replace the format provided
-/// 
+///
 /// example usage:
 /// ```
 /// fn create_framebuffer(device: &gpu::Device, width: u32, height: u32) -> gfx::Texture2D {
@@ -49,44 +49,143 @@ pub use traits::*;
 ///     ).unwrap()
 /// }
 /// ```
-/// 
-pub fn alt_formats(format: gpu::Format) -> impl Iterator<Item=gpu::Format> {
+///
+pub fn alt_formats(format: gpu::Format) -> impl Iterator<Item = gpu::Format> {
     use gpu::Format::*;
     match format {
         R8Unorm => vec![R8Unorm, Rg8Unorm, Rgb8Unorm, Rgba8Unorm].into_iter(),
         R8Snorm => vec![R8Snorm, Rg8Snorm, Rgb8Snorm, Rgba8Snorm].into_iter(),
         R16Unorm => vec![R16Unorm, Rg16Unorm, Rgb16Unorm, Rgba16Unorm].into_iter(),
         R16Snorm => vec![R16Snorm, Rg16Snorm, Rgb16Snorm, Rgba16Snorm].into_iter(),
-        R16Float => vec![R16Float, Rg16Float, Rgb16Float, Rgba16Float, R32Float, Rg32Float, Rgb32Float, Rgba32Float, R64Float, Rg64Float, Rgb64Float, Rgba64Float].into_iter(),
+        R16Float => vec![
+            R16Float,
+            Rg16Float,
+            Rgb16Float,
+            Rgba16Float,
+            R32Float,
+            Rg32Float,
+            Rgb32Float,
+            Rgba32Float,
+            R64Float,
+            Rg64Float,
+            Rgb64Float,
+            Rgba64Float,
+        ]
+        .into_iter(),
         R32Uint => vec![R32Uint, Rg32Uint, Rgb32Uint, Rgba32Uint].into_iter(),
         R32Sint => vec![R32Sint, Rg32Sint, Rgb32Sint, Rgba32Sint].into_iter(),
-        R32Float => vec![R32Float, Rg32Float, Rgb32Float, Rgba32Float, R64Float, Rg64Float, Rgb64Float, Rgba64Float, R16Float, Rg16Float, Rgb16Float, Rgba16Float].into_iter(),
+        R32Float => vec![
+            R32Float,
+            Rg32Float,
+            Rgb32Float,
+            Rgba32Float,
+            R64Float,
+            Rg64Float,
+            Rgb64Float,
+            Rgba64Float,
+            R16Float,
+            Rg16Float,
+            Rgb16Float,
+            Rgba16Float,
+        ]
+        .into_iter(),
         R64Uint => vec![R64Uint, Rg64Uint, Rgb64Uint, Rgba64Uint].into_iter(),
         R64Sint => vec![R64Sint, Rg64Sint, Rgb64Sint, Rgba64Sint].into_iter(),
-        R64Float => vec![R64Float, Rg64Float, Rgb64Float, Rgba64Float, R32Float, Rg32Float, Rgb32Float, Rgba32Float, R16Float, Rg16Float, Rgb16Float, Rgba16Float].into_iter(),
+        R64Float => vec![
+            R64Float,
+            Rg64Float,
+            Rgb64Float,
+            Rgba64Float,
+            R32Float,
+            Rg32Float,
+            Rgb32Float,
+            Rgba32Float,
+            R16Float,
+            Rg16Float,
+            Rgb16Float,
+            Rgba16Float,
+        ]
+        .into_iter(),
         Rg8Unorm => vec![Rg8Unorm, Rgb8Unorm, Rgba8Unorm].into_iter(),
         Rg8Snorm => vec![Rg8Snorm, Rgb8Snorm, Rgba8Snorm].into_iter(),
         Rg16Unorm => vec![Rg16Unorm, Rgb16Unorm, Rgba16Unorm].into_iter(),
         Rg16Snorm => vec![Rg16Snorm, Rgb16Snorm, Rgba16Snorm].into_iter(),
-        Rg16Float => vec![Rg16Float, Rgb16Float, Rgba16Float, Rg32Float, Rgb32Float, Rg64Float, Rgba32Float, Rgb64Float, Rgba64Float].into_iter(),
+        Rg16Float => vec![
+            Rg16Float,
+            Rgb16Float,
+            Rgba16Float,
+            Rg32Float,
+            Rgb32Float,
+            Rg64Float,
+            Rgba32Float,
+            Rgb64Float,
+            Rgba64Float,
+        ]
+        .into_iter(),
         Rg32Uint => vec![Rg32Uint, Rgb32Uint, Rgba32Uint].into_iter(),
         Rg32Sint => vec![Rg32Sint, Rgb32Sint, Rgba32Sint].into_iter(),
-        Rg32Float => vec![Rg32Float, Rgb32Float, Rgba32Float, Rg64Float, Rgb64Float, Rgba64Float, Rg16Float, Rgb16Float, Rgba16Float].into_iter(),
+        Rg32Float => vec![
+            Rg32Float,
+            Rgb32Float,
+            Rgba32Float,
+            Rg64Float,
+            Rgb64Float,
+            Rgba64Float,
+            Rg16Float,
+            Rgb16Float,
+            Rgba16Float,
+        ]
+        .into_iter(),
         Rg64Uint => vec![Rg64Uint, Rgb64Uint, Rgba64Uint].into_iter(),
         Rg64Sint => vec![Rg64Sint, Rgb64Sint, Rgba64Sint].into_iter(),
-        Rg64Float => vec![Rg64Float, Rgb64Float, Rgba64Float, Rg32Float, Rgb32Float, Rgba32Float, Rg16Float, Rgb16Float, Rgba16Float].into_iter(),
+        Rg64Float => vec![
+            Rg64Float,
+            Rgb64Float,
+            Rgba64Float,
+            Rg32Float,
+            Rgb32Float,
+            Rgba32Float,
+            Rg16Float,
+            Rgb16Float,
+            Rgba16Float,
+        ]
+        .into_iter(),
         Rgb8Unorm => vec![Rgb8Unorm, Rgba8Unorm].into_iter(),
         Rgb8Snorm => vec![Rgb8Snorm, Rgba8Snorm].into_iter(),
         Rgb8Srgb => vec![Rgb8Srgb, Rgba8Srgb].into_iter(),
         Rgb16Unorm => vec![Rgb16Unorm, Rgba16Unorm].into_iter(),
-        Rgb16Float => vec![Rgb16Float, Rgba16Float, Rgb32Float, Rgba32Float, Rgb64Float, Rgba64Float].into_iter(),
+        Rgb16Float => vec![
+            Rgb16Float,
+            Rgba16Float,
+            Rgb32Float,
+            Rgba32Float,
+            Rgb64Float,
+            Rgba64Float,
+        ]
+        .into_iter(),
         Rgb16Snorm => vec![Rgb16Snorm, Rgba16Snorm].into_iter(),
         Rgb32Uint => vec![Rgb32Uint, Rgba32Uint].into_iter(),
         Rgb32Sint => vec![Rgb32Sint, Rgba32Sint].into_iter(),
-        Rgb32Float => vec![Rgb32Float, Rgba32Float, Rgb64Float, Rgba64Float, Rgb16Float, Rgba16Float].into_iter(),
+        Rgb32Float => vec![
+            Rgb32Float,
+            Rgba32Float,
+            Rgb64Float,
+            Rgba64Float,
+            Rgb16Float,
+            Rgba16Float,
+        ]
+        .into_iter(),
         Rgb64Uint => vec![Rgb64Uint, Rgba64Uint].into_iter(),
         Rgb64Sint => vec![Rgb64Sint, Rgba64Sint].into_iter(),
-        Rgb64Float => vec![Rgb64Float, Rgba64Float, Rgb32Float, Rgba32Float, Rgb16Float, Rgba16Float].into_iter(),
+        Rgb64Float => vec![
+            Rgb64Float,
+            Rgba64Float,
+            Rgb32Float,
+            Rgba32Float,
+            Rgb16Float,
+            Rgba16Float,
+        ]
+        .into_iter(),
         Rgba8Unorm => vec![Rgba8Unorm].into_iter(),
         Rgba8Snorm => vec![Rgba8Snorm].into_iter(),
         Rgba8Srgb => vec![Rgba8Srgb].into_iter(),
@@ -108,8 +207,12 @@ pub fn alt_formats(format: gpu::Format) -> impl Iterator<Item=gpu::Format> {
         Depth32Float => vec![Depth32Float].into_iter(),
         Depth16Unorm => vec![Depth16Unorm].into_iter(),
         Depth32FloatStencil8Uint => vec![Depth32FloatStencil8Uint].into_iter(),
-        Depth24UnormStencil8Uint => vec![Depth24UnormStencil8Uint, Depth16UnormStencil8Uint].into_iter(),
-        Depth16UnormStencil8Uint => vec![Depth16UnormStencil8Uint, Depth24UnormStencil8Uint].into_iter(),
+        Depth24UnormStencil8Uint => {
+            vec![Depth24UnormStencil8Uint, Depth16UnormStencil8Uint].into_iter()
+        }
+        Depth16UnormStencil8Uint => {
+            vec![Depth16UnormStencil8Uint, Depth24UnormStencil8Uint].into_iter()
+        }
         Stencil8Uint => vec![Stencil8Uint].into_iter(),
         Unknown => vec![Unknown].into_iter(),
     }
@@ -667,7 +770,14 @@ impl GTexture2D {
         format: gpu::Format,
         name: Option<String>,
     ) -> Result<Self, gpu::Error> {
-        Self::from_dimension(device, D2(width, height, samples), usage, mip_levels, format, name)
+        Self::from_dimension(
+            device,
+            D2(width, height, samples),
+            usage,
+            mip_levels,
+            format,
+            name,
+        )
     }
 
     /// Create a new Texture from dimensions and a list of possible formats
@@ -689,7 +799,10 @@ impl GTexture2D {
             usage,
             mip_levels,
         ) {
-            Self::new(device, width, height, samples, usage, mip_levels, format, name).map(|t| Some(t))
+            Self::new(
+                device, width, height, samples, usage, mip_levels, format, name,
+            )
+            .map(|t| Some(t))
         } else {
             Ok(None)
         }
@@ -723,7 +836,7 @@ impl GTexture2D {
     /// Write a raw texture to self
     ///
     /// Will panic if the texture isn't the right dimensions
-    /// 
+    ///
     /// At the moment the texture must have been created with [`gpu::Samples::S1`]
     /// If it was created with more then you must create a staging image and blit between them
     /// This limit should be lifted as soon as I get around to it
@@ -784,7 +897,7 @@ impl GTexture2D {
     /// Write an image to self
     ///
     /// Will panic if the dimensions don't match self
-    /// 
+    ///
     /// At the moment the texture must have been created with [`gpu::Samples::S1`]
     /// If it was created with more then you must create a staging image and blit between them
     /// This limit should be lifted as soon as I get around to it
@@ -897,7 +1010,7 @@ impl GTexture2DArray {
     /// Write a raw texture to self
     ///
     /// Will panic if the texture isn't the right dimensions
-    /// 
+    ///
     /// At the moment the texture must have been created with [`gpu::Samples::S1`]
     /// If it was created with more then you must create a staging image and blit between them
     /// This limit should be lifted as soon as I get around to it
@@ -961,7 +1074,7 @@ impl GTexture2DArray {
     /// Write an image to self
     ///
     /// Will panic if the dimensions don't match self
-    /// 
+    ///
     /// At the moment the texture must have been created with [`gpu::Samples::S1`]
     /// If it was created with more then you must create a staging image and blit between them
     /// This limit should be lifted as soon as I get around to it

@@ -1,3 +1,5 @@
+//! [`PipelineLayout`] describes the inputs to either a [`GraphicsPipeline`] or [`ComputePipeline`]
+
 use std::mem::ManuallyDrop as Md;
 use std::ptr;
 use std::sync::Arc;

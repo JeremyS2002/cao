@@ -31,8 +31,6 @@ impl super::RawBuilder for RawFnBuilder {
     fn push_constant(&self) -> Option<(DataType, u32, Option<&'static str>)> {
         (*self.builder.push_constant.borrow()).clone()
     }
-
-    
 }
 
 impl Drop for RawFnBuilder {

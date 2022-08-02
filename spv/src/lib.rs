@@ -2,10 +2,9 @@
 
 //! A tool to build spir-v shaders at runtime built on rspirv
 
-
 use data::IsPrimitiveType;
 use either::*;
-pub use interface::{Input, Output, Storage, Uniform, StorageAccessDesc};
+pub use interface::{Input, Output, Storage, StorageAccessDesc, Uniform};
 use rspirv::binary::Assemble;
 
 use std::cell::RefCell;
@@ -21,10 +20,10 @@ pub mod builder;
 pub mod data;
 pub mod function;
 pub mod interface;
+pub mod prelude;
 pub mod sampler;
 pub mod specialisation;
 pub mod texture;
-pub mod prelude;
 
 pub use specialisation::{
     ComputeBuilder, FragmentBuilder, GeometryBuilder, TessControlBuilder, TessEvalBuilder,
@@ -35,7 +34,25 @@ pub use data::*;
 pub use sampler::*;
 pub use texture::*;
 
-
+/// The main entry point to building a spir-v module
+///
+/// Create a builder specifiying what kind of spir-v module it will build using [`Builder::new`]
+///
+/// Example recieving a vec2 as vertex input and storing it to the output positon vulkan uses
+///
+/// ```
+/// use spv::prelude::*;
+///
+/// let b = spv::VertexBuilder::new();
+///
+/// let in_pos = b.in_vec2(0, false, None);
+/// let vk_pos = b.position();
+///
+/// b.main(|b| {
+///     let pos = b.load_in(in_pos);
+///     b.store_out(vk_pos, b.vec4(&pos.x(b), &pos.y(b), &0.0, &1.0));
+/// });
+/// ```
 pub struct Builder<T> {
     /// Well well well, look who wants implement more features and can't remember how this works.
     ///
@@ -68,218 +85,6 @@ pub struct Builder<T> {
     /// Always BaseBuilder
     raw: Rc<RawBaseBuilder>,
     _marker: PhantomData<T>,
-}
-
-macro_rules! impl_texture {
-    ($($fn_name:ident, $alias:ident, $s_name:ident, $comp:ident,)*) => {
-        $(
-            pub fn $fn_name(
-                &self,
-                set: u32,
-                binding: u32,
-                arrayed: bool,
-                name: Option<&'static str>
-            ) -> $alias {
-                $s_name(self.raw_texture(set, binding, arrayed, Component::$comp, name))
-            }
-        )*
-    };
-}
-
-macro_rules! impl_sampled_texture {
-    ($($fn_name:ident, $alias:ident, $s_name:ident, $comp:ident,)*) => {
-        $(
-            pub fn $fn_name(
-                &self,
-                set: u32,
-                binding: u32,
-                arrayed: bool,
-                name: Option<&'static str>
-            ) -> $alias {
-                $s_name(self.sampled_raw_texture(set, binding, arrayed, Component::$comp, name))
-            }
-        )*
-    };
-}
-
-/// Texture impls
-impl<T: specialisation::ShaderTY> Builder<T> {
-
-    impl_texture!(
-        texture_1d, Texture1D, Texture, Float,
-        d_texture_1d, DTexture1D, DTexture, Double,
-        i_texture_1d, ITexture1D, ITexture, Int,
-        u_texture_1d, UTexture1D, UTexture, UInt,
-        texture_2d, Texture2D, Texture, Float,
-        d_texture_2d, DTexture2D, DTexture, Double,
-        i_texture_2d, ITexture2D, ITexture, Int,
-        u_texture_2d, UTexture2D, UTexture, UInt,
-        texture_3d, Texture3D, Texture, Float,
-        d_texture_3d, DTexture3D, DTexture, Double,
-        i_texture_3d, ITexture3D, ITexture, Int,
-        u_texture_3d, UTexture3D, UTexture, UInt,
-    );
-
-    pub fn texture<D: AsDimension>(
-        &self, 
-        set: u32,
-        binding: u32,
-        arrayed: bool,
-        name: Option<&'static str>,
-    ) -> Texture<D> {
-        Texture(self.raw_texture(set, binding, arrayed, Component::Float, name))
-    }
-
-    pub fn d_texture<D: AsDimension>(
-        &self, 
-        set: u32,
-        binding: u32,
-        arrayed: bool,
-        name: Option<&'static str>,
-    ) -> DTexture<D> {
-        DTexture(self.raw_texture(set, binding, arrayed, Component::Double, name))
-    }
-
-    pub fn i_texture<D: AsDimension>(
-        &self, 
-        set: u32,
-        binding: u32,
-        arrayed: bool,
-        name: Option<&'static str>,
-    ) -> ITexture<D> {
-        ITexture(self.raw_texture(set, binding, arrayed, Component::Int, name))
-    }
-
-    pub fn u_texture<D: AsDimension>(
-        &self, 
-        set: u32,
-        binding: u32,
-        arrayed: bool,
-        name: Option<&'static str>,
-    ) -> UTexture<D> {
-        UTexture(self.raw_texture(set, binding, arrayed, Component::UInt, name))
-    }
-
-    fn raw_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        arrayed: bool,
-        component: Component,
-        name: Option<&'static str>,
-    ) -> RawTexture<D> {
-        let index = self.raw.textures.borrow().len();
-        self.raw
-            .textures
-            .borrow_mut()
-            .push((D::DIM, component, arrayed, set, binding, name));
-        #[cfg(feature = "gpu")]
-        self.raw.map.borrow_mut().insert(
-            (set, binding),
-            (
-                gpu::DescriptorLayoutEntry {
-                    ty: gpu::DescriptorLayoutEntryType::SampledTexture,
-                    stage: T::GPU_STAGE,
-                    count: std::num::NonZeroU32::new(1).unwrap(),
-                },
-                name,
-            ),
-        );
-        RawTexture {
-            index,
-            _dmarker: PhantomData,
-        }
-    }
-
-    impl_sampled_texture!(
-        sampled_texture_1d, SampledTexture1D, SampledTexture, Float,
-        sampled_d_texture_1d, SampledDTexture1D, SampledDTexture, Double,
-        sampled_i_texture_1d, SampledITexture1D, SampledITexture, Int,
-        sampled_u_texture_1d, SampledUTexture1D, SampledUTexture, UInt,
-        sampled_texture_2d, SampledTexture2D, SampledTexture, Float,
-        sampled_d_texture_2d, SampledDTexture2D, SampledDTexture, Double,
-        sampled_i_texture_2d, SampledITexture2D, SampledITexture, Int,
-        sampled_u_texture_2d, SampledUTexture2D, SampledUTexture, UInt,
-        sampled_texture_3d, SampledTexture3D, SampledTexture, Float,
-        sampled_d_texture_3d, SampledDTexture3D, SampledDTexture, Double,
-        sampled_i_texture_3d, SampledITexture3D, SampledITexture, Int,
-        sampled_u_texture_3d, SampledUTexture3D, SampledUTexture, UInt,
-    );
-
-    pub fn sampled_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        arrayed: bool,
-        name: Option<&'static str>
-    ) -> SampledTexture<D> {
-        SampledTexture(self.sampled_raw_texture(set, binding, arrayed, Component::Float, name))
-    }
-
-    pub fn sampled_d_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        arrayed: bool,
-        name: Option<&'static str>
-    ) -> SampledDTexture<D> {
-        SampledDTexture(self.sampled_raw_texture(set, binding, arrayed, Component::Double, name))
-    }
-
-    pub fn sampled_i_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        arrayed: bool,
-        name: Option<&'static str>
-    ) -> SampledITexture<D> {
-        SampledITexture(self.sampled_raw_texture(set, binding, arrayed, Component::Int, name))
-    }
-
-    pub fn sampled_u_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        arrayed: bool,
-        name: Option<&'static str>
-    ) -> SampledUTexture<D> {
-        SampledUTexture(self.sampled_raw_texture(set, binding, arrayed, Component::UInt, name))
-    }
-
-    fn sampled_raw_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        arrayed: bool,
-        component: Component,
-        name: Option<&'static str>,
-    ) -> SampledRawTexture<D> {
-        let index = self.raw.sampled_textures.borrow().len();
-        self.raw.sampled_textures.borrow_mut().push((
-            D::DIM,
-            component,
-            arrayed,
-            set,
-            binding,
-            name,
-        ));
-        #[cfg(feature = "gpu")]
-        self.raw.map.borrow_mut().insert(
-            (set, binding),
-            (
-                gpu::DescriptorLayoutEntry {
-                    ty: gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
-                    stage: T::GPU_STAGE,
-                    count: std::num::NonZeroU32::new(1).unwrap(),
-                },
-                name,
-            ),
-        );
-        SampledRawTexture {
-            id: Left(index),
-            _dmarker: PhantomData,
-        }
-    }
 }
 
 impl<T: specialisation::ShaderTY> Builder<T> {
@@ -322,7 +127,9 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         (*self.raw.uniforms.borrow()).clone()
     }
 
-    pub fn get_storage(&self) -> Vec<(DataType, u32, u32, StorageAccessDesc, Option<&'static str>)> {
+    pub fn get_storage(
+        &self,
+    ) -> Vec<(DataType, u32, u32, StorageAccessDesc, Option<&'static str>)> {
         (*self.raw.storages.borrow()).clone()
     }
 
@@ -494,7 +301,9 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             (set, binding),
             (
                 gpu::DescriptorLayoutEntry {
-                    ty: gpu::DescriptorLayoutEntryType::StorageBuffer { read_only: !desc.write },
+                    ty: gpu::DescriptorLayoutEntryType::StorageBuffer {
+                        read_only: !desc.write,
+                    },
                     stage: T::GPU_STAGE,
                     count: std::num::NonZeroU32::new(1).unwrap(),
                 },
@@ -550,7 +359,12 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             rspirv::spirv::MemoryModel::GLSL450,
         );
         let ext = builder.ext_inst_import("GLSL.std.450");
-        builder.source(rspirv::spirv::SourceLanguage::GLSL, 450, None, Option::<String>::None);
+        builder.source(
+            rspirv::spirv::SourceLanguage::GLSL,
+            450,
+            None,
+            Option::<String>::None,
+        );
 
         // map from my function id to rspirv function id
         let mut function_map = HashMap::new();
@@ -587,9 +401,9 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             rspirv::spirv::StorageClass::Output,
         );
         let push_constant = process_push_constant(
-            &mut builder, 
-            &self.raw.push_constant.borrow(), 
-            &mut struct_map
+            &mut builder,
+            &self.raw.push_constant.borrow(),
+            &mut struct_map,
         );
 
         let mut interface = inputs.clone();
@@ -630,9 +444,9 @@ impl<T: specialisation::ShaderTY> Builder<T> {
 }
 
 fn process_push_constant(
-    builder: &mut rspirv::dr::Builder, 
-    borrow: &std::cell::Ref<Option<(DataType, u32, Option<&str>)>>, 
-    struct_map: &mut HashMap<std::any::TypeId, u32>
+    builder: &mut rspirv::dr::Builder,
+    borrow: &std::cell::Ref<Option<(DataType, u32, Option<&str>)>>,
+    struct_map: &mut HashMap<std::any::TypeId, u32>,
 ) -> Option<(u32, DataType)> {
     borrow.map(|b| {
         let base_type = b.0.base_type(builder, struct_map);
@@ -646,9 +460,15 @@ fn process_push_constant(
             [rspirv::dr::Operand::LiteralInt32(b.1)],
         );
 
-        let pointer_type = builder.type_pointer(None, rspirv::spirv::StorageClass::PushConstant, outer_type);
+        let pointer_type =
+            builder.type_pointer(None, rspirv::spirv::StorageClass::PushConstant, outer_type);
 
-        let variable = builder.variable(pointer_type, None, rspirv::spirv::StorageClass::PushConstant, None);
+        let variable = builder.variable(
+            pointer_type,
+            None,
+            rspirv::spirv::StorageClass::PushConstant,
+            None,
+        );
 
         if let Some(name) = b.2 {
             builder.name(variable, name)
@@ -661,25 +481,22 @@ fn process_push_constant(
 fn decorate_matrix(uniform: &DataType, builder: &mut rspirv::dr::Builder, raw_outer_ty: u32) {
     if let DataType::Primitive(p) = uniform {
         if p.is_matrix() {
-            builder.member_decorate(
-                raw_outer_ty, 
-                0, 
-                rspirv::spirv::Decoration::ColMajor, 
-                None
-            );
+            builder.member_decorate(raw_outer_ty, 0, rspirv::spirv::Decoration::ColMajor, None);
 
             builder.member_decorate(
-                raw_outer_ty, 
-                0, 
-                rspirv::spirv::Decoration::Offset, 
-                Some(rspirv::dr::Operand::LiteralInt32(0)),    
+                raw_outer_ty,
+                0,
+                rspirv::spirv::Decoration::Offset,
+                Some(rspirv::dr::Operand::LiteralInt32(0)),
             );
 
             builder.member_decorate(
                 raw_outer_ty,
                 0,
                 rspirv::spirv::Decoration::MatrixStride,
-                Some(rspirv::dr::Operand::LiteralInt32(p.matrix_stride().unwrap()))
+                Some(rspirv::dr::Operand::LiteralInt32(
+                    p.matrix_stride().unwrap(),
+                )),
             );
         }
     }
@@ -705,7 +522,7 @@ fn process_uniforms(
                 rspirv::spirv::Decoration::Offset,
                 [rspirv::dr::Operand::LiteralInt32(0)],
             );
-            
+
             let p_ty =
                 builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, raw_outer_ty);
             let variable = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Uniform, None);
@@ -731,71 +548,74 @@ fn process_uniforms(
 }
 
 fn process_storages(
-    builder: &mut rspirv::dr::Builder, 
+    builder: &mut rspirv::dr::Builder,
     borrow: &[(DataType, u32, u32, StorageAccessDesc, Option<&str>)],
     struct_map: &mut HashMap<std::any::TypeId, u32>,
 ) -> Vec<u32> {
-    borrow.iter().map(|(ty, set, binding, desc, name)| {
-        let raw_inner_ty = ty.base_type(builder, struct_map);
-        let raw_array_ty = builder.type_runtime_array(raw_inner_ty);
-        
-        builder.decorate(
-            raw_array_ty, 
-            rspirv::spirv::Decoration::ArrayStride, 
-            Some(rspirv::dr::Operand::LiteralInt32(ty.size()))
-        );
-        
-        let raw_outer_ty = builder.type_struct([raw_array_ty]);
+    borrow
+        .iter()
+        .map(|(ty, set, binding, desc, name)| {
+            let raw_inner_ty = ty.base_type(builder, struct_map);
+            let raw_array_ty = builder.type_runtime_array(raw_inner_ty);
 
-        decorate_matrix(ty, builder, raw_outer_ty);
+            builder.decorate(
+                raw_array_ty,
+                rspirv::spirv::Decoration::ArrayStride,
+                Some(rspirv::dr::Operand::LiteralInt32(ty.size())),
+            );
 
-        builder.decorate(raw_outer_ty, rspirv::spirv::Decoration::BufferBlock, None);
-        builder.member_decorate(
-            raw_outer_ty,
-            0,
-            rspirv::spirv::Decoration::Offset,
-            [rspirv::dr::Operand::LiteralInt32(0)],
-        );
+            let raw_outer_ty = builder.type_struct([raw_array_ty]);
 
-        if !desc.read {
+            decorate_matrix(ty, builder, raw_outer_ty);
+
+            builder.decorate(raw_outer_ty, rspirv::spirv::Decoration::BufferBlock, None);
             builder.member_decorate(
                 raw_outer_ty,
                 0,
-                rspirv::spirv::Decoration::NonReadable,
-                None,
+                rspirv::spirv::Decoration::Offset,
+                [rspirv::dr::Operand::LiteralInt32(0)],
             );
-        }
 
-        if !desc.write {
-            builder.member_decorate(
-                raw_outer_ty,
-                0,
-                rspirv::spirv::Decoration::NonWritable,
-                None,
+            if !desc.read {
+                builder.member_decorate(
+                    raw_outer_ty,
+                    0,
+                    rspirv::spirv::Decoration::NonReadable,
+                    None,
+                );
+            }
+
+            if !desc.write {
+                builder.member_decorate(
+                    raw_outer_ty,
+                    0,
+                    rspirv::spirv::Decoration::NonWritable,
+                    None,
+                );
+            }
+
+            let p_ty =
+                builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, raw_outer_ty);
+            let variable = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Uniform, None);
+
+            builder.decorate(
+                variable,
+                rspirv::spirv::Decoration::DescriptorSet,
+                Some(rspirv::dr::Operand::LiteralInt32(*set)),
             );
-        }
+            builder.decorate(
+                variable,
+                rspirv::spirv::Decoration::Binding,
+                Some(rspirv::dr::Operand::LiteralInt32(*binding)),
+            );
 
-        let p_ty =
-            builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, raw_outer_ty);
-        let variable = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Uniform, None);
+            if let Some(name) = *name {
+                builder.name(variable, name)
+            }
 
-        builder.decorate(
-            variable,
-            rspirv::spirv::Decoration::DescriptorSet,
-            Some(rspirv::dr::Operand::LiteralInt32(*set)),
-        );
-        builder.decorate(
-            variable,
-            rspirv::spirv::Decoration::Binding,
-            Some(rspirv::dr::Operand::LiteralInt32(*binding)),
-        );
-
-        if let Some(name) = *name {
-            builder.name(variable, name)
-        }
-
-        variable
-    }).collect()
+            variable
+        })
+        .collect()
 }
 
 fn process_textures(
@@ -1011,10 +831,16 @@ macro_rules! io_interp_types {
     };
 }
 
+#[rustfmt::skip]
 io_interp_types!(
-    in_float, out_float, Float, in_vec2, out_vec2, Vec2, in_vec3, out_vec3, Vec3, in_vec4,
-    out_vec4, Vec4, in_double, out_double, Double, in_dvec2, out_dvec2, DVec2, in_dvec3, out_dvec3,
-    DVec3, in_dvec4, out_dvec4, DVec4,
+    in_float, out_float, Float, 
+    in_vec2, out_vec2, Vec2, 
+    in_vec3, out_vec3, Vec3, 
+    in_vec4, out_vec4, Vec4, 
+    in_double, out_double, Double, 
+    in_dvec2, out_dvec2, DVec2, 
+    in_dvec3, out_dvec3, DVec3, 
+    in_dvec4, out_dvec4, DVec4,
 );
 
 macro_rules! io_no_interp_types {
@@ -1033,8 +859,298 @@ macro_rules! io_no_interp_types {
     };
 }
 
+#[rustfmt::skip]
 io_no_interp_types!(
-    in_bool, out_bool, Bool, in_int, out_int, Int, in_ivec2, out_ivec2, IVec2, in_ivec3, out_ivec3,
-    IVec3, in_ivec4, out_ivec4, IVec4, in_uint, out_uint, UInt, in_uvec2, out_uvec2, UVec2,
-    in_uvec3, out_uvec3, UVec3, in_uvec4, out_uvec4, UVec4,
+    in_bool, out_bool, Bool, 
+    in_int, out_int, Int, 
+    in_ivec2, out_ivec2, IVec2, 
+    in_ivec3, out_ivec3, IVec3, 
+    in_ivec4, out_ivec4, IVec4, 
+    in_uint, out_uint, UInt, 
+    in_uvec2, out_uvec2, UVec2,
+    in_uvec3, out_uvec3, UVec3, 
+    in_uvec4, out_uvec4, UVec4,
 );
+
+macro_rules! impl_texture {
+    ($($fn_name:ident, $alias:ident, $s_name:ident, $comp:ident,)*) => {
+        $(
+            pub fn $fn_name(
+                &self,
+                set: u32,
+                binding: u32,
+                arrayed: bool,
+                name: Option<&'static str>
+            ) -> $alias {
+                $s_name(self.raw_texture(set, binding, arrayed, Component::$comp, name))
+            }
+        )*
+    };
+}
+
+macro_rules! impl_sampled_texture {
+    ($($fn_name:ident, $alias:ident, $s_name:ident, $comp:ident,)*) => {
+        $(
+            pub fn $fn_name(
+                &self,
+                set: u32,
+                binding: u32,
+                arrayed: bool,
+                name: Option<&'static str>
+            ) -> $alias {
+                $s_name(self.sampled_raw_texture(set, binding, arrayed, Component::$comp, name))
+            }
+        )*
+    };
+}
+
+/// Texture impls
+impl<T: specialisation::ShaderTY> Builder<T> {
+    impl_texture!(
+        texture_1d,
+        Texture1D,
+        Texture,
+        Float,
+        d_texture_1d,
+        DTexture1D,
+        DTexture,
+        Double,
+        i_texture_1d,
+        ITexture1D,
+        ITexture,
+        Int,
+        u_texture_1d,
+        UTexture1D,
+        UTexture,
+        UInt,
+        texture_2d,
+        Texture2D,
+        Texture,
+        Float,
+        d_texture_2d,
+        DTexture2D,
+        DTexture,
+        Double,
+        i_texture_2d,
+        ITexture2D,
+        ITexture,
+        Int,
+        u_texture_2d,
+        UTexture2D,
+        UTexture,
+        UInt,
+        texture_3d,
+        Texture3D,
+        Texture,
+        Float,
+        d_texture_3d,
+        DTexture3D,
+        DTexture,
+        Double,
+        i_texture_3d,
+        ITexture3D,
+        ITexture,
+        Int,
+        u_texture_3d,
+        UTexture3D,
+        UTexture,
+        UInt,
+    );
+
+    pub fn texture<D: AsDimension>(
+        &self,
+        set: u32,
+        binding: u32,
+        arrayed: bool,
+        name: Option<&'static str>,
+    ) -> Texture<D> {
+        Texture(self.raw_texture(set, binding, arrayed, Component::Float, name))
+    }
+
+    pub fn d_texture<D: AsDimension>(
+        &self,
+        set: u32,
+        binding: u32,
+        arrayed: bool,
+        name: Option<&'static str>,
+    ) -> DTexture<D> {
+        DTexture(self.raw_texture(set, binding, arrayed, Component::Double, name))
+    }
+
+    pub fn i_texture<D: AsDimension>(
+        &self,
+        set: u32,
+        binding: u32,
+        arrayed: bool,
+        name: Option<&'static str>,
+    ) -> ITexture<D> {
+        ITexture(self.raw_texture(set, binding, arrayed, Component::Int, name))
+    }
+
+    pub fn u_texture<D: AsDimension>(
+        &self,
+        set: u32,
+        binding: u32,
+        arrayed: bool,
+        name: Option<&'static str>,
+    ) -> UTexture<D> {
+        UTexture(self.raw_texture(set, binding, arrayed, Component::UInt, name))
+    }
+
+    fn raw_texture<D: AsDimension>(
+        &self,
+        set: u32,
+        binding: u32,
+        arrayed: bool,
+        component: Component,
+        name: Option<&'static str>,
+    ) -> RawTexture<D> {
+        let index = self.raw.textures.borrow().len();
+        self.raw
+            .textures
+            .borrow_mut()
+            .push((D::DIM, component, arrayed, set, binding, name));
+        #[cfg(feature = "gpu")]
+        self.raw.map.borrow_mut().insert(
+            (set, binding),
+            (
+                gpu::DescriptorLayoutEntry {
+                    ty: gpu::DescriptorLayoutEntryType::SampledTexture,
+                    stage: T::GPU_STAGE,
+                    count: std::num::NonZeroU32::new(1).unwrap(),
+                },
+                name,
+            ),
+        );
+        RawTexture {
+            index,
+            _dmarker: PhantomData,
+        }
+    }
+
+    impl_sampled_texture!(
+        sampled_texture_1d,
+        SampledTexture1D,
+        SampledTexture,
+        Float,
+        sampled_d_texture_1d,
+        SampledDTexture1D,
+        SampledDTexture,
+        Double,
+        sampled_i_texture_1d,
+        SampledITexture1D,
+        SampledITexture,
+        Int,
+        sampled_u_texture_1d,
+        SampledUTexture1D,
+        SampledUTexture,
+        UInt,
+        sampled_texture_2d,
+        SampledTexture2D,
+        SampledTexture,
+        Float,
+        sampled_d_texture_2d,
+        SampledDTexture2D,
+        SampledDTexture,
+        Double,
+        sampled_i_texture_2d,
+        SampledITexture2D,
+        SampledITexture,
+        Int,
+        sampled_u_texture_2d,
+        SampledUTexture2D,
+        SampledUTexture,
+        UInt,
+        sampled_texture_3d,
+        SampledTexture3D,
+        SampledTexture,
+        Float,
+        sampled_d_texture_3d,
+        SampledDTexture3D,
+        SampledDTexture,
+        Double,
+        sampled_i_texture_3d,
+        SampledITexture3D,
+        SampledITexture,
+        Int,
+        sampled_u_texture_3d,
+        SampledUTexture3D,
+        SampledUTexture,
+        UInt,
+    );
+
+    pub fn sampled_texture<D: AsDimension>(
+        &self,
+        set: u32,
+        binding: u32,
+        arrayed: bool,
+        name: Option<&'static str>,
+    ) -> SampledTexture<D> {
+        SampledTexture(self.sampled_raw_texture(set, binding, arrayed, Component::Float, name))
+    }
+
+    pub fn sampled_d_texture<D: AsDimension>(
+        &self,
+        set: u32,
+        binding: u32,
+        arrayed: bool,
+        name: Option<&'static str>,
+    ) -> SampledDTexture<D> {
+        SampledDTexture(self.sampled_raw_texture(set, binding, arrayed, Component::Double, name))
+    }
+
+    pub fn sampled_i_texture<D: AsDimension>(
+        &self,
+        set: u32,
+        binding: u32,
+        arrayed: bool,
+        name: Option<&'static str>,
+    ) -> SampledITexture<D> {
+        SampledITexture(self.sampled_raw_texture(set, binding, arrayed, Component::Int, name))
+    }
+
+    pub fn sampled_u_texture<D: AsDimension>(
+        &self,
+        set: u32,
+        binding: u32,
+        arrayed: bool,
+        name: Option<&'static str>,
+    ) -> SampledUTexture<D> {
+        SampledUTexture(self.sampled_raw_texture(set, binding, arrayed, Component::UInt, name))
+    }
+
+    fn sampled_raw_texture<D: AsDimension>(
+        &self,
+        set: u32,
+        binding: u32,
+        arrayed: bool,
+        component: Component,
+        name: Option<&'static str>,
+    ) -> SampledRawTexture<D> {
+        let index = self.raw.sampled_textures.borrow().len();
+        self.raw.sampled_textures.borrow_mut().push((
+            D::DIM,
+            component,
+            arrayed,
+            set,
+            binding,
+            name,
+        ));
+        #[cfg(feature = "gpu")]
+        self.raw.map.borrow_mut().insert(
+            (set, binding),
+            (
+                gpu::DescriptorLayoutEntry {
+                    ty: gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
+                    stage: T::GPU_STAGE,
+                    count: std::num::NonZeroU32::new(1).unwrap(),
+                },
+                name,
+            ),
+        );
+        SampledRawTexture {
+            id: Left(index),
+            _dmarker: PhantomData,
+        }
+    }
+}

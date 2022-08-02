@@ -1,3 +1,7 @@
+//! [`Surface`]'s connect vulkan to a specific window
+//!
+//! Use a surface to create a [`crate::Swapchain`]
+
 use std::mem::ManuallyDrop as Md;
 use std::ptr;
 use std::sync::Arc;

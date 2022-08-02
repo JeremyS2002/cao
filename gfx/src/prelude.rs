@@ -1,3 +1,5 @@
+//! re-export of traits for convienience
+
 pub use crate::mesh::vertex::Vertex;
 pub use crate::mesh::Mesh;
 pub use crate::pass::ComputePass;

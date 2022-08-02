@@ -1,3 +1,9 @@
+//! Vulkan Device
+//!
+//! Represents a device that the system can execute commands on. One computer can have multiple devices (eg. discrete and integrated graphics)
+//!
+//! The device is used to create almost all other objects
+
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::ffi::{c_void, CStr};

@@ -1,3 +1,95 @@
+//! Vulkan wrapper
+//!
+//! Manages descruction of types via [`Arc`] and aims to remove hide all unsafe code.
+//!
+//! Any errors caught by validation layers are returned as [`Result`] as [`Error::Validation`] variants contining the error message/
+//!
+//! [`DescriptorSet`] creation has be abstracted to be more similar to wgpu implementation
+//!
+//! Syncronisation logic is abstracted only exposing methods to wait on results to complete
+//!
+//! Surface creation is abstracted thanks to [`raw_window_handle`]
+//!
+//! This is not at all tested well enough to use for anything serious, I'm not kidding don't use this.
+//!
+//! This is still lacking support for ray tracing, variable shading rates, mesh shading as well as many other extensions.
+//!
+//! Basic example of creating a window and not drawing anthing to it
+//! ```
+//! use winit::{
+//!     event::{Event, WindowEvent},
+//!     event_loop::{ControlFlow, EventLoop},
+//!     window::WindowBuilder,
+//! };
+//!
+//! fn main() {
+//!     let instance = gpu::Instance::new(&gpu::InstanceDesc::default()).unwrap();
+//!     let event_loop = EventLoop::new();
+//!     let window = WindowBuilder::new().build(&event_loop).unwrap();
+//!     let surface = instance.create_surface(&window).unwrap();
+//!     let device = instance.create_device(&gpu::DeviceDesc {
+//!         combatible_surfaces: &[&surface],
+//!         ..Default::default()
+//!     }).unwrap();
+//!     
+//!     let mut swapchain = device.create_swapchain(
+//!         &surface,
+//!         &gpu::SwapchainDesc::from_surface(&surface, &device).unwrap(),
+//!     ).unwrap();
+//!     
+//!     let mut resized = false;
+//!     
+//!     event_loop.run(move |event, _, control_flow| {
+//!         *control_flow = ControlFlow::Poll;
+//!
+//!         match event {
+//!             Event::WindowEvent {
+//!                 event: WindowEvent::CloseRequested,
+//!                 ..
+//!             } => *control_flow = ControlFlow::Exit,
+//!             Event::WindowEvent {
+//!                 event: WindowEvent::Resized(_),
+//!                 ..
+//!             } => {
+//!                 resized = true;
+//!             }
+//!             Event::RedrawRequested(_) => {
+//!                 if resized {
+//!                     swapchain.recreate(&device).unwrap();
+//!                     resized = false;
+//!                 }
+//!
+//!                 let view = match swapchain.acquire(!0) {
+//!                     Ok((view, _)) => view,
+//!                     Err(e) => {
+//!                         if e.can_continue() {
+//!                             resized = true;
+//!                             return;
+//!                         } else {
+//!                             panic!("{}", e)
+//!                         }
+//!                     }
+//!                 };
+//!                 match swapchain.present(view) {
+//!                     Ok(_) => (),
+//!                     Err(e) => {
+//!                         if e.can_continue() {
+//!                             resized = true;
+//!                             return;
+//!                         } else {
+//!                             panic!("{}", e);
+//!                         }
+//!                     }
+//!                 }
+//!             }
+//!             _ => (),
+//!         }
+//!     });
+//! }
+//! ```
+//!
+//! Although the example uses winit to create a window alternatives can be used or none at all.
+
 use ash::{vk, Entry};
 use std::borrow::Cow;
 use std::cmp::Ordering;
@@ -42,7 +134,7 @@ pub use surface::*;
 pub use swapchain::*;
 pub use texture::*;
 
-/// Makes [u8] into [u32] ensuring correct spirv
+/// Makes `&[u8]` into `&[u32]` ensuring correct alignment
 ///
 /// returns error if the length isn't a multiple of 4 or if the magic number is missing
 ///

@@ -236,81 +236,110 @@ pub trait Handle {
     fn rc_builder(&self) -> &Rc<dyn RawBuilder>;
 
     gen_vec2_construct!(
-        vec2, Vec2, Float,
-        ivec2, IVec2, Int,
-        uvec2, UVec2, UInt,
-        dvec2, DVec2, Double,
+        vec2, Vec2, Float, ivec2, IVec2, Int, uvec2, UVec2, UInt, dvec2, DVec2, Double,
     );
 
     gen_vec3_construct!(
-        vec3, Vec3, Float,
-        ivec3, IVec3, Int,
-        uvec3, UVec3, UInt,
-        dvec3, DVec3, Double,
+        vec3, Vec3, Float, ivec3, IVec3, Int, uvec3, UVec3, UInt, dvec3, DVec3, Double,
     );
 
     gen_vec4_construct!(
-        vec4, Vec4, Float,
-        ivec4, IVec4, Int,
-        uvec4, UVec4, UInt,
-        dvec4, DVec4, Double,
+        vec4, Vec4, Float, ivec4, IVec4, Int, uvec4, UVec4, UInt, dvec4, DVec4, Double,
     );
 
-    gen_mat2_construct!(
-        mat2, Mat2, Vec2,
-        dmat2, DMat2, DVec2,
-    );
+    gen_mat2_construct!(mat2, Mat2, Vec2, dmat2, DMat2, DVec2,);
 
-    gen_mat3_construct!(
-        mat3, Mat3, Vec3,
-        dmat3, DMat3, DVec3,
-    );
+    gen_mat3_construct!(mat3, Mat3, Vec3, dmat3, DMat3, DVec3,);
 
-    gen_mat4_construct!(
-        mat4, Mat4, Vec4,
-        dmat4, DMat4, DVec4,
-    );
+    gen_mat4_construct!(mat4, Mat4, Vec4, dmat4, DMat4, DVec4,);
 
     gen_const_type!(
-        const_bool, Bool, bool,
-        const_float, Float, f32,
-        const_int, Int, i32,
-        const_uint, UInt, u32,
-        const_double, Double, f64,
-        const_ivec2, IVec2, RustIVec2,
-        const_ivec3, IVec3, RustIVec3,
-        const_ivec4, IVec4, RustIVec4,
-        const_uvec2, UVec2, RustUVec2,
-        const_uvec3, UVec3, RustUVec3,
-        const_uvec4, UVec4, RustUVec4,
-        const_vec2, Vec2, RustVec2,
-        const_vec3, Vec3, RustVec3,
-        const_vec4, Vec4, RustVec4,
-        const_dvec2, DVec2, RustDVec2,
-        const_dvec3, DVec3, RustDVec3,
-        const_dvec4, DVec4, RustDVec4,
-        const_mat2, Mat2, RustMat2,
-        const_mat3, Mat3, RustMat3,
-        const_mat4, Mat4, RustMat4,
-        const_dmat2, DMat2, RustDMat2,
-        const_dmat3, DMat3, RustDMat3,
-        const_dmat4, DMat4, RustDMat4,
+        const_bool,
+        Bool,
+        bool,
+        const_float,
+        Float,
+        f32,
+        const_int,
+        Int,
+        i32,
+        const_uint,
+        UInt,
+        u32,
+        const_double,
+        Double,
+        f64,
+        const_ivec2,
+        IVec2,
+        RustIVec2,
+        const_ivec3,
+        IVec3,
+        RustIVec3,
+        const_ivec4,
+        IVec4,
+        RustIVec4,
+        const_uvec2,
+        UVec2,
+        RustUVec2,
+        const_uvec3,
+        UVec3,
+        RustUVec3,
+        const_uvec4,
+        UVec4,
+        RustUVec4,
+        const_vec2,
+        Vec2,
+        RustVec2,
+        const_vec3,
+        Vec3,
+        RustVec3,
+        const_vec4,
+        Vec4,
+        RustVec4,
+        const_dvec2,
+        DVec2,
+        RustDVec2,
+        const_dvec3,
+        DVec3,
+        RustDVec3,
+        const_dvec4,
+        DVec4,
+        RustDVec4,
+        const_mat2,
+        Mat2,
+        RustMat2,
+        const_mat3,
+        Mat3,
+        RustMat3,
+        const_mat4,
+        Mat4,
+        RustMat4,
+        const_dmat2,
+        DMat2,
+        RustDMat2,
+        const_dmat3,
+        DMat3,
+        RustDMat3,
+        const_dmat4,
+        DMat4,
+        RustDMat4,
     );
 
     /// Convert the primitive type into another
-    /// 
+    ///
     /// At the moment this only works on scalar types (excluding booleans)
     /// but there is no reason not to implement it for vectors component-wise
     fn convert<R: IsPrimitiveType + FromId>(&self, d: impl SpvInto<R>) -> R {
         let dst = self.builder().get_new_id();
 
-        self.builder().push_instruction(Instruction::ConvertPrimitive {
-            src_ty: d.ty(),
-            dst_ty: R::TY,
-            src: d.id(&*self.builder()),
-            dst,
-        });
-        
+        self.builder()
+            .push_instruction(Instruction::ConvertPrimitive {
+                src_ty: d.ty(),
+                dst_ty: R::TY,
+                src: d.id(&*self.builder()),
+                dst,
+            });
+
         R::from_id(dst)
     }
 
@@ -328,7 +357,11 @@ pub trait Handle {
     }
 
     /// Adds an if condition to the current function
-    fn spv_if<F: FnOnce(&ConditionHandle)>(&self, b: impl crate::data::SpvRustEq<Bool>, f: F) -> ConditionHandle {
+    fn spv_if<F: FnOnce(&ConditionHandle)>(
+        &self,
+        b: impl crate::data::SpvRustEq<Bool>,
+        f: F,
+    ) -> ConditionHandle {
         let b = ConditionHandle {
             raw: RawConditionBuilder::new(Rc::clone(self.rc_builder()), b.id(&*self.builder())),
         };
@@ -374,17 +407,24 @@ pub trait Handle {
 
     fn spv_return(&self, val: impl crate::data::AsPrimitive) {
         self.builder().push_instruction(Instruction::Return {
-            id: val.id(&*self.builder())
+            id: val.id(&*self.builder()),
         })
     }
 
-    fn call<R: AsPrimitiveType + FromId>(&self, f: crate::function::Function<R>, args: &[&dyn AsData]) -> R {
+    fn call<R: AsPrimitiveType + FromId>(
+        &self,
+        f: crate::function::Function<R>,
+        args: &[&dyn AsData],
+    ) -> R {
         let store_id = self.builder().get_new_id();
 
         self.builder().push_instruction(Instruction::FnCall {
             fn_id: f.id,
             store_id,
-            arguments: args.iter().map(|a| (a.id(&*self.builder()), a.ty())).collect(),
+            arguments: args
+                .iter()
+                .map(|a| (a.id(&*self.builder()), a.ty()))
+                .collect(),
         });
 
         R::from_id(store_id)
@@ -426,66 +466,80 @@ pub trait Handle {
     /// Load one field from the uniform containing a struct
     ///
     /// Will panic if the struct has no field by the name supplied
-    fn load_uniform_field<S: AsSpvStruct, T: FromId>(&self, uniform: Uniform<Struct<S>>, field: &str) -> T {
+    fn load_uniform_field<S: AsSpvStruct, T: FromId>(
+        &self,
+        uniform: Uniform<Struct<S>>,
+        field: &str,
+    ) -> T {
         let f_index = S::DESC.names.iter().position(|&f| f == field).unwrap();
         let f_ty = *S::DESC.fields.get(f_index).unwrap();
         let new_id = self.builder().get_new_id();
-        self.builder().push_instruction(Instruction::LoadUniformField {
-            u_index: uniform.index,
-            f_index,
-            store: new_id,
-            f_ty,
-            ty: Struct::<S>::TY,
-        });
+        self.builder()
+            .push_instruction(Instruction::LoadUniformField {
+                u_index: uniform.index,
+                f_index,
+                store: new_id,
+                f_ty,
+                ty: Struct::<S>::TY,
+            });
 
         T::from_id(new_id)
     }
 
     /// Load the uniform into a new variable
-    fn load_storage_element<T: IsDataType + FromId>(&self, storage: Storage<T>, element: &dyn SpvRustEq<UInt>) -> T {
+    fn load_storage_element<T: IsDataType + FromId>(
+        &self,
+        storage: Storage<T>,
+        element: &dyn SpvRustEq<UInt>,
+    ) -> T {
         let new_id = self.builder().get_new_id();
-        self.builder().push_instruction(Instruction::LoadStorageElement {
-            element: element.id(&*self.builder()),
-            index: storage.index,
-            store: new_id,
-            ty: T::TY,
-        });
+        self.builder()
+            .push_instruction(Instruction::LoadStorageElement {
+                element: element.id(&*self.builder()),
+                index: storage.index,
+                store: new_id,
+                ty: T::TY,
+            });
         T::from_id(new_id)
     }
 
     /// Load one field from the uniform containing a struct
     ///
     /// Will panic if the struct has no field by the name supplied
-    fn load_storage_element_field<S: AsSpvStruct, T: FromId>(&self, storage: Storage<Struct<S>>, element: &dyn SpvRustEq<UInt>, field: &str) -> T {
+    fn load_storage_element_field<S: AsSpvStruct, T: FromId>(
+        &self,
+        storage: Storage<Struct<S>>,
+        element: &dyn SpvRustEq<UInt>,
+        field: &str,
+    ) -> T {
         let f_index = S::DESC.names.iter().position(|&f| f == field).unwrap();
         let f_type = *S::DESC.fields.get(f_index).unwrap();
         let new_id = self.builder().get_new_id();
-        self.builder().push_instruction(Instruction::LoadStorageElementField {
-            index: storage.index,
-            field: f_index as u32,
-            element: element.id(&*self.builder()),
-            store: new_id,
-            f_type,
-        });
+        self.builder()
+            .push_instruction(Instruction::LoadStorageElementField {
+                index: storage.index,
+                field: f_index as u32,
+                element: element.id(&*self.builder()),
+                store: new_id,
+                f_type,
+            });
 
         T::from_id(new_id)
     }
 
     /// Load the push constant into a new variable
-    /// 
-    /// will panic if the builder has no push constant 
+    ///
+    /// will panic if the builder has no push constant
     /// or if the push constant is a primitive or array
     fn load_push_constant<T: IsDataType + FromId>(&self) -> T {
         if self.builder().push_constant().is_some() {
             let new_id = self.builder().get_new_id();
-            self.builder().push_instruction(Instruction::LoadPushConstant {
-                store: new_id,
-            });
+            self.builder()
+                .push_instruction(Instruction::LoadPushConstant { store: new_id });
             T::from_id(new_id)
         } else {
             panic!("ERROR: Cannot load_push_constant when no push constant on builder")
         }
-        
     }
 
     /// Load one field from the push_constant containing a struct
@@ -498,11 +552,12 @@ pub trait Handle {
                 let f_index = names.iter().position(|&f| f == field).unwrap();
                 let f_ty = *fields.get(f_index).unwrap();
                 let new_id = self.builder().get_new_id();
-                self.builder().push_instruction(Instruction::LoadPushConstantField {
-                    f_index,
-                    store: new_id,
-                    f_ty,
-                });
+                self.builder()
+                    .push_instruction(Instruction::LoadPushConstantField {
+                        f_index,
+                        store: new_id,
+                        f_ty,
+                    });
 
                 T::from_id(new_id)
             } else {
@@ -516,24 +571,29 @@ pub trait Handle {
     /// Load one field from the uniform containing a struct by the index of the field
     ///
     /// Will panic if the index is out of bounds of the number of structs fields
-    fn load_uniform_field_by_index<S: AsSpvStruct, T: FromId>(&self, uniform: Uniform<Struct<S>>, field_index: usize) -> T {
+    fn load_uniform_field_by_index<S: AsSpvStruct, T: FromId>(
+        &self,
+        uniform: Uniform<Struct<S>>,
+        field_index: usize,
+    ) -> T {
         let new_id = self.builder().get_new_id();
 
         let f_ty = *S::DESC.fields.get(field_index).unwrap();
 
-        self.builder().push_instruction(Instruction::LoadUniformField {
-            u_index: uniform.index,
-            f_index: field_index,
-            store: new_id,
-            f_ty,
-            ty: Struct::<S>::TY,
-        });
+        self.builder()
+            .push_instruction(Instruction::LoadUniformField {
+                u_index: uniform.index,
+                f_index: field_index,
+                store: new_id,
+                f_ty,
+                ty: Struct::<S>::TY,
+            });
 
         T::from_id(new_id)
     }
 
     // fn vector_shuffle<V: AsPrimitiveType + FromId>(&self, s: VectorShuffle<V>) -> V {
-        
+
     // }
 
     fn store<Rhs: AsPrimitiveType, T: SpvStore<Rhs>>(&self, lhs: T, rhs: Rhs) {
@@ -543,7 +603,11 @@ pub trait Handle {
         })
     }
 
-    fn add<Rhs: AsPrimitiveType + AsPrimitive, T: SpvAdd<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
+    fn add<Rhs: AsPrimitiveType + AsPrimitive, T: SpvAdd<Rhs>>(
+        &self,
+        lhs: T,
+        rhs: Rhs,
+    ) -> T::Output {
         let new_id = self.builder().get_new_id();
         self.builder().push_instruction(Instruction::Add {
             lhs: (lhs.id(&*self.builder()), T::TY),
@@ -553,7 +617,11 @@ pub trait Handle {
         T::Output::from_id(new_id)
     }
 
-    fn sub<Rhs: AsPrimitiveType + AsPrimitive, T: SpvSub<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
+    fn sub<Rhs: AsPrimitiveType + AsPrimitive, T: SpvSub<Rhs>>(
+        &self,
+        lhs: T,
+        rhs: Rhs,
+    ) -> T::Output {
         let new_id = self.builder().get_new_id();
         self.builder().push_instruction(Instruction::Sub {
             lhs: (lhs.id(&*self.builder()), T::TY),
@@ -563,7 +631,11 @@ pub trait Handle {
         T::Output::from_id(new_id)
     }
 
-    fn div<Rhs: AsPrimitiveType + AsPrimitive, T: SpvDiv<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
+    fn div<Rhs: AsPrimitiveType + AsPrimitive, T: SpvDiv<Rhs>>(
+        &self,
+        lhs: T,
+        rhs: Rhs,
+    ) -> T::Output {
         let new_id = self.builder().get_new_id();
         self.builder().push_instruction(Instruction::Div {
             lhs: (lhs.id(&*self.builder()), T::TY),
@@ -573,7 +645,11 @@ pub trait Handle {
         T::Output::from_id(new_id)
     }
 
-    fn mul<Rhs: AsPrimitiveType + AsPrimitive, T: SpvMul<Rhs>>(&self, lhs: T, rhs: Rhs) -> T::Output {
+    fn mul<Rhs: AsPrimitiveType + AsPrimitive, T: SpvMul<Rhs>>(
+        &self,
+        lhs: T,
+        rhs: Rhs,
+    ) -> T::Output {
         let new_id = self.builder().get_new_id();
         self.builder().push_instruction(Instruction::Mul {
             lhs: (lhs.id(&*self.builder()), T::TY),
@@ -583,35 +659,55 @@ pub trait Handle {
         T::Output::from_id(new_id)
     }
 
-    fn add_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvAddAssign<Rhs>>(&self, lhs: &mut T, rhs: Rhs) {
+    fn add_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvAddAssign<Rhs>>(
+        &self,
+        lhs: &mut T,
+        rhs: Rhs,
+    ) {
         self.builder().push_instruction(Instruction::AddAssign {
             lhs: (lhs.id(&*self.builder()), T::TY),
             rhs: (rhs.id(&*self.builder()), Rhs::TY),
         })
     }
 
-    fn sub_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvSubAssign<Rhs>>(&self, lhs: &mut T, rhs: Rhs) {
+    fn sub_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvSubAssign<Rhs>>(
+        &self,
+        lhs: &mut T,
+        rhs: Rhs,
+    ) {
         self.builder().push_instruction(Instruction::SubAssign {
             lhs: (lhs.id(&*self.builder()), T::TY),
             rhs: (rhs.id(&*self.builder()), Rhs::TY),
         })
     }
 
-    fn mul_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvMulAssign<Rhs>>(&self, lhs: &mut T, rhs: Rhs) {
+    fn mul_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvMulAssign<Rhs>>(
+        &self,
+        lhs: &mut T,
+        rhs: Rhs,
+    ) {
         self.builder().push_instruction(Instruction::MulAssign {
             lhs: (lhs.id(&*self.builder()), T::TY),
             rhs: (rhs.id(&*self.builder()), Rhs::TY),
         })
     }
 
-    fn div_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvDivAssign<Rhs>>(&self, lhs: &mut T, rhs: Rhs) {
+    fn div_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvDivAssign<Rhs>>(
+        &self,
+        lhs: &mut T,
+        rhs: Rhs,
+    ) {
         self.builder().push_instruction(Instruction::DivAssign {
             lhs: (lhs.id(&*self.builder()), T::TY),
             rhs: (rhs.id(&*self.builder()), Rhs::TY),
         })
     }
 
-    fn bit_and<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitAnd<Rhs>>(&self, lhs: T, rhs: T) -> T::Output {
+    fn bit_and<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitAnd<Rhs>>(
+        &self,
+        lhs: T,
+        rhs: T,
+    ) -> T::Output {
         let new_id = self.builder().get_new_id();
         self.builder().push_instruction(Instruction::BitAnd {
             lhs: (lhs.id(&*self.builder()), T::TY),
@@ -621,7 +717,11 @@ pub trait Handle {
         T::Output::from_id(new_id)
     }
 
-    fn bit_or<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitOr<Rhs>>(&self, lhs: T, rhs: T) -> T::Output {
+    fn bit_or<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitOr<Rhs>>(
+        &self,
+        lhs: T,
+        rhs: T,
+    ) -> T::Output {
         let new_id = self.builder().get_new_id();
         self.builder().push_instruction(Instruction::BitOr {
             lhs: (lhs.id(&*self.builder()), T::TY),
@@ -631,7 +731,11 @@ pub trait Handle {
         T::Output::from_id(new_id)
     }
 
-    fn bit_xor<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitXor<Rhs>>(&self, lhs: T, rhs: T) -> T::Output {
+    fn bit_xor<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitXor<Rhs>>(
+        &self,
+        lhs: T,
+        rhs: T,
+    ) -> T::Output {
         let new_id = self.builder().get_new_id();
         self.builder().push_instruction(Instruction::BitXor {
             lhs: (lhs.id(&*self.builder()), T::TY),
@@ -641,21 +745,33 @@ pub trait Handle {
         T::Output::from_id(new_id)
     }
 
-    fn bit_and_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitAnd<Rhs>>(&self, lhs: &mut T, rhs: T) {
+    fn bit_and_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitAnd<Rhs>>(
+        &self,
+        lhs: &mut T,
+        rhs: T,
+    ) {
         self.builder().push_instruction(Instruction::BitAndAssign {
             lhs: (lhs.id(&*self.builder()), T::TY),
             rhs: (rhs.id(&*self.builder()), Rhs::TY),
         });
     }
 
-    fn bit_or_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitOr<Rhs>>(&self, lhs: &mut T, rhs: T) {
+    fn bit_or_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitOr<Rhs>>(
+        &self,
+        lhs: &mut T,
+        rhs: T,
+    ) {
         self.builder().push_instruction(Instruction::BitOrAssign {
             lhs: (lhs.id(&*self.builder()), T::TY),
             rhs: (rhs.id(&*self.builder()), Rhs::TY),
         });
     }
 
-    fn bit_xor_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitXor<Rhs>>(&self, lhs: &mut T, rhs: T) {
+    fn bit_xor_assign<Rhs: AsPrimitiveType + AsPrimitive, T: SpvBitXor<Rhs>>(
+        &self,
+        lhs: &mut T,
+        rhs: T,
+    ) {
         self.builder().push_instruction(Instruction::BitXorAssign {
             lhs: (lhs.id(&*self.builder()), T::TY),
             rhs: (rhs.id(&*self.builder()), Rhs::TY),
@@ -731,11 +847,19 @@ pub trait Handle {
     /// or maybe different constructors idk i'm rambling.
     fn new_struct<S: AsSpvStruct>(&self, data: &[&dyn AsData]) -> Struct<S> {
         let id = self.builder().get_new_id();
-        let data = data.iter().map(|d| d.id(&*self.builder())).collect::<Vec<_>>();
+        let data = data
+            .iter()
+            .map(|d| d.id(&*self.builder()))
+            .collect::<Vec<_>>();
         self.builder().push_instruction(Instruction::NewStruct {
             data,
             store: id,
-            ty: DataType::Struct(TypeId::of::<S>(), S::DESC.name, S::DESC.names, S::DESC.fields)
+            ty: DataType::Struct(
+                TypeId::of::<S>(),
+                S::DESC.name,
+                S::DESC.names,
+                S::DESC.fields,
+            ),
         });
 
         Struct {
@@ -752,7 +876,11 @@ pub trait Handle {
         S: AsSpvStruct,
         T: AsData,
     {
-        let index = S::DESC.names.iter().position(|&name| name.eq(field)).expect(&format!("No field {} on struct", field));
+        let index = S::DESC
+            .names
+            .iter()
+            .position(|&name| name.eq(field))
+            .expect(&format!("No field {} on struct", field));
         assert_eq!(data.ty(), S::DESC.fields[index]);
         self.builder().push_instruction(Instruction::StructStore {
             struct_id: s.id,
@@ -771,7 +899,11 @@ pub trait Handle {
         T: AsData + AsDataType + FromId,
     {
         let new_id = self.builder().get_new_id();
-        let index = S::DESC.names.iter().position(|&name| name.eq(field)).expect(&format!("Not field {} on struct", field));
+        let index = S::DESC
+            .names
+            .iter()
+            .position(|&name| name.eq(field))
+            .expect(&format!("Not field {} on struct", field));
         self.builder().push_instruction(Instruction::StructLoad {
             struct_id: s.id,
             field: index,
@@ -790,7 +922,10 @@ pub trait Handle {
         self.builder().push_instruction(Instruction::NewArray {
             store: id,
             ty: T::TY,
-            data: data.iter().map(|e| e.id(&*self.builder())).collect::<Vec<_>>(),
+            data: data
+                .iter()
+                .map(|e| e.id(&*self.builder()))
+                .collect::<Vec<_>>(),
         });
         SpvArray {
             id,
@@ -834,22 +969,27 @@ pub trait Handle {
     {
         let new_id = self.builder().get_new_id();
 
-        self.builder().push_instruction(Instruction::CombineTextureSampler {
-            texture: texture.raw_texture().index,
-            sampler: sampler.index,
-            store: new_id,
-        });
+        self.builder()
+            .push_instruction(Instruction::CombineTextureSampler {
+                texture: texture.raw_texture().index,
+                sampler: sampler.index,
+                store: new_id,
+            });
 
         T::Sampleable::from_id(new_id)
     }
 
-    fn sample_texture<T, D, V>(&self, texture: T, coordinate: V) -> <T::Component as AsComponent>::Read
+    fn sample_texture<T, D, V>(
+        &self,
+        texture: T,
+        coordinate: V,
+    ) -> <T::Component as AsComponent>::Read
     where
         T: SampledGTexture<D>,
         D: AsDimension,
         D::Coord: AsPrimitive + AsPrimitiveType,
         V: SpvRustEq<D::Coord>,
-        <T::Component as AsComponent>::Read: AsPrimitiveType + FromId
+        <T::Component as AsComponent>::Read: AsPrimitiveType + FromId,
     {
         let new_id = self.builder().get_new_id();
 

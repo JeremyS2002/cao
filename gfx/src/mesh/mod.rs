@@ -1,3 +1,9 @@
+//! Mesh types and Vertex traits
+//!
+//! [`IndexedMesh`] and [`BasicMesh`] wrap vertex (and index buffers) and statically type the vertex that the mesh has as well as drawing operations
+//!
+//! The [`Vertex`] trait should be implemented by vertices, It allows different types of vertices to be used with the same pipeine as long as they have the correct attributes
+
 pub mod vertex;
 
 pub use vertex::*;

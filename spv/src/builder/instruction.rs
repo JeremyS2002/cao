@@ -675,9 +675,7 @@ impl Instruction {
 
                 s.var_map.insert(*store, res_var);
             }
-            Instruction::LoadPushConstant { 
-                store
-            } => {
+            Instruction::LoadPushConstant { store } => {
                 // The following is based on how shaderc compiles glsl
                 // TODO afaik there is no reason not to use copy_memory instead
                 // let pointer_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Function, base_ty);
@@ -702,17 +700,20 @@ impl Instruction {
                 copy_composite(&ty, builder, res_var, obj, s.struct_map);
 
                 s.var_map.insert(*store, res_var);
-            },
-            Instruction::LoadPushConstantField { 
-                f_index, 
-                f_ty, 
-                store 
+            }
+            Instruction::LoadPushConstantField {
+                f_index,
+                f_ty,
+                store,
             } => {
                 let (variable, ty) = s.push_constant.unwrap();
                 let struct_index = PrimitiveVal::UInt(0).set_constant(builder).0;
                 let struct_ty = ty.base_type(builder, s.struct_map);
-                let struct_p_ty =
-                    builder.type_pointer(None, rspirv::spirv::StorageClass::PushConstant, struct_ty);
+                let struct_p_ty = builder.type_pointer(
+                    None,
+                    rspirv::spirv::StorageClass::PushConstant,
+                    struct_ty,
+                );
                 let struct_p = builder
                     .access_chain(struct_p_ty, None, variable, Some(struct_index))
                     .unwrap();
@@ -730,43 +731,55 @@ impl Instruction {
                 let field_obj = builder.load(field_ty, None, pointer, None, None).unwrap();
                 builder.store(res_var, field_obj, None, None).unwrap();
                 s.var_map.insert(*store, res_var);
-            },
+            }
             Instruction::MatCol { src, dst, col } => {
                 let spv_src_obj_ty = src.1.base_type(builder);
                 let spv_src = *s.var_map.get(&src.0).unwrap();
-                let spv_src_obj = builder.load(spv_src_obj_ty, None, spv_src, None, None).unwrap();
+                let spv_src_obj = builder
+                    .load(spv_src_obj_ty, None, spv_src, None, None)
+                    .unwrap();
 
                 let dst_ty = src.1.vector_type().unwrap();
                 let spv_dst_obj_ty = dst_ty.base_type(builder);
-                let spv_dst_obj = builder.composite_extract(spv_dst_obj_ty, None, spv_src_obj, Some(*col)).unwrap();
+                let spv_dst_obj = builder
+                    .composite_extract(spv_dst_obj_ty, None, spv_src_obj, Some(*col))
+                    .unwrap();
                 let spv_dst_var = dst_ty.variable(builder, s.var_block);
                 builder.store(spv_dst_var, spv_dst_obj, None, None).unwrap();
                 s.var_map.insert(*dst, spv_dst_var);
-            },
-            Instruction::MatConstruct { 
-                components, 
-                ty, 
-                store 
+            }
+            Instruction::MatConstruct {
+                components,
+                ty,
+                store,
             } => {
                 let num_components = ty.vector_components().unwrap() as usize;
                 let component_ty = ty.vector_type().unwrap().base_type(builder);
 
                 let res_spv_obj_ty = ty.base_type(builder);
-                let spv_components = components.iter().take(num_components).map(|i| {
-                    let spv_var = *s.var_map.get(i).unwrap();
-                    builder.load(component_ty, None, spv_var, None, None).unwrap()
-                }).collect::<Vec<_>>();
-                let res_spv_obj = builder.composite_construct(res_spv_obj_ty, None, spv_components).unwrap();
-                
+                let spv_components = components
+                    .iter()
+                    .take(num_components)
+                    .map(|i| {
+                        let spv_var = *s.var_map.get(i).unwrap();
+                        builder
+                            .load(component_ty, None, spv_var, None, None)
+                            .unwrap()
+                    })
+                    .collect::<Vec<_>>();
+                let res_spv_obj = builder
+                    .composite_construct(res_spv_obj_ty, None, spv_components)
+                    .unwrap();
+
                 let res_spv_var = ty.variable(builder, s.var_block);
                 builder.store(res_spv_var, res_spv_obj, None, None).unwrap();
-                s.var_map.insert(*store, res_spv_var); 
-            },
-            Instruction::LoadStorageElement { 
-                index, 
+                s.var_map.insert(*store, res_spv_var);
+            }
+            Instruction::LoadStorageElement {
+                index,
                 element,
-                ty, 
-                store 
+                ty,
+                store,
             } => {
                 let var = *s.storages.get(*index).unwrap();
                 let res_spv_ptr_ty = ty.pointer_type(builder, s.struct_map);
@@ -775,38 +788,27 @@ impl Instruction {
                 //let element_idx = PrimitiveVal::UInt(*element).set_constant(builder).0;
                 let element_var = *s.var_map.get(element).unwrap();
                 let element_ty = PrimitiveType::Int.base_type(builder);
-                let element_obj = builder.load(
-                    element_ty, 
-                    None, 
-                    element_var, 
-                    None, 
-                    None
-                ).unwrap();
-                let spv_pointer = builder.access_chain(
-                    res_spv_ptr_ty, 
-                    None, 
-                    var, 
-                    [obj_idx, element_obj],
-                ).unwrap();
+                let element_obj = builder
+                    .load(element_ty, None, element_var, None, None)
+                    .unwrap();
+                let spv_pointer = builder
+                    .access_chain(res_spv_ptr_ty, None, var, [obj_idx, element_obj])
+                    .unwrap();
 
-                let spv_res_obj = builder.load(
-                    res_spv_obj_ty, 
-                    None, 
-                    spv_pointer, 
-                    None, 
-                    None,
-                ).unwrap();
+                let spv_res_obj = builder
+                    .load(res_spv_obj_ty, None, spv_pointer, None, None)
+                    .unwrap();
 
                 let res_spv_var = ty.variable(builder, s.struct_map, s.var_block);
                 builder.store(res_spv_var, spv_res_obj, None, None).unwrap();
                 s.var_map.insert(*store, res_spv_var);
-            },
-            Instruction::LoadStorageElementField { 
-                index, 
-                element, 
-                field, 
-                f_type, 
-                store 
+            }
+            Instruction::LoadStorageElementField {
+                index,
+                element,
+                field,
+                f_type,
+                store,
             } => {
                 let var = *s.storages.get(*index).unwrap();
                 let res_spv_ptr_ty = f_type.pointer_type(builder, s.struct_map);
@@ -815,38 +817,27 @@ impl Instruction {
                 //let element_idx = PrimitiveVal::UInt(*element).set_constant(builder).0;
                 let element_var = *s.var_map.get(element).unwrap();
                 let element_ty = PrimitiveType::UInt.base_type(builder);
-                let element_obj = builder.load(
-                    element_ty, 
-                    None, 
-                    element_var, 
-                    None, 
-                    None
-                ).unwrap();
+                let element_obj = builder
+                    .load(element_ty, None, element_var, None, None)
+                    .unwrap();
                 let field_idx = PrimitiveVal::UInt(*field).set_constant(builder).0;
-                let spv_pointer = builder.access_chain(
-                    res_spv_ptr_ty, 
-                    None, 
-                    var, 
-                    [obj_idx, element_obj, field_idx],
-                ).unwrap();
+                let spv_pointer = builder
+                    .access_chain(res_spv_ptr_ty, None, var, [obj_idx, element_obj, field_idx])
+                    .unwrap();
 
-                let spv_res_obj = builder.load(
-                    res_spv_obj_ty, 
-                    None, 
-                    spv_pointer, 
-                    None, 
-                    None,
-                ).unwrap();
+                let spv_res_obj = builder
+                    .load(res_spv_obj_ty, None, spv_pointer, None, None)
+                    .unwrap();
 
                 let res_spv_var = f_type.variable(builder, s.struct_map, s.var_block);
                 builder.store(res_spv_var, spv_res_obj, None, None).unwrap();
                 s.var_map.insert(*store, res_spv_var);
-            },
-            Instruction::ConvertPrimitive { 
-                src_ty, 
-                dst_ty, 
-                src, 
-                dst 
+            }
+            Instruction::ConvertPrimitive {
+                src_ty,
+                dst_ty,
+                src,
+                dst,
             } => {
                 let f_p = match src_ty {
                     PrimitiveType::Bool => todo!(),
@@ -860,26 +851,28 @@ impl Instruction {
                         PrimitiveType::Int => rspirv::dr::Builder::sat_convert_s_to_u,
                         PrimitiveType::Float => rspirv::dr::Builder::convert_u_to_f,
                         PrimitiveType::Double => rspirv::dr::Builder::convert_u_to_f,
-                        _ => unimplemented!()
+                        _ => unimplemented!(),
                     },
                     PrimitiveType::Float => match dst_ty {
                         PrimitiveType::Int => rspirv::dr::Builder::convert_f_to_s,
                         PrimitiveType::UInt => rspirv::dr::Builder::convert_f_to_u,
                         PrimitiveType::Double => rspirv::dr::Builder::f_convert,
-                        _ => unimplemented!()
+                        _ => unimplemented!(),
                     },
                     PrimitiveType::Double => match dst_ty {
                         PrimitiveType::Int => rspirv::dr::Builder::convert_f_to_s,
                         PrimitiveType::UInt => rspirv::dr::Builder::convert_f_to_u,
                         PrimitiveType::Double => rspirv::dr::Builder::f_convert,
-                        _ => unimplemented!()
+                        _ => unimplemented!(),
                     },
-                    _ => unimplemented!()
+                    _ => unimplemented!(),
                 };
 
                 let spv_src_ty = src_ty.base_type(builder);
                 let spv_src_p = *s.var_map.get(src).unwrap();
-                let spv_src_obj = builder.load(spv_src_ty, None, spv_src_p, None, None).unwrap();
+                let spv_src_obj = builder
+                    .load(spv_src_ty, None, spv_src_p, None, None)
+                    .unwrap();
                 let spv_res_ty = dst_ty.base_type(builder);
 
                 let spv_dst_obj = f_p(builder, spv_res_ty, None, spv_src_obj).unwrap();
@@ -888,15 +881,15 @@ impl Instruction {
                 builder.store(spv_dst_var, spv_dst_obj, None, None).unwrap();
 
                 s.var_map.insert(*dst, spv_dst_var);
-            },
-            Instruction::GlslOp { 
-                lhs, 
-                lhs_ty, 
-                rhs, 
-                rhs_ty, 
-                res, 
-                res_ty, 
-                op 
+            }
+            Instruction::GlslOp {
+                lhs,
+                lhs_ty,
+                rhs,
+                rhs_ty,
+                res,
+                res_ty,
+                op,
             } => {
                 let lhs_var = *s.var_map.get(lhs).unwrap();
                 let spv_lhs_ty = lhs_ty.base_type(builder);
@@ -904,38 +897,30 @@ impl Instruction {
 
                 let spv_res_ty = res_ty.base_type(builder);
 
-                let mut operands = vec![
-                    rspirv::dr::Operand::IdRef(spv_lhs_obj),
-                ];
+                let mut operands = vec![rspirv::dr::Operand::IdRef(spv_lhs_obj)];
 
                 if let Some(rhs) = rhs {
                     let rhs_var = *s.var_map.get(rhs).unwrap();
                     let spv_rhs_ty = rhs_ty.unwrap().base_type(builder);
                     let spv_rhs_obj = builder.load(spv_rhs_ty, None, rhs_var, None, None).unwrap();
-                    operands.push(
-                        rspirv::dr::Operand::IdRef(spv_rhs_obj)
-                    );
+                    operands.push(rspirv::dr::Operand::IdRef(spv_rhs_obj));
                 }
 
-                let res_obj = builder.ext_inst(
-                    spv_res_ty, 
-                    None, 
-                    s.glsl_ext, 
-                    *op as _, 
-                    operands
-                ).unwrap();
+                let res_obj = builder
+                    .ext_inst(spv_res_ty, None, s.glsl_ext, *op as _, operands)
+                    .unwrap();
 
                 let res_var = res_ty.variable(builder, s.var_block);
                 builder.store(res_var, res_obj, None, None).unwrap();
 
                 s.var_map.insert(*res, res_var);
-            },
-            Instruction::Dot { 
-                lhs, 
-                rhs, 
-                ty, 
+            }
+            Instruction::Dot {
+                lhs,
+                rhs,
+                ty,
                 comp_ty,
-                res, 
+                res,
             } => {
                 let spv_ty = ty.base_type(builder);
                 let spv_lhs_var = *s.var_map.get(lhs).unwrap();
@@ -950,7 +935,7 @@ impl Instruction {
                 builder.store(res_var, res_obj, None, None).unwrap();
 
                 s.var_map.insert(*res, res_var);
-            },
+            }
         }
     }
 }
@@ -1340,11 +1325,9 @@ fn process_div(
         let components = rhs.1.components();
         let scalar_ty = lhs.1.base_type(builder);
         let vector_ty = builder.type_vector(scalar_ty, components);
-        let composite = builder.composite_construct(
-            vector_ty, 
-            None, 
-            (0..components).map(|_| spv_lhs)
-        ).unwrap();
+        let composite = builder
+            .composite_construct(vector_ty, None, (0..components).map(|_| spv_lhs))
+            .unwrap();
         spv_lhs = composite;
     }
 
@@ -1362,7 +1345,9 @@ fn process_div(
         let vector_ty = rhs.1.vector_type().unwrap().base_type(builder);
         let mut comp = Vec::with_capacity(4);
         for i in 0..rhs.1.vector_components().unwrap() {
-            let extract = builder.composite_extract(vector_ty, None, spv_rhs, Some(i)).unwrap();
+            let extract = builder
+                .composite_extract(vector_ty, None, spv_rhs, Some(i))
+                .unwrap();
             comp.push(f(builder, res_ty, None, spv_lhs, extract).unwrap());
         }
 

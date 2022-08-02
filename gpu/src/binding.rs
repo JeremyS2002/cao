@@ -1,3 +1,7 @@
+//! [`DescriptorLayout`] and [`DescriptorSet`]
+//!
+//! Used to describe and send resources (textures, samplers and buffers) to shaders
+
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},

@@ -1,4 +1,3 @@
-
 pub mod component;
 
 pub use component::*;
@@ -127,7 +126,7 @@ pub trait SampledGTexture<D: AsDimension> {
 
     fn raw_texture(&self) -> SampledRawTexture<D>;
 
-    type Component: AsComponent;    
+    type Component: AsComponent;
 }
 
 pub struct SampledRawTexture<D: AsDimension> {
@@ -138,17 +137,23 @@ pub struct SampledRawTexture<D: AsDimension> {
 
 impl<D: AsDimension> Clone for SampledRawTexture<D> {
     fn clone(&self) -> Self {
-        Self { id: self.id, _dmarker: self._dmarker }
+        Self {
+            id: self.id,
+            _dmarker: self._dmarker,
+        }
     }
 }
 
-impl<D: AsDimension> Copy for SampledRawTexture<D> { }
+impl<D: AsDimension> Copy for SampledRawTexture<D> {}
 
 pub struct SampledTexture<D: AsDimension>(pub SampledRawTexture<D>);
 
 impl<D: AsDimension> SampledGTexture<D> for SampledTexture<D> {
     fn from_id(id: usize) -> Self {
-        Self(SampledRawTexture { id: Right(id), _dmarker: PhantomData })
+        Self(SampledRawTexture {
+            id: Right(id),
+            _dmarker: PhantomData,
+        })
     }
 
     fn raw_texture(&self) -> SampledRawTexture<D> {
@@ -162,7 +167,10 @@ pub struct SampledDTexture<D: AsDimension>(pub SampledRawTexture<D>);
 
 impl<D: AsDimension> SampledGTexture<D> for SampledDTexture<D> {
     fn from_id(id: usize) -> Self {
-        Self(SampledRawTexture { id: Right(id), _dmarker: PhantomData })
+        Self(SampledRawTexture {
+            id: Right(id),
+            _dmarker: PhantomData,
+        })
     }
 
     fn raw_texture(&self) -> SampledRawTexture<D> {
@@ -176,7 +184,10 @@ pub struct SampledITexture<D: AsDimension>(pub SampledRawTexture<D>);
 
 impl<D: AsDimension> SampledGTexture<D> for SampledITexture<D> {
     fn from_id(id: usize) -> Self {
-        Self(SampledRawTexture { id: Right(id), _dmarker: PhantomData })
+        Self(SampledRawTexture {
+            id: Right(id),
+            _dmarker: PhantomData,
+        })
     }
 
     fn raw_texture(&self) -> SampledRawTexture<D> {
@@ -190,7 +201,10 @@ pub struct SampledUTexture<D: AsDimension>(pub SampledRawTexture<D>);
 
 impl<D: AsDimension> SampledGTexture<D> for SampledUTexture<D> {
     fn from_id(id: usize) -> Self {
-        Self(SampledRawTexture { id: Right(id), _dmarker: PhantomData })
+        Self(SampledRawTexture {
+            id: Right(id),
+            _dmarker: PhantomData,
+        })
     }
 
     fn raw_texture(&self) -> SampledRawTexture<D> {

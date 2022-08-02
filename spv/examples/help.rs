@@ -1,5 +1,4 @@
 fn main() {
-
     let src = "
         #version 450
 

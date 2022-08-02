@@ -41,15 +41,9 @@ fn main() {
     let mut resized = false;
 
     let vertices = vec![
-        Vertex {
-            pos: [0.0, -0.5],
-        },
-        Vertex {
-            pos: [-0.5, 0.5],
-        },
-        Vertex {
-            pos: [0.5, 0.5],
-        },
+        Vertex { pos: [0.0, -0.5] },
+        Vertex { pos: [-0.5, 0.5] },
+        Vertex { pos: [0.5, 0.5] },
     ];
 
     let vertex_buffer = device

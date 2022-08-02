@@ -1,3 +1,13 @@
+//! Utility for recording into a [`gpu::CommandBuffer`]
+//!
+//! [`CommandEncoder`]'s store a list of commands that they then record into a CommandBuffer.
+//!
+//! CommmandEncoders main utility comes from managing texture layouts automatically
+//! They also manage pipeline barriers and allow for reflected pipelines to be much more useful
+//!
+//! [`CommandEncoder::record`] formats the encoders commands then begins the command buffer, records commands and ends the buffer
+//! [`CommandEncoder::submit`] does the same as record but submits the command buffer afterwards
+
 #[cfg(feature = "reflect")]
 use std::any::TypeId;
 use std::borrow::Cow;
@@ -26,9 +36,6 @@ impl<'a> CommandEncoder<'a> {
     }
 
     /// Record the commands into a command buffer
-    ///
-    /// Return an EncoderProof that allows the provides methods for safely resubmitting
-    /// on the same command buffer but if you aren't going to resubmit then look at record_into_no_proof
     pub fn record(
         &mut self,
         command_buffer: &mut gpu::CommandBuffer,

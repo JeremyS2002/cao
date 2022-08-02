@@ -1,3 +1,6 @@
+//! Built on top of [`gpu`] to simplify various things
+//!
+
 pub mod encoder;
 pub mod mesh;
 pub mod pass;

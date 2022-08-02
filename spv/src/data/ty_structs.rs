@@ -1,6 +1,5 @@
-
-use crate::builder::RawBuilder;
 use crate::builder::Handle;
+use crate::builder::RawBuilder;
 
 // if I could write better macros then this wouldn't be necissary
 type RustDMat2 = [[f64; 2]; 2];
@@ -24,24 +23,10 @@ type RustVec4 = [f32; 4];
 
 #[cfg(feature = "glam")]
 use glam::{
-    IVec2 as GlamIVec2,
-    IVec3 as GlamIVec3,
-    IVec4 as GlamIVec4,
-    UVec2 as GlamUVec2,
-    UVec3 as GlamUVec3,
-    UVec4 as GlamUVec4,
-    Vec2 as GlamVec2,
-    Vec3 as GlamVec3,
-    Vec4 as GlamVec4,
-    DVec2 as GlamDVec2,
-    DVec3 as GlamDVec3,
-    DVec4 as GlamDVec4,
-    Mat2 as GlamMat2,
-    Mat3 as GlamMat3,
-    Mat4 as GlamMat4,
-    DMat2 as GlamDMat2,
-    DMat3 as GlamDMat3,
-    DMat4 as GlamDMat4,
+    DMat2 as GlamDMat2, DMat3 as GlamDMat3, DMat4 as GlamDMat4, DVec2 as GlamDVec2,
+    DVec3 as GlamDVec3, DVec4 as GlamDVec4, IVec2 as GlamIVec2, IVec3 as GlamIVec3,
+    IVec4 as GlamIVec4, Mat2 as GlamMat2, Mat3 as GlamMat3, Mat4 as GlamMat4, UVec2 as GlamUVec2,
+    UVec3 as GlamUVec3, UVec4 as GlamUVec4, Vec2 as GlamVec2, Vec3 as GlamVec3, Vec4 as GlamVec4,
 };
 
 use super::PrimitiveType;
@@ -98,9 +83,9 @@ pub trait SpvStore<Rhs: AsPrimitiveType>: AsPrimitiveType + AsPrimitive {
 
 macro_rules! gen_relation {
     ($name:ident, $rust:ident, $conv:ident) => {
-        impl SpvRustEq<$rust> for $name { }
+        impl SpvRustEq<$rust> for $name {}
 
-        impl SpvRustEq<$name> for $rust { }
+        impl SpvRustEq<$name> for $rust {}
 
         impl SpvStore<$rust> for $name {
             fn val(rhs: $rust) -> crate::data::PrimitiveVal {
@@ -143,7 +128,8 @@ macro_rules! gen_relation {
         }
 
         impl AsDataType for $rust {
-            const TY: crate::data::DataType = crate::data::DataType::Primitive(crate::data::PrimitiveType::$name);
+            const TY: crate::data::DataType =
+                crate::data::DataType::Primitive(crate::data::PrimitiveType::$name);
         }
 
         impl AsData for $rust {
@@ -165,13 +151,13 @@ macro_rules! gen_relation {
 
 macro_rules! gen_as_data_single {
     ($name:ident) => {
-        impl SpvRustEq<$name> for $name { }
+        impl SpvRustEq<$name> for $name {}
 
         impl AsPrimitiveType for $name {
             const TY: crate::data::PrimitiveType = crate::data::PrimitiveType::$name;
         }
 
-        impl IsPrimitiveType for $name { }
+        impl IsPrimitiveType for $name {}
 
         impl AsPrimitive for $name {
             fn id(&self, _: &dyn RawBuilder) -> usize {
@@ -194,10 +180,11 @@ macro_rules! gen_as_data_single {
         }
 
         impl AsDataType for $name {
-            const TY: crate::data::DataType = crate::data::DataType::Primitive(crate::data::PrimitiveType::$name);
+            const TY: crate::data::DataType =
+                crate::data::DataType::Primitive(crate::data::PrimitiveType::$name);
         }
 
-        impl IsDataType for $name { }
+        impl IsDataType for $name {}
 
         impl AsData for $name {
             fn id(&self, _: &dyn RawBuilder) -> usize {
@@ -263,36 +250,36 @@ macro_rules! gen_as_data_mat {
 
 #[rustfmt::skip]
 gen_as_data_primitive!(
-    Bool, bool, 
-    Int, i32, 
-    UInt, u32, 
-    Float, f32, 
-    Double, f64, 
+    Bool, bool,
+    Int, i32,
+    UInt, u32,
+    Float, f32,
+    Double, f64,
 );
 
 #[rustfmt::skip]
 gen_as_data_vec!(
-    IVec2, RustIVec2, GlamIVec2, 
+    IVec2, RustIVec2, GlamIVec2,
     IVec3, RustIVec3, GlamIVec3,
-    IVec4, RustIVec4, GlamIVec4, 
-    UVec2, RustUVec2, GlamUVec2, 
-    UVec3, RustUVec3, GlamUVec3, 
-    UVec4, RustUVec4, GlamUVec4, 
-    Vec2, RustVec2, GlamVec2, 
+    IVec4, RustIVec4, GlamIVec4,
+    UVec2, RustUVec2, GlamUVec2,
+    UVec3, RustUVec3, GlamUVec3,
+    UVec4, RustUVec4, GlamUVec4,
+    Vec2, RustVec2, GlamVec2,
     Vec3, RustVec3, GlamVec3,
-    Vec4, RustVec4, GlamVec4, 
-    DVec2, RustDVec2, GlamDVec2, 
-    DVec3, RustDVec3, GlamDVec3, 
+    Vec4, RustVec4, GlamVec4,
+    DVec2, RustDVec2, GlamDVec2,
+    DVec3, RustDVec3, GlamDVec3,
     DVec4, RustDVec4, GlamDVec4, 
 );
 
 #[rustfmt::skip]
 gen_as_data_mat!(
     Mat2, RustMat2, GlamMat2, Vec2,
-    Mat3, RustMat3, GlamMat3, Vec3, 
-    Mat4, RustMat4, GlamMat4, Vec4, 
-    DMat2, RustDMat2, GlamDMat2, DVec2, 
-    DMat3, RustDMat3, GlamDMat3, DVec3, 
+    Mat3, RustMat3, GlamMat3, Vec3,
+    Mat4, RustMat4, GlamMat4, Vec4,
+    DMat2, RustDMat2, GlamDMat2, DVec2,
+    DMat3, RustDMat3, GlamDMat3, DVec3,
     DMat4, RustDMat4, GlamDMat4, DVec4,
 );
 
@@ -927,9 +914,9 @@ macro_rules! impl_vector_shuffle {
 
 #[rustfmt::skip]
 impl_vector_shuffle!(
-    Float, Vec2, Vec3, Vec4, 
-    Int, IVec2, IVec3, IVec4, 
-    UInt, UVec2, UVec3, UVec4, 
+    Float, Vec2, Vec3, Vec4,
+    Int, IVec2, IVec3, IVec4,
+    UInt, UVec2, UVec3, UVec4,
     Double, DVec2, DVec3, DVec4,
 );
 
@@ -939,7 +926,7 @@ macro_rules! impl_math_glsl {
             impl $name {
                 pub fn exp(&self, b: impl Handle) -> Self {
                     let res_id = b.builder().get_new_id();
-                    b.builder().push_instruction(crate::builder::Instruction::GlslOp { 
+                    b.builder().push_instruction(crate::builder::Instruction::GlslOp {
                         lhs: self.id,
                         lhs_ty: AsPrimitive::ty(self),
                         rhs: None,
@@ -955,16 +942,7 @@ macro_rules! impl_math_glsl {
     };
 }
 
-impl_math_glsl!(
-    Float,
-    Vec2,
-    Vec3,
-    Vec4,
-    Double,
-    DVec2,
-    DVec3,
-    DVec4,
-);
+impl_math_glsl!(Float, Vec2, Vec3, Vec4, Double, DVec2, DVec3, DVec4,);
 
 macro_rules! impl_vec_glsl {
     ($($name:ident, $component:ident,)*) => {
@@ -1009,22 +987,23 @@ impl_vec_glsl!(
     Vec4, Float,
     DVec2, Double,
     DVec3, Double,
-    DVec4, Double, 
+    DVec4, Double,
 );
 
 impl Vec3 {
     pub fn cross(&self, rhs: &dyn SpvRustEq<Self>, b: impl Handle) -> Vec3 {
         let res_id = b.builder().get_new_id();
 
-        b.builder().push_instruction(crate::builder::Instruction::GlslOp {
-            lhs: self.id,
-            lhs_ty: AsPrimitive::ty(self),
-            op: rspirv::spirv::GLOp::Cross,
-            rhs: Some(rhs.id(&*b.builder())),
-            rhs_ty: Some(AsPrimitive::ty(self)),
-            res: res_id,
-            res_ty: PrimitiveType::Vec3,
-        });
+        b.builder()
+            .push_instruction(crate::builder::Instruction::GlslOp {
+                lhs: self.id,
+                lhs_ty: AsPrimitive::ty(self),
+                op: rspirv::spirv::GLOp::Cross,
+                rhs: Some(rhs.id(&*b.builder())),
+                rhs_ty: Some(AsPrimitive::ty(self)),
+                res: res_id,
+                res_ty: PrimitiveType::Vec3,
+            });
 
         Vec3::from_id(res_id)
     }
@@ -1034,15 +1013,16 @@ impl DVec3 {
     pub fn cross(&self, rhs: &dyn SpvRustEq<Self>, b: impl Handle) -> DVec3 {
         let res_id = b.builder().get_new_id();
 
-        b.builder().push_instruction(crate::builder::Instruction::GlslOp {
-            lhs: self.id,
-            lhs_ty: AsPrimitive::ty(self),
-            op: rspirv::spirv::GLOp::Cross,
-            rhs: Some(rhs.id(&*b.builder())),
-            rhs_ty: Some(AsPrimitive::ty(self)),
-            res: res_id,
-            res_ty: PrimitiveType::DVec3,
-        });
+        b.builder()
+            .push_instruction(crate::builder::Instruction::GlslOp {
+                lhs: self.id,
+                lhs_ty: AsPrimitive::ty(self),
+                op: rspirv::spirv::GLOp::Cross,
+                rhs: Some(rhs.id(&*b.builder())),
+                rhs_ty: Some(AsPrimitive::ty(self)),
+                res: res_id,
+                res_ty: PrimitiveType::DVec3,
+            });
 
         DVec3::from_id(res_id)
     }

@@ -1,3 +1,5 @@
+//! A [`RenderPass`] describes what images will be rendered to by a [`crate::GraphicsPipeline`]
+
 use std::mem::ManuallyDrop as Md;
 use std::ptr;
 use std::sync::Arc;

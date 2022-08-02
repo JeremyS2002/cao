@@ -1,5 +1,5 @@
 //! Formats divided by component types and their corresponding texture types
-//! 
+//!
 //! TODO: Statically enforce image and raw image pixel types match format component rather than panicing
 
 use super::*;
@@ -255,7 +255,8 @@ macro_rules! make_texture_1d_array {
                 array_layer: gpu::Layer,
             ) -> Result<(), gpu::Error> {
                 $format::try_from(P::FORMAT).unwrap();
-                self.0.write_raw_image(encoder, device, raw_texture, array_layer)
+                self.0
+                    .write_raw_image(encoder, device, raw_texture, array_layer)
             }
         }
     };
@@ -412,7 +413,15 @@ macro_rules! make_texture_2d_array {
                 name: Option<String>,
             ) -> Result<Self, gpu::Error> {
                 Ok(Self(GTexture2DArray::new(
-                    device, width, height, samples, layers, usage, mip_levels, format.into(), name,
+                    device,
+                    width,
+                    height,
+                    samples,
+                    layers,
+                    usage,
+                    mip_levels,
+                    format.into(),
+                    name,
                 )?))
             }
 
@@ -480,7 +489,8 @@ macro_rules! make_texture_2d_array {
                 array_layer: gpu::Layer,
             ) -> Result<(), gpu::Error> {
                 $format::try_from(P::FORMAT).unwrap();
-                self.0.write_raw_image(encoder, device, raw_texture, array_layer)
+                self.0
+                    .write_raw_image(encoder, device, raw_texture, array_layer)
             }
         }
 
@@ -505,19 +515,14 @@ macro_rules! make_texture_2d_array {
             {
                 $format::try_from(P::FORMAT).unwrap();
                 Ok(Self(GTexture2DArray::from_images(
-                    encoder,
-                    device,
-                    images,
-                    usage,
-                    mip_levels,
-                    name,
+                    encoder, device, images, usage, mip_levels, name,
                 )?))
             }
 
             /// Write an image to self
             ///
             /// Will panic if the dimensions don't match self
-            /// 
+            ///
             /// At the moment the texture must have been created with [`gpu::Samples::S1`]
             /// If it was created with more then you must create a staging image and blit between them
             /// This limit should be lifted as soon as I get around to it
@@ -601,7 +606,16 @@ macro_rules! make_texture_cube {
                 name: Option<String>,
             ) -> Result<Self, gpu::Error> {
                 $format::try_from(P::FORMAT).unwrap();
-                Ok(Self(GTextureCube::from_raw_images(encoder, device, width, height, raw_textures, usage, mip_levels, name)?))
+                Ok(Self(GTextureCube::from_raw_images(
+                    encoder,
+                    device,
+                    width,
+                    height,
+                    raw_textures,
+                    usage,
+                    mip_levels,
+                    name,
+                )?))
             }
 
             /// Write a raw texture to self
@@ -640,12 +654,7 @@ macro_rules! make_texture_cube {
             {
                 $format::try_from(P::FORMAT).unwrap();
                 Ok(Self(GTextureCube::from_images(
-                    encoder,
-                    device,
-                    images,
-                    usage,
-                    mip_levels,
-                    name,
+                    encoder, device, images, usage, mip_levels, name,
                 )?))
             }
 
@@ -665,12 +674,7 @@ macro_rules! make_texture_cube {
                 C: std::ops::Deref<Target = [P::Subpixel]>,
             {
                 $format::try_from(P::FORMAT).unwrap();
-                self.0.write_image(
-                    encoder,
-                    device,
-                    image,
-                    face,
-                )
+                self.0.write_image(encoder, device, image, face)
             }
         }
     };
@@ -723,7 +727,8 @@ macro_rules! make_texture_cube_array {
                     mip_levels,
                     formats.into_iter().map(|f| f.into()),
                     name,
-                )?.map(|t| Self(t)))
+                )?
+                .map(|t| Self(t)))
             }
 
             /// Create a new Texture from a raw image
@@ -764,13 +769,8 @@ macro_rules! make_texture_cube_array {
                 face: CubeFace,
             ) -> Result<(), gpu::Error> {
                 $format::try_from(P::FORMAT).unwrap();
-                self.0.write_raw_image(
-                    encoder,
-                    device,
-                    raw_texture,
-                    array_layer,
-                    face,
-                )
+                self.0
+                    .write_raw_image(encoder, device, raw_texture, array_layer, face)
             }
         }
 
@@ -795,15 +795,10 @@ macro_rules! make_texture_cube_array {
             {
                 $format::try_from(P::FORMAT).unwrap();
                 Ok(Self(GTextureCubeArray::from_images(
-                    encoder,
-                    device,
-                    images,
-                    usage,
-                    mip_levels,
-                    name,
+                    encoder, device, images, usage, mip_levels, name,
                 )?))
             }
-        
+
             /// Write an image to self
             ///
             /// Will panic if the dimensions don't match self
@@ -821,13 +816,8 @@ macro_rules! make_texture_cube_array {
                 C: std::ops::Deref<Target = [P::Subpixel]>,
             {
                 $format::try_from(P::FORMAT).unwrap();
-                self.0.write_image(
-                    encoder,
-                    device,
-                    image,
-                    array_layer,
-                    face,
-                )
+                self.0
+                    .write_image(encoder, device, image, array_layer, face)
             }
         }
     };
@@ -856,7 +846,7 @@ macro_rules! make_texture_3d {
                     name,
                 )?))
             }
-        
+
             /// Create a new Texture from dimensions and a list of possible formats
             /// Returns Ok(None) if none of the possible formats are valid
             pub fn from_formats(
@@ -876,7 +866,8 @@ macro_rules! make_texture_3d {
                     usage,
                     formats.into_iter().map(|f| f.into()),
                     name,
-                )?.map(|t| Self(t)))
+                )?
+                .map(|t| Self(t)))
             }
         }
     };
@@ -908,53 +899,113 @@ macro_rules! impl_textures {
 }
 
 impl_textures!(
-    Texture, Format,
+    Texture,
+    Format,
     [
-        Texture1D, D1, make_texture_1d,
-        Texture1DArray, D1Array, make_texture_1d_array,
-        Texture2D, D2, make_texture_2d,
-        Texture2DArray, D2Array, make_texture_2d_array,
-        TextureCube, Cube, make_texture_cube,
-        TextureCubeArray, CubeArray, make_texture_cube_array,
-        Texture3D, D3, make_texture_3d,
+        Texture1D,
+        D1,
+        make_texture_1d,
+        Texture1DArray,
+        D1Array,
+        make_texture_1d_array,
+        Texture2D,
+        D2,
+        make_texture_2d,
+        Texture2DArray,
+        D2Array,
+        make_texture_2d_array,
+        TextureCube,
+        Cube,
+        make_texture_cube,
+        TextureCubeArray,
+        CubeArray,
+        make_texture_cube_array,
+        Texture3D,
+        D3,
+        make_texture_3d,
     ]
 );
 
 impl_textures!(
-    DTexture, DFormat,
+    DTexture,
+    DFormat,
     [
-        DTexture1D, D1, make_texture_1d,
-        DTexture1DArray, D1Array, make_texture_1d_array,
-        DTexture2D, D2, make_texture_2d,
-        DTexture2DArray, D2Array, make_texture_2d_array,
-        DTextureCube, Cube, make_texture_cube,
-        DTextureCubeArray, CubeArray, make_texture_cube_array,
-        DTexture3D, D3, make_texture_3d,
+        DTexture1D,
+        D1,
+        make_texture_1d,
+        DTexture1DArray,
+        D1Array,
+        make_texture_1d_array,
+        DTexture2D,
+        D2,
+        make_texture_2d,
+        DTexture2DArray,
+        D2Array,
+        make_texture_2d_array,
+        DTextureCube,
+        Cube,
+        make_texture_cube,
+        DTextureCubeArray,
+        CubeArray,
+        make_texture_cube_array,
+        DTexture3D,
+        D3,
+        make_texture_3d,
     ]
 );
 
 impl_textures!(
-    ITexture, IFormat,
+    ITexture,
+    IFormat,
     [
-        ITexture1D, D1, make_texture_1d,
-        ITexture1DArray, D1Array, make_texture_1d_array,
-        ITexture2D, D2, make_texture_2d,
-        ITexture2DArray, D2Array, make_texture_2d_array,
-        ITextureCube, Cube, make_texture_cube,
-        ITextureCubeArray, CubeArray, make_texture_cube_array,
-        ITexture3D, D3, make_texture_3d,
+        ITexture1D,
+        D1,
+        make_texture_1d,
+        ITexture1DArray,
+        D1Array,
+        make_texture_1d_array,
+        ITexture2D,
+        D2,
+        make_texture_2d,
+        ITexture2DArray,
+        D2Array,
+        make_texture_2d_array,
+        ITextureCube,
+        Cube,
+        make_texture_cube,
+        ITextureCubeArray,
+        CubeArray,
+        make_texture_cube_array,
+        ITexture3D,
+        D3,
+        make_texture_3d,
     ]
 );
 
 impl_textures!(
-    UTexture, UFormat,
+    UTexture,
+    UFormat,
     [
-        UTexture1D, D1, make_texture_1d,
-        UTexture1DArray, D1Array, make_texture_1d_array,
-        UTexture2D, D2, make_texture_2d,
-        UTexture2DArray, D2Array, make_texture_2d_array,
-        UTextureCube, Cube, make_texture_cube,
-        UTextureCubeArray, CubeArray, make_texture_cube_array,
-        UTexture3D, D3, make_texture_3d,
+        UTexture1D,
+        D1,
+        make_texture_1d,
+        UTexture1DArray,
+        D1Array,
+        make_texture_1d_array,
+        UTexture2D,
+        D2,
+        make_texture_2d,
+        UTexture2DArray,
+        D2Array,
+        make_texture_2d_array,
+        UTextureCube,
+        Cube,
+        make_texture_cube,
+        UTextureCubeArray,
+        CubeArray,
+        make_texture_cube_array,
+        UTexture3D,
+        D3,
+        make_texture_3d,
     ]
 );

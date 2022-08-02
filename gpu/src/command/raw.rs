@@ -921,9 +921,15 @@ pub(crate) fn submit(
     let wait_dst_stage_mask = if wait_semaphores.len() == 0 {
         [vk::PipelineStageFlags::empty(); 2]
     } else if wait_semaphores.len() == 1 {
-        [vk::PipelineStageFlags::BOTTOM_OF_PIPE, vk::PipelineStageFlags::empty()]
+        [
+            vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+            vk::PipelineStageFlags::empty(),
+        ]
     } else {
-        [vk::PipelineStageFlags::BOTTOM_OF_PIPE, vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT]
+        [
+            vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+            vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+        ]
     };
 
     let submit_info = vk::SubmitInfo {

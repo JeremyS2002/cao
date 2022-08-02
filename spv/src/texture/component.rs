@@ -1,4 +1,3 @@
-
 use crate::PrimitiveType;
 
 #[derive(Clone, Copy, Debug)]
