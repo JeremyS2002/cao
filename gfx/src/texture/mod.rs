@@ -1,8 +1,119 @@
+//! Utilities for manipulating textures
+//! 
+//! [`GTexture`]
+//! Wraps a [`gpu::Texture`] and [`gpu::TextureView`] providing utilities for generating mipmaps, 
+//! slicing more intuitivly and writing data, as well as statically typed texture dimension
+//! 
+//! The specific type aliases for each dimensions provide more intuitive methods for creating texture from 
+//! images from the image crate as well as more robust methods for dealing with specific format dimension 
+//! combinations not being available on the current system.
+//! 
+//! The _Texture_ types statically enforce both the dimension and the component type, for example:
+//! [`Texture2D`] enforces a 2 dimensional texture with floating point components
+//! [`DTexture1D`] enforces a 1 dimensional texture with double precision components
+//! [`ITextureCube`] enforces a cube dimensional texture with signed integer components
+//! [`UTexture2DArray`] enforces a 2d array texture with unsigned integer components
+//! Be aware that not all combinations of components and dimension are supported on all systems
+//! 
+//! TODO:
+//! Robust methods for loading textures from dynamic images. Check what format the image is in and then 
+//! find a format that works (If necissary can use image methods to change the pixel type of the image)
+//!
+
 pub mod formats;
 pub mod traits;
 
 pub use formats::*;
 pub use traits::*;
+
+/// Multiple textures formats can be suited to the same job.
+/// 
+/// For example when rendering to a buffer it doesn't really matter if the buffer
+/// is Rgb16Float Rgb32Float or Rgb64Float as long as it has at least 3 components and has floating point value pixels
+/// this is important as different systems have support for different formats so it is good
+/// to be able to choose between those options at runtime
+/// 
+/// This function returns alternative formats that can replace the format provided
+/// 
+/// example usage:
+/// ```
+/// fn create_framebuffer(device: &gpu::Device, width: u32, height: u32) -> gfx::Texture2D {
+///     gfx::Texture2D::from_formats(
+///         &device,
+///         width,
+///         height,
+///         gpu::TextureUsage::COLOR_OUTPUT,
+///         1,
+///         alt_formats(gpu::Format::Rgb32Float),    
+///         None,
+///     ).unwrap()
+/// }
+/// ```
+/// 
+pub fn alt_formats(format: gpu::Format) -> impl Iterator<Item=gpu::Format> {
+    use gpu::Format::*;
+    match format {
+        R8Unorm => vec![R8Unorm, Rg8Unorm, Rgb8Unorm, Rgba8Unorm].into_iter(),
+        R8Snorm => vec![R8Snorm, Rg8Snorm, Rgb8Snorm, Rgba8Snorm].into_iter(),
+        R16Unorm => vec![R16Unorm, Rg16Unorm, Rgb16Unorm, Rgba16Unorm].into_iter(),
+        R16Snorm => vec![R16Snorm, Rg16Snorm, Rgb16Snorm, Rgba16Snorm].into_iter(),
+        R16Float => vec![R16Float, Rg16Float, Rgb16Float, Rgba16Float, R32Float, Rg32Float, Rgb32Float, Rgba32Float, R64Float, Rg64Float, Rgb64Float, Rgba64Float].into_iter(),
+        R32Uint => vec![R32Uint, Rg32Uint, Rgb32Uint, Rgba32Uint].into_iter(),
+        R32Sint => vec![R32Sint, Rg32Sint, Rgb32Sint, Rgba32Sint].into_iter(),
+        R32Float => vec![R32Float, Rg32Float, Rgb32Float, Rgba32Float, R64Float, Rg64Float, Rgb64Float, Rgba64Float, R16Float, Rg16Float, Rgb16Float, Rgba16Float].into_iter(),
+        R64Uint => vec![R64Uint, Rg64Uint, Rgb64Uint, Rgba64Uint].into_iter(),
+        R64Sint => vec![R64Sint, Rg64Sint, Rgb64Sint, Rgba64Sint].into_iter(),
+        R64Float => vec![R64Float, Rg64Float, Rgb64Float, Rgba64Float, R32Float, Rg32Float, Rgb32Float, Rgba32Float, R16Float, Rg16Float, Rgb16Float, Rgba16Float].into_iter(),
+        Rg8Unorm => vec![Rg8Unorm, Rgb8Unorm, Rgba8Unorm].into_iter(),
+        Rg8Snorm => vec![Rg8Snorm, Rgb8Snorm, Rgba8Snorm].into_iter(),
+        Rg16Unorm => vec![Rg16Unorm, Rgb16Unorm, Rgba16Unorm].into_iter(),
+        Rg16Snorm => vec![Rg16Snorm, Rgb16Snorm, Rgba16Snorm].into_iter(),
+        Rg16Float => vec![Rg16Float, Rgb16Float, Rgba16Float, Rg32Float, Rgb32Float, Rg64Float, Rgba32Float, Rgb64Float, Rgba64Float].into_iter(),
+        Rg32Uint => vec![Rg32Uint, Rgb32Uint, Rgba32Uint].into_iter(),
+        Rg32Sint => vec![Rg32Sint, Rgb32Sint, Rgba32Sint].into_iter(),
+        Rg32Float => vec![Rg32Float, Rgb32Float, Rgba32Float, Rg64Float, Rgb64Float, Rgba64Float, Rg16Float, Rgb16Float, Rgba16Float].into_iter(),
+        Rg64Uint => vec![Rg64Uint, Rgb64Uint, Rgba64Uint].into_iter(),
+        Rg64Sint => vec![Rg64Sint, Rgb64Sint, Rgba64Sint].into_iter(),
+        Rg64Float => vec![Rg64Float, Rgb64Float, Rgba64Float, Rg32Float, Rgb32Float, Rgba32Float, Rg16Float, Rgb16Float, Rgba16Float].into_iter(),
+        Rgb8Unorm => vec![Rgb8Unorm, Rgba8Unorm].into_iter(),
+        Rgb8Snorm => vec![Rgb8Snorm, Rgba8Snorm].into_iter(),
+        Rgb8Srgb => vec![Rgb8Srgb, Rgba8Srgb].into_iter(),
+        Rgb16Unorm => vec![Rgb16Unorm, Rgba16Unorm].into_iter(),
+        Rgb16Float => vec![Rgb16Float, Rgba16Float, Rgb32Float, Rgba32Float, Rgb64Float, Rgba64Float].into_iter(),
+        Rgb16Snorm => vec![Rgb16Snorm, Rgba16Snorm].into_iter(),
+        Rgb32Uint => vec![Rgb32Uint, Rgba32Uint].into_iter(),
+        Rgb32Sint => vec![Rgb32Sint, Rgba32Sint].into_iter(),
+        Rgb32Float => vec![Rgb32Float, Rgba32Float, Rgb64Float, Rgba64Float, Rgb16Float, Rgba16Float].into_iter(),
+        Rgb64Uint => vec![Rgb64Uint, Rgba64Uint].into_iter(),
+        Rgb64Sint => vec![Rgb64Sint, Rgba64Sint].into_iter(),
+        Rgb64Float => vec![Rgb64Float, Rgba64Float, Rgb32Float, Rgba32Float, Rgb16Float, Rgba16Float].into_iter(),
+        Rgba8Unorm => vec![Rgba8Unorm].into_iter(),
+        Rgba8Snorm => vec![Rgba8Snorm].into_iter(),
+        Rgba8Srgb => vec![Rgba8Srgb].into_iter(),
+        Rgba16Unorm => vec![Rgba16Unorm].into_iter(),
+        Rgba16Float => vec![Rgba16Float, Rgba32Float, Rgba64Float].into_iter(),
+        Rgba16Snorm => vec![Rgba16Snorm].into_iter(),
+        Rgba32Uint => vec![Rgba32Uint].into_iter(),
+        Rgba32Sint => vec![Rgba32Sint].into_iter(),
+        Rgba32Float => vec![Rgba32Float, Rgba64Float, Rgba16Float].into_iter(),
+        Rgba64Uint => vec![Rgba64Uint].into_iter(),
+        Rgba64Sint => vec![Rgba64Sint].into_iter(),
+        Rgba64Float => vec![Rgba64Float, Rgba32Float, Rgba16Float].into_iter(),
+        Bgr8Unorm => vec![Bgr8Unorm].into_iter(),
+        Bgr8Snorm => vec![Bgr8Snorm].into_iter(),
+        Bgr8Srgb => vec![Bgr8Srgb].into_iter(),
+        Bgra8Unorm => vec![Bgra8Unorm].into_iter(),
+        Bgra8Snorm => vec![Bgra8Snorm].into_iter(),
+        Bgra8Srgb => vec![Bgra8Srgb].into_iter(),
+        Depth32Float => vec![Depth32Float].into_iter(),
+        Depth16Unorm => vec![Depth16Unorm].into_iter(),
+        Depth32FloatStencil8Uint => vec![Depth32FloatStencil8Uint].into_iter(),
+        Depth24UnormStencil8Uint => vec![Depth24UnormStencil8Uint, Depth16UnormStencil8Uint].into_iter(),
+        Depth16UnormStencil8Uint => vec![Depth16UnormStencil8Uint, Depth24UnormStencil8Uint].into_iter(),
+        Stencil8Uint => vec![Stencil8Uint].into_iter(),
+        Unknown => vec![Unknown].into_iter(),
+    }
+}
 
 /// Iterate over the formats and see if it is compaitble with the dimension and
 pub fn choose_format<'a>(
@@ -336,9 +447,6 @@ pub type GTexture1DArray = GTexture<D1Array>;
 /// A Statically typed 2d texture
 pub type GTexture2D = GTexture<D2>;
 
-/// A Statically typed 2d texture with multisampling
-pub type GTexture2DMs = GTexture<D2Ms>;
-
 /// A Statically typed 2d array texture
 pub type GTexture2DArray = GTexture<D2Array>;
 
@@ -553,12 +661,13 @@ impl GTexture2D {
         device: &gpu::Device,
         width: gpu::Size,
         height: gpu::Size,
+        samples: gpu::Samples,
         usage: gpu::TextureUsage,
         mip_levels: u32,
         format: gpu::Format,
         name: Option<String>,
     ) -> Result<Self, gpu::Error> {
-        Self::from_dimension(device, D2(width, height), usage, mip_levels, format, name)
+        Self::from_dimension(device, D2(width, height, samples), usage, mip_levels, format, name)
     }
 
     /// Create a new Texture from dimensions and a list of possible formats
@@ -567,6 +676,7 @@ impl GTexture2D {
         device: &gpu::Device,
         width: gpu::Size,
         height: gpu::Size,
+        samples: gpu::Samples,
         usage: gpu::TextureUsage,
         mip_levels: u32,
         formats: impl IntoIterator<Item = gpu::Format>,
@@ -575,11 +685,11 @@ impl GTexture2D {
         if let Some(format) = choose_format(
             device,
             formats,
-            gpu::TextureDimension::D2(width, height, gpu::Samples::S1),
+            gpu::TextureDimension::D2(width, height, samples),
             usage,
             mip_levels,
         ) {
-            Self::new(device, width, height, usage, mip_levels, format, name).map(|t| Some(t))
+            Self::new(device, width, height, samples, usage, mip_levels, format, name).map(|t| Some(t))
         } else {
             Ok(None)
         }
@@ -600,7 +710,7 @@ impl GTexture2D {
     ) -> Result<Self, gpu::Error> {
         let t = Self::from_dimension(
             device,
-            D2(width, height),
+            D2(width, height, gpu::Samples::S1),
             usage | gpu::TextureUsage::COPY_DST | gpu::TextureUsage::COPY_SRC,
             mip_levels,
             P::FORMAT,
@@ -613,6 +723,10 @@ impl GTexture2D {
     /// Write a raw texture to self
     ///
     /// Will panic if the texture isn't the right dimensions
+    /// 
+    /// At the moment the texture must have been created with [`gpu::Samples::S1`]
+    /// If it was created with more then you must create a staging image and blit between them
+    /// This limit should be lifted as soon as I get around to it
     pub fn write_raw_image<P: FormatData + bytemuck::Pod>(
         &self,
         encoder: &mut crate::CommandEncoder<'_>,
@@ -657,7 +771,7 @@ impl GTexture2D {
         let (width, height) = image.dimensions();
         let t = Self::from_dimension(
             device,
-            D2(width, height),
+            D2(width, height, gpu::Samples::S1),
             usage | gpu::TextureUsage::COPY_DST | gpu::TextureUsage::COPY_SRC,
             mip_levels,
             P::FORMAT,
@@ -670,6 +784,10 @@ impl GTexture2D {
     /// Write an image to self
     ///
     /// Will panic if the dimensions don't match self
+    /// 
+    /// At the moment the texture must have been created with [`gpu::Samples::S1`]
+    /// If it was created with more then you must create a staging image and blit between them
+    /// This limit should be lifted as soon as I get around to it
     pub fn write_image<C, P>(
         &self,
         encoder: &mut crate::CommandEncoder<'_>,
@@ -694,57 +812,6 @@ impl GTexture2D {
             0,
             1,
         )
-    }
-}
-
-impl GTexture2DMs {
-    /// Create a new Texture from dimensions
-    pub fn new(
-        device: &gpu::Device,
-        width: gpu::Size,
-        height: gpu::Size,
-        usage: gpu::TextureUsage,
-        mip_levels: u32,
-        samples: gpu::Samples,
-        format: gpu::Format,
-        name: Option<String>,
-    ) -> Result<Self, gpu::Error> {
-        Self::from_dimension(
-            device,
-            D2Ms(width, height, samples),
-            usage,
-            mip_levels,
-            format,
-            name,
-        )
-    }
-
-    /// Create a new Texture from dimensions and a list of possible formats
-    /// Returns Ok(None) if none of the possible formats are valid
-    pub fn from_formats(
-        device: &gpu::Device,
-        width: gpu::Size,
-        height: gpu::Size,
-        usage: gpu::TextureUsage,
-        mip_levels: u32,
-        samples: gpu::Samples,
-        formats: impl IntoIterator<Item = gpu::Format>,
-        name: Option<String>,
-    ) -> Result<Option<Self>, gpu::Error> {
-        if let Some(format) = choose_format(
-            device,
-            formats,
-            gpu::TextureDimension::D2(width, height, samples),
-            usage,
-            mip_levels,
-        ) {
-            Self::new(
-                device, width, height, usage, mip_levels, samples, format, name,
-            )
-            .map(|t| Some(t))
-        } else {
-            Ok(None)
-        }
     }
 }
 
@@ -809,14 +876,13 @@ impl GTexture2DArray {
         raw_textures: &[&[P]],
         width: gpu::Size,
         height: gpu::Size,
-        samples: gpu::Samples,
         usage: gpu::TextureUsage,
         mip_levels: u32,
         name: Option<String>,
     ) -> Result<Self, gpu::Error> {
         let t = Self::from_dimension(
             device,
-            D2Array(width, height, samples, raw_textures.len() as _),
+            D2Array(width, height, gpu::Samples::S1, raw_textures.len() as _),
             usage | gpu::TextureUsage::COPY_DST | gpu::TextureUsage::COPY_SRC,
             mip_levels,
             P::FORMAT,
@@ -831,6 +897,10 @@ impl GTexture2DArray {
     /// Write a raw texture to self
     ///
     /// Will panic if the texture isn't the right dimensions
+    /// 
+    /// At the moment the texture must have been created with [`gpu::Samples::S1`]
+    /// If it was created with more then you must create a staging image and blit between them
+    /// This limit should be lifted as soon as I get around to it
     pub fn write_raw_image<P: FormatData + bytemuck::Pod>(
         &self,
         encoder: &mut crate::CommandEncoder<'_>,
@@ -864,7 +934,6 @@ impl GTexture2DArray {
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
         images: &[&image::ImageBuffer<P, C>],
-        samples: gpu::Samples,
         usage: gpu::TextureUsage,
         mip_levels: u32,
         name: Option<String>,
@@ -877,7 +946,7 @@ impl GTexture2DArray {
         let (width, height) = images[0].dimensions();
         let t = Self::from_dimension(
             device,
-            D2Array(width, height, samples, images.len() as _),
+            D2Array(width, height, gpu::Samples::S1, images.len() as _),
             usage | gpu::TextureUsage::COPY_DST,
             mip_levels,
             P::FORMAT,
@@ -892,6 +961,10 @@ impl GTexture2DArray {
     /// Write an image to self
     ///
     /// Will panic if the dimensions don't match self
+    /// 
+    /// At the moment the texture must have been created with [`gpu::Samples::S1`]
+    /// If it was created with more then you must create a staging image and blit between them
+    /// This limit should be lifted as soon as I get around to it
     pub fn write_image<C, P>(
         &self,
         encoder: &mut crate::CommandEncoder<'_>,
@@ -1268,7 +1341,7 @@ impl GTextureCubeArray {
     ///
     /// This will infer the gpu::Format from the component in the image
     /// and will use the dimensions of the image for the dimensions of the texture
-    pub fn from_image<C, P>(
+    pub fn from_images<C, P>(
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
         images: &[&[&image::ImageBuffer<P, C>; 6]],

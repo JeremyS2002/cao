@@ -42,33 +42,15 @@ impl AsDimension for D1Array {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub struct D2(pub gpu::Size, pub gpu::Size);
+pub struct D2(pub gpu::Size, pub gpu::Size, pub gpu::Samples);
 
 impl D2 {
-    pub fn new(width: gpu::Size, height: gpu::Size) -> Self {
-        Self(width, height)
-    }
-}
-
-impl AsDimension for D2 {
-    fn as_dimension(&self) -> gpu::TextureDimension {
-        gpu::TextureDimension::D2(self.0, self.1, gpu::Samples::S1)
-    }
-
-    #[cfg(feature = "spv")]
-    type Spirv = spv::D2;
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub struct D2Ms(pub gpu::Size, pub gpu::Size, pub gpu::Samples);
-
-impl D2Ms {
     pub fn new(width: gpu::Size, height: gpu::Size, samples: gpu::Samples) -> Self {
         Self(width, height, samples)
     }
 }
 
-impl AsDimension for D2Ms {
+impl AsDimension for D2 {
     fn as_dimension(&self) -> gpu::TextureDimension {
         gpu::TextureDimension::D2(self.0, self.1, self.2)
     }

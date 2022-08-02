@@ -210,13 +210,10 @@ impl Fluid {
             &device,
             SIM_RESOLUTION,
             SIM_RESOLUTION,
+            gpu::Samples::S1,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
             1,
-            [
-                gpu::Format::Rg32Float,
-                gpu::Format::Rgb32Float,
-                gpu::Format::Rgba32Float,
-            ],
+            gfx::alt_formats(gpu::Format::Rg32Float),
             None,
         )?
         .unwrap();
@@ -224,13 +221,10 @@ impl Fluid {
             &device,
             SIM_RESOLUTION,
             SIM_RESOLUTION,
+            gpu::Samples::S1,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
             1,
-            [
-                gpu::Format::Rg32Float,
-                gpu::Format::Rgb32Float,
-                gpu::Format::Rgba32Float,
-            ],
+            gfx::alt_formats(gpu::Format::Rg32Float),
             None,
         )?
         .unwrap();
@@ -238,17 +232,13 @@ impl Fluid {
             &device,
             SIM_RESOLUTION,
             SIM_RESOLUTION,
+            gpu::Samples::S1,
             gpu::TextureUsage::SAMPLED
                 | gpu::TextureUsage::COLOR_OUTPUT
                 | gpu::TextureUsage::COPY_SRC
                 | gpu::TextureUsage::COPY_DST,
             1,
-            [
-                gpu::Format::R32Float,
-                gpu::Format::Rg32Float,
-                gpu::Format::Rgb32Float,
-                gpu::Format::Rgba32Float,
-            ],
+            gfx::alt_formats(gpu::Format::R32Float),
             None,
         )?
         .unwrap();
@@ -256,17 +246,13 @@ impl Fluid {
             &device,
             SIM_RESOLUTION,
             SIM_RESOLUTION,
+            gpu::Samples::S1,
             gpu::TextureUsage::SAMPLED
                 | gpu::TextureUsage::COLOR_OUTPUT
                 | gpu::TextureUsage::COPY_SRC
                 | gpu::TextureUsage::COPY_DST,
             1,
-            [
-                gpu::Format::R32Float,
-                gpu::Format::Rg32Float,
-                gpu::Format::Rgb32Float,
-                gpu::Format::Rgba32Float,
-            ],
+            gfx::alt_formats(gpu::Format::R32Float),
             None,
         )?
         .unwrap();
@@ -274,6 +260,7 @@ impl Fluid {
             &device,
             INK_RESOLUTION,
             INK_RESOLUTION,
+            gpu::Samples::S1,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
             1,
             gpu::Format::Rgba32Float,
@@ -283,6 +270,7 @@ impl Fluid {
             &device,
             INK_RESOLUTION,
             INK_RESOLUTION,
+            gpu::Samples::S1,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
             1,
             gpu::Format::Rgba32Float,
@@ -292,14 +280,10 @@ impl Fluid {
             &device,
             SIM_RESOLUTION,
             SIM_RESOLUTION,
+            gpu::Samples::S1,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
             1,
-            [
-                gpu::Format::R32Float,
-                gpu::Format::Rg32Float,
-                gpu::Format::Rgb32Float,
-                gpu::Format::Rgba32Float,
-            ],
+            gfx::alt_formats(gpu::Format::R32Float),
             None,
         )?
         .unwrap();
@@ -307,14 +291,10 @@ impl Fluid {
             &device,
             SIM_RESOLUTION,
             SIM_RESOLUTION,
+            gpu::Samples::S1,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
             1,
-            [
-                gpu::Format::R32Float,
-                gpu::Format::Rg32Float,
-                gpu::Format::Rgb32Float,
-                gpu::Format::Rgba32Float,
-            ],
+            gfx::alt_formats(gpu::Format::R32Float),
             None,
         )?
         .unwrap();
@@ -845,7 +825,7 @@ impl Fluid {
             u,
         };
 
-        s.record_offscreen()?;
+        s.render_offscreen()?;
 
         Ok(s)
     }
@@ -878,8 +858,8 @@ impl Fluid {
         Ok(())
     }
 
-    fn record_offscreen(&mut self) -> Result<(), anyhow::Error> {
-        Self::render_offscreen_t(
+    fn render_offscreen(&mut self) -> Result<(), anyhow::Error> {
+        Self::_render_offscreen_raw(
             &self.device,
             &self.mesh,
             &mut self.u,
@@ -887,7 +867,7 @@ impl Fluid {
             &self.b,
             &mut self.offscreen_command_a,
         )?;
-        Self::render_offscreen_t(
+        Self::_render_offscreen_raw(
             &self.device,
             &self.mesh,
             &mut self.u,
@@ -898,7 +878,7 @@ impl Fluid {
         Ok(())
     }
 
-    fn render_offscreen_t(
+    fn _render_offscreen_raw(
         device: &gpu::Device,
         mesh: &gfx::IndexedMesh<Vertex>,
         u: &mut UniqueFields,

@@ -151,6 +151,7 @@ impl Slime {
             &device,
             WIDTH,
             HEIGHT,
+            gpu::Samples::S1,
             gpu::TextureUsage::STORAGE
                 | gpu::TextureUsage::SAMPLED
                 | gpu::TextureUsage::COPY_SRC
@@ -304,6 +305,7 @@ impl Slime {
                 &self.device,
                 size.width,
                 size.height,
+                gpu::Samples::S1,
                 gpu::TextureUsage::STORAGE
                     | gpu::TextureUsage::SAMPLED
                     | gpu::TextureUsage::COPY_SRC

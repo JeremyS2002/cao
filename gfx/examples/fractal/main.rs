@@ -95,6 +95,7 @@ impl Fractal {
             &device,
             2048,
             2048,
+            gpu::Samples::S1,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
             1,
             gpu::Format::Rgba8Unorm,
