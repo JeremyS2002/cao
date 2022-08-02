@@ -21,7 +21,7 @@ pub(crate) struct RawBaseBuilder {
     >,
     pub(crate) push_constant: RefCell<Option<(DataType, u32, Option<&'static str>)>>,
     pub(crate) uniforms: RefCell<Vec<(DataType, u32, u32, Option<&'static str>)>>,
-    pub(crate) storages: RefCell<Vec<(DataType, u32, u32, Option<&'static str>)>>,
+    pub(crate) storages: RefCell<Vec<(DataType, u32, u32, StorageAccessDesc, Option<&'static str>)>>,
     pub(crate) textures: RefCell<
         Vec<(
             rspirv::spirv::Dim,

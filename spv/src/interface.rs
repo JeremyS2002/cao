@@ -15,6 +15,17 @@ pub struct Output<T: IsPrimitiveType> {
     pub(crate) _marker: PhantomData<T>,
 }
 
+
+/// A Uniform buffer
+/// 
+/// Uniform<T> is roughly equivalent to:
+/// ```c
+/// struct T { .. }
+/// 
+/// layout(set = _, binding = _) uniform UT {
+///     T t;
+/// };
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct Uniform<T: IsDataType> {
     pub(crate) index: usize,
@@ -28,6 +39,16 @@ pub struct StorageAccessDesc {
     pub atomic: bool,
 }
 
+/// A Storage buffer
+/// 
+/// Storage<T> is roughly equivalent to:
+/// ```c
+/// struct T { .. }
+/// 
+/// layout(set = _, binding = _) buffer ST {
+///     T ts[];
+/// };
+/// ```
 #[derive(Clone, Copy, Debug)]
 pub struct Storage<T: IsDataType> {
     pub(crate) index: usize,

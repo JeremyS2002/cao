@@ -40,9 +40,9 @@ impl Drop for RawMainBuilder {
     }
 }
 
-pub struct MainBuilder {
+pub struct MainHandle {
     // will always be a RawMainBuilder
     pub(crate) raw: Rc<dyn RawBuilder>,
 }
 
-impl MainBuilder {}
+impl MainHandle {}

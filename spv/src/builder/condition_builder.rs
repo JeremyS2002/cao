@@ -61,20 +61,20 @@ impl Drop for RawConditionBuilder {
     }
 }
 
-pub struct ConditionBuilder {
+pub struct ConditionHandle {
     /// Always a RawConditionBuilder
     pub(crate) raw: Rc<dyn RawBuilder>,
 }
 
-impl ConditionBuilder {
-    pub fn spv_else_if<F: FnOnce(&ConditionBuilder)>(
+impl ConditionHandle {
+    pub fn spv_else_if<F: FnOnce(&ConditionHandle)>(
         &self,
         b: impl crate::data::SpvRustEq<Bool>,
         f: F,
     ) {
         let t = self.raw.downcast_ref::<RawConditionBuilder>().unwrap();
         // Important. The id needs to be declared in the super context otherwise the branch
-        // instruction can't
+        // instruction can't access the right block
         let id = b.id(&*t.builder);
         t.instructions.borrow_mut().push(Vec::new());
         t.conditions.borrow_mut().push(id);
@@ -82,7 +82,7 @@ impl ConditionBuilder {
         f(self);
     }
 
-    pub fn spv_else<F: FnOnce(&ConditionBuilder)>(self, f: F) {
+    pub fn spv_else<F: FnOnce(&ConditionHandle)>(self, f: F) {
         let t = self.raw.downcast_ref::<RawConditionBuilder>().unwrap();
         *t.else_instructions.borrow_mut() = Some(Vec::new());
 

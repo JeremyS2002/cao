@@ -1,8 +1,11 @@
+
+pub mod component;
+
+pub use component::*;
+
 use std::marker::PhantomData;
 
-use either::Either;
-
-use crate::PrimitiveType;
+use either::*;
 
 pub trait AsDimension {
     const DIM: rspirv::spirv::Dim;
@@ -10,6 +13,7 @@ pub trait AsDimension {
     type Coord;
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct D1 {}
 
 impl AsDimension for D1 {
@@ -18,6 +22,7 @@ impl AsDimension for D1 {
     type Coord = crate::Float;
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct D2 {}
 
 impl AsDimension for D2 {
@@ -26,6 +31,7 @@ impl AsDimension for D2 {
     type Coord = crate::Vec2;
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct D3 {}
 
 impl AsDimension for D3 {
@@ -34,6 +40,7 @@ impl AsDimension for D3 {
     type Coord = crate::Vec3;
 }
 
+#[derive(Clone, Copy, Debug)]
 pub struct Cube {}
 
 impl AsDimension for Cube {
@@ -42,128 +49,173 @@ impl AsDimension for Cube {
     type Coord = crate::Vec3;
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum Component {
-    Float,
-    Double,
-    Int,
-    UInt,
-}
-
-impl From<Component> for PrimitiveType {
-    fn from(c: Component) -> Self {
-        Self::from(&c)
-    }
-}
-
-impl From<&'_ Component> for PrimitiveType {
-    fn from(c: &'_ Component) -> Self {
-        match c {
-            Component::Float => Self::Float,
-            Component::Double => Self::Double,
-            Component::Int => Self::Int,
-            Component::UInt => Self::UInt,
-        }
-    }
-}
-
-impl Component {
-    pub(crate) fn base_type(&self, builder: &mut rspirv::dr::Builder) -> u32 {
-        PrimitiveType::from(*self).base_type(builder)
-    }
-}
-
-pub trait AsComponent {
-    const COMPONENT: Component;
-
-    type Read;
-}
-
-impl AsComponent for crate::Float {
-    const COMPONENT: Component = Component::Float;
-
-    type Read = crate::Vec4;
-}
-
-impl AsComponent for crate::Double {
-    const COMPONENT: Component = Component::Double;
-
-    type Read = crate::DVec4;
-}
-
-impl AsComponent for crate::Int {
-    const COMPONENT: Component = Component::Int;
-
-    type Read = crate::IVec4;
-}
-
-impl AsComponent for crate::UInt {
-    const COMPONENT: Component = Component::UInt;
-
-    type Read = crate::UVec2;
-}
-
 /// A Raw texture, can be used to read pixels or combined with a sampler to
-/// create a [`SpvSampledGTexture`] which can then be sampled from
-pub struct SpvGTexture<D: AsDimension, C: AsComponent> {
+/// create a [`SampledGTexture`] which can then be sampled from
+pub struct RawTexture<D: AsDimension> {
     pub(crate) index: usize,
     pub(crate) _dmarker: PhantomData<D>,
-    pub(crate) _cmarker: PhantomData<C>,
 }
 
-pub type SpvTexture<D> = SpvGTexture<D, crate::Float>;
-pub type SpvDTexture<D> = SpvGTexture<D, crate::Double>;
-pub type SpvITexture<D> = SpvGTexture<D, crate::Int>;
-pub type SpvUTexture<D> = SpvGTexture<D, crate::UInt>;
+pub trait GTexture<D: AsDimension> {
+    fn raw_texture(&self) -> &RawTexture<D>;
 
-pub type SpvTexture1D = SpvTexture<D1>;
-pub type SpvTexture2D = SpvTexture<D2>;
-pub type SpvTexture3D = SpvTexture<D3>;
-pub type SpvTextureCube = SpvTexture<Cube>;
+    type Sampleable: SampledGTexture<D>;
+}
 
-pub type SpvDTexture1D = SpvDTexture<D1>;
-pub type SpvDTexture2D = SpvDTexture<D2>;
-pub type SpvDTexture3D = SpvDTexture<D3>;
-pub type SpvDTextureCube = SpvDTexture<Cube>;
+pub struct Texture<D: AsDimension>(pub RawTexture<D>);
 
-pub type SpvITexture1D = SpvITexture<D1>;
-pub type SpvITexture2D = SpvITexture<D2>;
-pub type SpvITexture3D = SpvITexture<D3>;
-pub type SpvITextureCube = SpvITexture<Cube>;
+impl<D: AsDimension> GTexture<D> for Texture<D> {
+    fn raw_texture(&self) -> &RawTexture<D> {
+        &self.0
+    }
 
-pub type SpvUTexture1D = SpvUTexture<D1>;
-pub type SpvUTexture2D = SpvUTexture<D2>;
-pub type SpvUTexture3D = SpvUTexture<D3>;
-pub type SpvUTextureCube = SpvUTexture<Cube>;
+    type Sampleable = SampledTexture<D>;
+}
 
-pub struct SpvSampledGTexture<D: AsDimension, C: AsComponent> {
+pub struct DTexture<D: AsDimension>(pub RawTexture<D>);
+
+impl<D: AsDimension> GTexture<D> for DTexture<D> {
+    fn raw_texture(&self) -> &RawTexture<D> {
+        &self.0
+    }
+
+    type Sampleable = SampledDTexture<D>;
+}
+
+pub struct ITexture<D: AsDimension>(pub RawTexture<D>);
+
+impl<D: AsDimension> GTexture<D> for ITexture<D> {
+    fn raw_texture(&self) -> &RawTexture<D> {
+        &self.0
+    }
+
+    type Sampleable = SampledITexture<D>;
+}
+
+pub struct UTexture<D: AsDimension>(pub RawTexture<D>);
+
+impl<D: AsDimension> GTexture<D> for UTexture<D> {
+    fn raw_texture(&self) -> &RawTexture<D> {
+        &self.0
+    }
+
+    type Sampleable = SampledUTexture<D>;
+}
+
+pub type Texture1D = Texture<D1>;
+pub type Texture2D = Texture<D2>;
+pub type Texture3D = Texture<D3>;
+pub type TextureCube = Texture<Cube>;
+
+pub type DTexture1D = DTexture<D1>;
+pub type DTexture2D = DTexture<D2>;
+pub type DTexture3D = DTexture<D3>;
+pub type DTextureCube = DTexture<Cube>;
+
+pub type ITexture1D = ITexture<D1>;
+pub type ITexture2D = ITexture<D2>;
+pub type ITexture3D = ITexture<D3>;
+pub type ITextureCube = ITexture<Cube>;
+
+pub type UTexture1D = UTexture<D1>;
+pub type UTexture2D = UTexture<D2>;
+pub type UTexture3D = UTexture<D3>;
+pub type UTextureCube = UTexture<Cube>;
+
+pub trait SampledGTexture<D: AsDimension> {
+    fn from_id(_id: usize) -> Self;
+
+    fn raw_texture(&self) -> SampledRawTexture<D>;
+
+    type Component: AsComponent;    
+}
+
+pub struct SampledRawTexture<D: AsDimension> {
     /// Either Left(index) or Right(id)
     pub(crate) id: Either<usize, usize>,
     pub(crate) _dmarker: PhantomData<D>,
-    pub(crate) _cmarker: PhantomData<C>,
 }
 
-pub type SpvSampledTexture<D> = SpvSampledGTexture<D, crate::Float>;
-pub type SpvSampledDTexture<D> = SpvSampledGTexture<D, crate::Double>;
-pub type SpvSampledITexture<D> = SpvSampledGTexture<D, crate::Int>;
-pub type SpvSampledUTexture<D> = SpvSampledGTexture<D, crate::UInt>;
+impl<D: AsDimension> Clone for SampledRawTexture<D> {
+    fn clone(&self) -> Self {
+        Self { id: self.id, _dmarker: self._dmarker }
+    }
+}
 
-pub type SpvSampledTexture1D = SpvSampledTexture<D1>;
-pub type SpvSampledTexture2D = SpvSampledTexture<D2>;
-pub type SpvSampledTexture3D = SpvSampledTexture<D3>;
-pub type SpvSampledTextureCube = SpvSampledTexture<Cube>;
+impl<D: AsDimension> Copy for SampledRawTexture<D> { }
 
-pub type SpvSampledDTexture1D = SpvSampledDTexture<D1>;
-pub type SpvSampledDTexture2D = SpvSampledDTexture<D2>;
-pub type SpvSampledDTexture3D = SpvSampledDTexture<D3>;
-pub type SpvSampledDTextureCube = SpvSampledDTexture<Cube>;
+pub struct SampledTexture<D: AsDimension>(pub SampledRawTexture<D>);
 
-pub type SpvSampledITexture1D = SpvSampledITexture<D1>;
-pub type SpvSampledITexture2D = SpvSampledITexture<D2>;
-pub type SpvSampledITexture3D = SpvSampledITexture<D3>;
-pub type SpvSampledITextureCube = SpvSampledITexture<Cube>;
+impl<D: AsDimension> SampledGTexture<D> for SampledTexture<D> {
+    fn from_id(id: usize) -> Self {
+        Self(SampledRawTexture { id: Right(id), _dmarker: PhantomData })
+    }
 
-pub type SpvSampledUTexture1D = SpvSampledUTexture<D1>;
-pub type SpvSampledUTexture2D = SpvSampledUTexture<D2>;
-pub type SpvSampledUTexture3D = SpvSampledUTexture<D3>;
-pub type SpvSampledUTextureCube = SpvSampledUTexture<Cube>;
+    fn raw_texture(&self) -> SampledRawTexture<D> {
+        self.0
+    }
+
+    type Component = crate::Float;
+}
+
+pub struct SampledDTexture<D: AsDimension>(pub SampledRawTexture<D>);
+
+impl<D: AsDimension> SampledGTexture<D> for SampledDTexture<D> {
+    fn from_id(id: usize) -> Self {
+        Self(SampledRawTexture { id: Right(id), _dmarker: PhantomData })
+    }
+
+    fn raw_texture(&self) -> SampledRawTexture<D> {
+        self.0
+    }
+
+    type Component = crate::Double;
+}
+
+pub struct SampledITexture<D: AsDimension>(pub SampledRawTexture<D>);
+
+impl<D: AsDimension> SampledGTexture<D> for SampledITexture<D> {
+    fn from_id(id: usize) -> Self {
+        Self(SampledRawTexture { id: Right(id), _dmarker: PhantomData })
+    }
+
+    fn raw_texture(&self) -> SampledRawTexture<D> {
+        self.0
+    }
+
+    type Component = crate::Int;
+}
+
+pub struct SampledUTexture<D: AsDimension>(pub SampledRawTexture<D>);
+
+impl<D: AsDimension> SampledGTexture<D> for SampledUTexture<D> {
+    fn from_id(id: usize) -> Self {
+        Self(SampledRawTexture { id: Right(id), _dmarker: PhantomData })
+    }
+
+    fn raw_texture(&self) -> SampledRawTexture<D> {
+        self.0
+    }
+
+    type Component = crate::UInt;
+}
+
+pub type SampledTexture1D = SampledTexture<D1>;
+pub type SampledTexture2D = SampledTexture<D2>;
+pub type SampledTexture3D = SampledTexture<D3>;
+pub type SampledTextureCube = SampledTexture<Cube>;
+
+pub type SampledDTexture1D = SampledDTexture<D1>;
+pub type SampledDTexture2D = SampledDTexture<D2>;
+pub type SampledDTexture3D = SampledDTexture<D3>;
+pub type SampledDTextureCube = SampledDTexture<Cube>;
+
+pub type SampledITexture1D = SampledITexture<D1>;
+pub type SampledITexture2D = SampledITexture<D2>;
+pub type SampledITexture3D = SampledITexture<D3>;
+pub type SampledITextureCube = SampledITexture<Cube>;
+
+pub type SampledUTexture1D = SampledUTexture<D1>;
+pub type SampledUTexture2D = SampledUTexture<D2>;
+pub type SampledUTexture3D = SampledUTexture<D3>;
+pub type SampledUTextureCube = SampledUTexture<Cube>;

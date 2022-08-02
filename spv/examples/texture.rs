@@ -1,3 +1,5 @@
+use spv::prelude::*;
+
 use std::borrow::Cow;
 
 use winit::{
@@ -101,8 +103,8 @@ fn main() {
 
         builder.main(|b| {
             let pos = b.load_in(in_pos);
-            let x = b.vector_shuffle(pos.x());
-            let y = b.vector_shuffle(pos.y());
+            let x = pos.x(b);
+            let y = pos.y(b);
             let pos = b.vec4(&x, &y, &0.0, &1.0);
             b.store_out(position, pos);
 
@@ -128,13 +130,13 @@ fn main() {
 
         let out_col = builder.out_vec3(0, false, Some("out_color"));
 
-        let texture: spv::SpvSampledTexture2D =
+        let texture: spv::SampledTexture2D =
             builder.sampled_texture(0, 0, false, Some("u_texture"));
 
         builder.main(|b| {
             let uv = b.load_in(in_uv);
             let col = b.sample_texture(texture, uv);
-            let col_rgb = b.vector_shuffle(col.xyz());
+            let col_rgb = col.xyz(b);
             b.store_out(out_col, col_rgb);
         });
 
@@ -239,7 +241,7 @@ fn main() {
 
     let sampler = device.create_sampler(&gpu::SamplerDesc::default()).unwrap();
 
-    let i = image::open("../gpu/examples/texture/rust.png").unwrap();
+    let i = image::open("../resources/images/rust.png").unwrap();
     let i_rgb = i.to_rgba8();
     let i_bytes = i_rgb.as_raw();
     let staging_buffer = device

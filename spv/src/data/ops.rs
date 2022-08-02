@@ -361,3 +361,29 @@ macro_rules! impl_bitwise {
 }
 
 impl_bitwise!(Int, i32, UInt, u32,);
+
+pub trait SpvInto<T: IsPrimitiveType>: IsPrimitiveType + AsPrimitive {}
+
+macro_rules! impl_spv_into {
+    ($($a:ident, $b:ident,)*) => {
+        $(
+            impl SpvInto<$b> for $a { }
+        )*
+    };
+}
+
+#[rustfmt::skip]
+impl_spv_into!(
+    Int, UInt,
+    Int, Float,
+    Int, Double,
+    UInt, Int,
+    UInt, Float,
+    UInt, Double,
+    Float, Int,
+    Float, UInt,
+    Float, Double,
+    Double, Int,
+    Double, UInt,
+    Double, Float,
+);

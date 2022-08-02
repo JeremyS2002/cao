@@ -10,7 +10,6 @@ use winit::{
 #[repr(C)]
 pub struct Vertex {
     pub pos: [f32; 2],
-    pub color: [f32; 3],
 }
 
 unsafe impl bytemuck::Pod for Vertex {}
@@ -44,15 +43,12 @@ fn main() {
     let vertices = vec![
         Vertex {
             pos: [0.0, -0.5],
-            color: [1.0, 0.0, 0.0],
         },
         Vertex {
             pos: [-0.5, 0.5],
-            color: [0.0, 1.0, 0.0],
         },
         Vertex {
             pos: [0.5, 0.5],
-            color: [0.0, 0.0, 1.0],
         },
     ];
 
@@ -74,10 +70,8 @@ fn main() {
         let builder = spv::VertexBuilder::new();
 
         let in_pos = builder.in_vec2(0, false, Some("in_pos"));
-        let in_col = builder.in_vec3(1, false, Some("in_color"));
 
         let position = builder.position();
-        let out_col = builder.out_vec3(0, false, Some("out_color"));
 
         builder.main(|b| {
             let pos = b.load_in(in_pos);
@@ -85,9 +79,6 @@ fn main() {
             let y = pos.y(b);
             let pos = b.vec4(&x, &y, &0.0, &1.0);
             b.store_out(position, pos);
-
-            let col = b.load_in(in_col);
-            b.store_out(out_col, col);
         });
 
         builder.compile()
@@ -104,12 +95,11 @@ fn main() {
     let fragment_spv = {
         let builder = spv::FragmentBuilder::new();
 
-        let in_col = builder.in_vec3(0, false, Some("in_color"));
-
         let out_col = builder.out_vec3(0, false, Some("out_color"));
 
         builder.main(|b| {
-            let col = b.load_in(in_col);
+            let mut col = b.vec3(&0.0, &2.0, &1.0);
+            col = col.normalize(b);
             b.store_out(out_col, col);
         });
 
@@ -159,12 +149,6 @@ fn main() {
                 location: 0,
                 format: gpu::VertexFormat::Vec2,
                 offset: 0,
-            },
-            // layout(location = 1) in vec3 in_color;
-            gpu::VertexAttribute {
-                location: 1,
-                format: gpu::VertexFormat::Vec3,
-                offset: (2 * std::mem::size_of::<f32>()) as _,
             },
         ],
     };

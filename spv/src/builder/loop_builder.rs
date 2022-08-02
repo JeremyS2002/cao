@@ -48,6 +48,6 @@ impl Drop for RawLoopBuilder {
     }
 }
 
-pub struct LoopBuilder {
+pub struct LoopHandle {
     pub(crate) raw: Rc<dyn RawBuilder>,
 }

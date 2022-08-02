@@ -44,12 +44,12 @@ impl Drop for RawFnBuilder {
     }
 }
 
-pub struct FnBuilder {
+pub struct FnHandle {
     // Always a RawFnBuilder
     pub(crate) raw: Rc<dyn RawBuilder>,
 }
 
-impl FnBuilder {
+impl FnHandle {
     /// Define the inputs to the function
     pub fn inputs(_i: &[PrimitiveType]) {
         todo!();

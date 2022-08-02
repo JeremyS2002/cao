@@ -30,4 +30,7 @@ name = "uniform"
 name = "push_constant"
 
 [[example]]
+name = "maths"
+
+[[example]]
 name = "help"

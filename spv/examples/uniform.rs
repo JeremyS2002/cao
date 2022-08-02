@@ -1,3 +1,5 @@
+use spv::prelude::*;
+
 use winit::{
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
@@ -114,8 +116,8 @@ fn main() {
 
         builder.main(|b| {
             let pos = b.load_in(in_pos);
-            let x = b.vector_shuffle(pos.x());
-            let y = b.vector_shuffle(pos.y());
+            let x = pos.x(b);
+            let y = pos.y(b);
             let pos = b.vec4(&x, &y, &0.0, &1.0);
             b.store_out(position, pos);
         });

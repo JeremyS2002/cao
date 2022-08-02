@@ -3,9 +3,11 @@ fn main() {
     let src = "
         #version 450
 
+        layout(set = 0, binding = 0) uniform sampler2D u_tex;
+
         void main() {
-            mat4 m = mat4(1.0);
-            mat3 n = mat3(m);
+            vec2 coord = vec2(0.5, 0.5);
+            vec4 col = texture(u_tex, coord);
         }
     ";
 

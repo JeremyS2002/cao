@@ -10,6 +10,7 @@ cargo run --example basic
 
 # TODO
 - Error handling
+- Lift restriction on names being static
 - For Loops
 - More intuitive loops (allow b.spv_while(x < 3, |b| { .. }) syntax)
 - Testing
