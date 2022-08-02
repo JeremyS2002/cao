@@ -198,7 +198,7 @@ fn main() {
 
     let sampler = device.create_sampler(&gpu::SamplerDesc::LINEAR).unwrap();
 
-    let rust = image::open("examples/texture/rust.png").unwrap();
+    let rust = image::open("../resources/images/rust.png").unwrap();
     let rust_rgb = rust.to_rgba8();
     let rust_bytes = rust_rgb.as_raw();
     let staging_buffer = device
