@@ -208,7 +208,10 @@ pub(crate) fn get_entry_point(
         }
     }
 
-    return Err(error::ParseSpirvError::EntryPointNotFound.into());
+    return Err(error::ParseSpirvError::EntryPointNotFound(
+        stage, 
+        module.enumerate_entry_points().unwrap().into_iter().map(|e| e.shader_stage).collect()).into()
+    );
 }
 
 pub(crate) fn parse_descriptor_set_layouts(

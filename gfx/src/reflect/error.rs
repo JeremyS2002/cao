@@ -1,3 +1,5 @@
+use spirv_reflect::types::variable::ReflectShaderStageFlags;
+
 #[derive(Debug)]
 pub enum ReflectedError {
     /// An error from spirv-reflect
@@ -84,7 +86,7 @@ pub enum ParseSpirvError {
     /// Multiple bindings have the same name: self.0
     SetNameConfilct(String),
     /// Entry point not found
-    EntryPointNotFound,
+    EntryPointNotFound(ReflectShaderStageFlags, Vec<ReflectShaderStageFlags>),
     /// Vertex format self.0 doesn't map embers_gpu formats yet
     VertexFormatInvalid(spirv_reflect::types::image::ReflectFormat),
     /// Shader stages {src_stage_name} and {dst_stage_name} input and output at location {location} have different types {src_type} {dst_type}
@@ -110,7 +112,7 @@ impl std::fmt::Display for ParseSpirvError {
             Self::MissingBinding(set, binding) => writeln!(f, "ERROR: Missing Binding set {}, binding {}", set, binding),
             Self::SetConflict(set, binding, n1, n2) => writeln!(f, "ERROR: Both {} and {} point to the same location set {}, binding {}", n1, n2, set, binding),
             Self::SetNameConfilct(name) => writeln!(f, "ERROR: Multiple bindings have the same name: {}\nThis is probably caused by different shader stages using the same name for variables however due to current limitations in embers_gfx this isn't allowed at the moment", name),
-            Self::EntryPointNotFound => writeln!(f, "ERROR: Entry point not found"),
+            Self::EntryPointNotFound(w, a) => writeln!(f, "ERROR: Entry point not found.\nWanted entry {:?} supplied entries: {:?}\nThis can be caused by supplying a different type of shader to what is wanted, for example supplying vertex shader spir-v as a fragment shader", w, a),
             Self::VertexFormatInvalid(fmt) => writeln!(f, "ERROR: Vertex format {:?} doesn't map the gpu formats yet", fmt),
             Self::StageIncompatibility {
                 location,
