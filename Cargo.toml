@@ -4,4 +4,6 @@ members = [
     "gpu",
     "gfx",
     "spv",
+    "mesh",
+    "ddd",
 ]
