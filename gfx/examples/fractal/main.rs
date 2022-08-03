@@ -364,8 +364,6 @@ impl Fractal {
 }
 
 fn main() {
-    env_logger::init();
-
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("fractal")

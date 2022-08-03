@@ -458,8 +458,6 @@ fn agents3() -> Vec<Agent> {
 }
 
 fn main() {
-    env_logger::init();
-
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("Slime")

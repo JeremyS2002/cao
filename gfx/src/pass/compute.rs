@@ -3,8 +3,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::mem::ManuallyDrop as Md;
 
-use smallvec::SmallVec;
-
 use crate::reflect::Bundle;
 use std::any::TypeId;
 
@@ -27,7 +25,7 @@ pub enum ComputePassCommand<'a> {
     },
     PushConstants {
         offset: u32,
-        constants: SmallVec<[u8; 64]>,
+        constants: Vec<u8>,
         stages: gpu::ShaderStages,
     },
 }
@@ -203,7 +201,7 @@ pub trait ComputePass<'a> {
     fn push_constants(&mut self, offset: u32, constants: &[u8], stages: gpu::ShaderStages) {
         self.push_command(ComputePassCommand::PushConstants {
             offset,
-            constants: SmallVec::from_slice(constants),
+            constants: Vec::from(constants),
             stages,
         })
     }

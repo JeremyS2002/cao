@@ -15,8 +15,6 @@ use std::marker::PhantomData;
 // #[cfg(feature = "reflect")]
 // use crate::prelude::*;
 
-use smallvec::SmallVec;
-
 /// Represents valid commands to perform while in a graphics pass
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[allow(missing_docs)]
@@ -56,7 +54,7 @@ pub enum GraphicsPassCommand<'a> {
     },
     PushConstants {
         offset: u32,
-        constants: SmallVec<[u8; 64]>,
+        constants: Vec<u8>,
         stages: gpu::ShaderStages,
     },
 }
@@ -376,7 +374,7 @@ pub trait GraphicsPass<'a> {
     fn push_constants(&mut self, offset: u32, constants: &[u8], stages: gpu::ShaderStages) {
         self.push_command(GraphicsPassCommand::PushConstants {
             offset,
-            constants: SmallVec::from_slice(constants),
+            constants: Vec::from(constants),
             stages,
         })
     }
@@ -600,6 +598,7 @@ impl<'a, 'b, V: crate::Vertex> ReflectedGraphicsPass<'a, 'b, V> {
     /// Push a single constant by variable name
     /// If there are no constants by the name no action will be taken
     /// If the type supplied is different to the type expected this will panic
+    #[inline(always)]
     pub fn push_constant<T: bytemuck::Pod + std::fmt::Debug>(&mut self, name: &str, constant: T) {
         if let Some(map) = self.push_constant_names.as_ref() {
             if let Some(&(offset, stages, ty)) = map.get(name) {
@@ -625,6 +624,7 @@ macro_rules! push {
         impl<'a, 'b, V: crate::Vertex> ReflectedGraphicsPass<'a, 'b, V> {
             $(
                 #[allow(missing_docs)]
+                #[inline(always)]
                 pub fn $f(&mut self, name: &str, constant: $ty) {
                     self.push_constant(name, constant);
                 }

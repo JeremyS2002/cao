@@ -38,7 +38,7 @@ impl AsDimension for D1Array {
     }
 
     #[cfg(feature = "spv")]
-    type Spirv = spv::D1;
+    type Spirv = spv::D1Array;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -84,7 +84,7 @@ impl AsDimension for D2Array {
     }
 
     #[cfg(feature = "spv")]
-    type Spirv = spv::D2;
+    type Spirv = spv::D2Array;
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -120,23 +120,8 @@ impl AsDimension for CubeArray {
     }
 
     #[cfg(feature = "spv")]
-    type Spirv = spv::Cube;
+    type Spirv = spv::CubeArray;
 }
-
-/*#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub struct CubeMs(pub gpu::Size, pub gpu::Size, pub gpu::Samples);
-impl AsDimension for CubeMs {
-    fn as_dimension(&self) -> gpu::TextureDimension {
-        gpu::TextureDimension::CubeMs(self.0, self.1, self.2)
-    }
-}
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub struct CubeArrayMs(pub gpu::Size, pub gpu::Size, pub gpu::Layer, pub crate:Samples);
-impl AsDimension for CubeArrayMs {
-    fn as_dimension(&self) -> gpu::TextureDimension {
-        gpu::TextureDimension::CubeArray(self.0, self.1, self.2, self.3)
-    }
-}*/
 
 /// Allows for infering the type of textures from image pixels
 pub trait FormatData {

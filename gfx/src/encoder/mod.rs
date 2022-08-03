@@ -260,6 +260,10 @@ impl<'a> CommandEncoder<'a> {
     ) -> Result<crate::pass::ReflectedGraphicsPass<'a, 'b, V>, gpu::Error> {
         use std::hash::Hasher;
 
+        if colors.len() > graphics.pipeline_data.blend_states.len() {
+            panic!("Graphics Pipeline {:?} doesn't have enough blend states to begin pass with {} color attachments", graphics, colors.len());
+        }
+
         let extent = if colors.len() != 0 {
             colors[0].raw.view().extent()
         } else if let Some(d) = depth.as_ref() {
@@ -302,17 +306,7 @@ impl<'a> CommandEncoder<'a> {
             format: a.raw.view().format(),
             load: a.load,
             store: a.store,
-            initial_layout: if a
-                .raw
-                .view()
-                .format()
-                .aspects()
-                .contains(gpu::TextureAspects::STENCIL)
-            {
-                gpu::TextureLayout::DepthStencilAttachmentOptimal
-            } else {
-                gpu::TextureLayout::DepthAttachmentOptimal
-            },
+            initial_layout: gpu::TextureLayout::DepthStencilAttachmentOptimal,
             final_layout: a.raw.view().texture().initial_layout(),
         });
 
