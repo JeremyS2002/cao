@@ -713,6 +713,7 @@ impl TextureView {
 impl Drop for TextureView {
     fn drop(&mut self) {
         unsafe {
+            self.device.wait_idle().unwrap();
             let framebuffers = Md::take(&mut self.framebuffers);
             #[cfg(feature = "parking_lot")]
             if let Ok(framebuffers) = Arc::try_unwrap(framebuffers) {
