@@ -4,6 +4,7 @@
 # examples
 run form inside `cao/ddd`
 ```
+cargo run --example cone --release
 ```
 
 ## TODO
