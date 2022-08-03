@@ -9,7 +9,7 @@ Low level wrapper of vulkan. Manages creation and destruction of vulkan objects 
 ## gfx
 Utilities built on top of gpu. Specifically: simpler command buffer recording, reflected pipelines, image loading, mesh creation.
 
-## spirv
+## spv
 Create spir-v shader modules at runtime from rust code, including pre-compiled shaders is better if possible but quickly becomes a pain when trying to build shaders dynamically.
 
 ## mesh
