@@ -16,8 +16,6 @@ unsafe impl bytemuck::Pod for Vertex {}
 unsafe impl bytemuck::Zeroable for Vertex {}
 
 fn main() {
-    env_logger::init();
-
     let instance = gpu::Instance::new(&gpu::InstanceDesc::default()).unwrap();
 
     let event_loop = EventLoop::new();

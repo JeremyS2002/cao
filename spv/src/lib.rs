@@ -879,10 +879,9 @@ macro_rules! impl_texture {
                 &self,
                 set: u32,
                 binding: u32,
-                arrayed: bool,
                 name: Option<&'static str>
             ) -> $alias {
-                $s_name(self.raw_texture(set, binding, arrayed, Component::$comp, name))
+                $s_name(self.raw_texture(set, binding, Component::$comp, name))
             }
         )*
     };
@@ -895,10 +894,9 @@ macro_rules! impl_sampled_texture {
                 &self,
                 set: u32,
                 binding: u32,
-                arrayed: bool,
                 name: Option<&'static str>
             ) -> $alias {
-                $s_name(self.sampled_raw_texture(set, binding, arrayed, Component::$comp, name))
+                $s_name(self.sampled_raw_texture(set, binding, Component::$comp, name))
             }
         )*
     };
@@ -906,102 +904,78 @@ macro_rules! impl_sampled_texture {
 
 /// Texture impls
 impl<T: specialisation::ShaderTY> Builder<T> {
+    #[rustfmt::skip]
     impl_texture!(
-        texture_1d,
-        Texture1D,
-        Texture,
-        Float,
-        d_texture_1d,
-        DTexture1D,
-        DTexture,
-        Double,
-        i_texture_1d,
-        ITexture1D,
-        ITexture,
-        Int,
-        u_texture_1d,
-        UTexture1D,
-        UTexture,
-        UInt,
-        texture_2d,
-        Texture2D,
-        Texture,
-        Float,
-        d_texture_2d,
-        DTexture2D,
-        DTexture,
-        Double,
-        i_texture_2d,
-        ITexture2D,
-        ITexture,
-        Int,
-        u_texture_2d,
-        UTexture2D,
-        UTexture,
-        UInt,
-        texture_3d,
-        Texture3D,
-        Texture,
-        Float,
-        d_texture_3d,
-        DTexture3D,
-        DTexture,
-        Double,
-        i_texture_3d,
-        ITexture3D,
-        ITexture,
-        Int,
-        u_texture_3d,
-        UTexture3D,
-        UTexture,
-        UInt,
+        texture_1d, Texture1D, Texture, Float,
+        d_texture_1d, DTexture1D, DTexture, Double,
+        i_texture_1d, ITexture1D, ITexture, Int,
+        u_texture_1d, UTexture1D, UTexture, UInt,
+        texture_1d_array, Texture1DArray, Texture, Float,
+        d_texture_1d_array, DTexture1DArray, DTexture, Double,
+        i_texture_1d_array, ITexture1DArray, ITexture, Int,
+        u_texture_1d_array, UTexture1DArray, UTexture, UInt,
+        texture_2d, Texture2D, Texture, Float,
+        d_texture_2d, DTexture2D, DTexture, Double,
+        i_texture_2d, ITexture2D, ITexture, Int,
+        u_texture_2d, UTexture2D, UTexture, UInt,
+        texture_2d_array, Texture2DArray, Texture, Float,
+        d_texture_2d_array, DTexture2DArray, DTexture, Double,
+        i_texture_2d_array, ITexture2DArray, ITexture, Int,
+        u_texture_2d_array, UTexture2DArray, UTexture, UInt,
+        texture_3d, Texture3D, Texture, Float,
+        d_texture_3d, DTexture3D, DTexture, Double,
+        i_texture_3d, ITexture3D, ITexture, Int,
+        u_texture_3d, UTexture3D, UTexture, UInt,
+        texture_cube, TextureCube, Texture, Float,
+        d_texture_cube, DTextureCube, DTexture, Double,
+        i_texture_cube, ITextureCube, ITexture, Int,
+        u_texture_cube, UTextureCube, UTexture, UInt,
+        texture_cube_array, TextureCubeArray, Texture, Float,
+        d_texture_cube_array, DTextureCubeArray, DTexture, Double,
+        i_texture_cube_array, ITextureCubeArray, ITexture, Int,
+        u_texture_cube_array, UTextureCubeArray, UTexture, UInt,
     );
 
     pub fn texture<D: AsDimension>(
         &self,
         set: u32,
         binding: u32,
-        arrayed: bool,
         name: Option<&'static str>,
     ) -> Texture<D> {
-        Texture(self.raw_texture(set, binding, arrayed, Component::Float, name))
+        Texture(self.raw_texture(set, binding, Component::Float, name))
     }
 
     pub fn d_texture<D: AsDimension>(
         &self,
         set: u32,
         binding: u32,
-        arrayed: bool,
         name: Option<&'static str>,
     ) -> DTexture<D> {
-        DTexture(self.raw_texture(set, binding, arrayed, Component::Double, name))
+        DTexture(self.raw_texture(set, binding, Component::Double, name))
     }
 
     pub fn i_texture<D: AsDimension>(
         &self,
         set: u32,
         binding: u32,
-        arrayed: bool,
         name: Option<&'static str>,
     ) -> ITexture<D> {
-        ITexture(self.raw_texture(set, binding, arrayed, Component::Int, name))
+        ITexture(self.raw_texture(set, binding, Component::Int, name))
     }
 
     pub fn u_texture<D: AsDimension>(
         &self,
         set: u32,
         binding: u32,
-        arrayed: bool,
         name: Option<&'static str>,
     ) -> UTexture<D> {
-        UTexture(self.raw_texture(set, binding, arrayed, Component::UInt, name))
+        UTexture(self.raw_texture(set, binding, Component::UInt, name))
     }
 
     fn raw_texture<D: AsDimension>(
         &self,
         set: u32,
         binding: u32,
-        arrayed: bool,
         component: Component,
         name: Option<&'static str>,
     ) -> RawTexture<D> {
@@ -1009,7 +983,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         self.raw
             .textures
             .borrow_mut()
-            .push((D::DIM, component, arrayed, set, binding, name));
+            .push((D::DIM, component, D::ARRAYED, set, binding, name));
         #[cfg(feature = "gpu")]
         self.raw.map.borrow_mut().insert(
             (set, binding),
@@ -1028,102 +1002,79 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         }
     }
 
+    #[rustfmt::skip]
     impl_sampled_texture!(
-        sampled_texture_1d,
-        SampledTexture1D,
-        SampledTexture,
-        Float,
-        sampled_d_texture_1d,
-        SampledDTexture1D,
-        SampledDTexture,
-        Double,
-        sampled_i_texture_1d,
-        SampledITexture1D,
-        SampledITexture,
-        Int,
-        sampled_u_texture_1d,
-        SampledUTexture1D,
-        SampledUTexture,
-        UInt,
-        sampled_texture_2d,
-        SampledTexture2D,
-        SampledTexture,
-        Float,
-        sampled_d_texture_2d,
-        SampledDTexture2D,
-        SampledDTexture,
-        Double,
-        sampled_i_texture_2d,
-        SampledITexture2D,
-        SampledITexture,
-        Int,
-        sampled_u_texture_2d,
-        SampledUTexture2D,
-        SampledUTexture,
-        UInt,
-        sampled_texture_3d,
-        SampledTexture3D,
-        SampledTexture,
-        Float,
-        sampled_d_texture_3d,
-        SampledDTexture3D,
-        SampledDTexture,
-        Double,
-        sampled_i_texture_3d,
-        SampledITexture3D,
-        SampledITexture,
-        Int,
-        sampled_u_texture_3d,
-        SampledUTexture3D,
-        SampledUTexture,
-        UInt,
+        sampled_texture_1d, SampledTexture1D, SampledTexture, Float,
+        sampled_d_texture_1d, SampledDTexture1D, SampledDTexture, Double,
+        sampled_i_texture_1d, SampledITexture1D, SampledITexture, Int,
+        sampled_u_texture_1d, SampledUTexture1D, SampledUTexture, UInt,
+        sampled_texture_1d_array, SampledTexture1DArray, SampledTexture, Float,
+        sampled_d_texture_1d_array, SampledDTexture1DArray, SampledDTexture, Double,
+        sampled_i_texture_1d_array, SampledITexture1DArray, SampledITexture, Int,
+        sampled_u_texture_1d_array, SampledUTexture1DArray, SampledUTexture, UInt,
+        sampled_texture_2d, SampledTexture2D, SampledTexture, Float,
+        sampled_d_texture_2d, SampledDTexture2D, SampledDTexture, Double,
+        sampled_i_texture_2d, SampledITexture2D, SampledITexture, Int,
+        sampled_u_texture_2d, SampledUTexture2D, SampledUTexture, UInt,
+        sampled_texture_2d_array, SampledTexture2DArray, SampledTexture, Float,
+        sampled_d_texture_2d_array, SampledDTexture2DArray, SampledDTexture, Double,
+        sampled_i_texture_2d_array, SampledITexture2DArray, SampledITexture, Int,
+        sampled_u_texture_2d_array, SampledUTexture2DArray, SampledUTexture, UInt,
+        sampled_texture_3d, SampledTexture3D, SampledTexture, Float,
+        sampled_d_texture_3d, SampledDTexture3D, SampledDTexture, Double,
+        sampled_i_texture_3d, SampledITexture3D, SampledITexture, Int,
+        sampled_u_texture_3d, SampledUTexture3D, SampledUTexture, UInt,
+        sampled_texture_cube, SampledTextureCube, SampledTexture, Float,
+        sampled_d_texture_cube, SampledDTextureCube, SampledDTexture, Double,
+        sampled_i_texture_cube, SampledITextureCube, SampledITexture, Int,
+        sampled_u_texture_cube, SampledUTextureCube, SampledUTexture, UInt,
+        sampled_texture_cube_array, SampledTextureCubeArray, SampledTexture, Float,
+        sampled_d_texture_cube_array, SampledDTextureCubeArray, SampledDTexture, Double,
+        sampled_i_texture_cube_array, SampledITextureCubeArray, SampledITexture, Int,
+        sampled_u_texture_cube_array, SampledUTextureCubeArray, SampledUTexture, UInt,
+
     );
 
     pub fn sampled_texture<D: AsDimension>(
         &self,
         set: u32,
         binding: u32,
-        arrayed: bool,
         name: Option<&'static str>,
     ) -> SampledTexture<D> {
-        SampledTexture(self.sampled_raw_texture(set, binding, arrayed, Component::Float, name))
+        SampledTexture(self.sampled_raw_texture(set, binding, Component::Float, name))
     }
 
     pub fn sampled_d_texture<D: AsDimension>(
         &self,
         set: u32,
         binding: u32,
-        arrayed: bool,
         name: Option<&'static str>,
     ) -> SampledDTexture<D> {
-        SampledDTexture(self.sampled_raw_texture(set, binding, arrayed, Component::Double, name))
+        SampledDTexture(self.sampled_raw_texture(set, binding, Component::Double, name))
     }
 
     pub fn sampled_i_texture<D: AsDimension>(
         &self,
         set: u32,
         binding: u32,
-        arrayed: bool,
         name: Option<&'static str>,
     ) -> SampledITexture<D> {
-        SampledITexture(self.sampled_raw_texture(set, binding, arrayed, Component::Int, name))
+        SampledITexture(self.sampled_raw_texture(set, binding, Component::Int, name))
     }
 
     pub fn sampled_u_texture<D: AsDimension>(
         &self,
         set: u32,
         binding: u32,
-        arrayed: bool,
         name: Option<&'static str>,
     ) -> SampledUTexture<D> {
-        SampledUTexture(self.sampled_raw_texture(set, binding, arrayed, Component::UInt, name))
+        SampledUTexture(self.sampled_raw_texture(set, binding, Component::UInt, name))
     }
 
     fn sampled_raw_texture<D: AsDimension>(
         &self,
         set: u32,
         binding: u32,
-        arrayed: bool,
         component: Component,
         name: Option<&'static str>,
     ) -> SampledRawTexture<D> {
@@ -1131,7 +1082,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         self.raw.sampled_textures.borrow_mut().push((
             D::DIM,
             component,
-            arrayed,
+            D::ARRAYED,
             set,
             binding,
             name,

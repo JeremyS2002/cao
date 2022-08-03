@@ -2,11 +2,12 @@ fn main() {
     let src = "
         #version 450
 
-        layout(set = 0, binding = 0) uniform sampler2D u_tex;
+        layout(set = 0, binding = 0) uniform texture2D u_tex;
+        layout(set = 0, binding = 1) uniform sampler u_sam;
 
         void main() {
             vec2 coord = vec2(0.5, 0.5);
-            vec4 col = texture(u_tex, coord);
+            vec4 col = texture(sampler2D(u_tex, u_sam), coord);
         }
     ";
 

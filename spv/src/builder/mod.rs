@@ -353,7 +353,7 @@ pub trait Handle {
             dst: res,
         });
 
-        todo!();
+        M::Vector::from_id(res)
     }
 
     /// Adds an if condition to the current function

@@ -1442,11 +1442,10 @@ fn process_mul_assign(
     builder: &mut rspirv::dr::Builder,
     rhs: &(usize, PrimitiveType),
 ) {
-    let (spv_rhs_id, rhs_ty, mut spv_rhs, mut spv_lhs) =
-        get_object_assign(var_map, lhs, builder, rhs);
+    let (spv_lhs_id, lhs_ty, mut spv_lhs, mut spv_rhs) = get_object_assign(var_map, lhs, builder, rhs);
     let f = get_mul_fn_p(rhs, lhs, &mut spv_lhs, &mut spv_rhs);
-    let spv_res = f(builder, rhs_ty, None, spv_rhs, spv_lhs).unwrap();
-    builder.store(spv_rhs_id, spv_res, None, None).unwrap();
+    let spv_res = f(builder, lhs_ty, None, spv_rhs, spv_lhs).unwrap();
+    builder.store(spv_lhs_id, spv_res, None, None).unwrap();
 }
 
 fn process_div_assign(

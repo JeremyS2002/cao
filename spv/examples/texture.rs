@@ -19,8 +19,6 @@ unsafe impl bytemuck::Pod for Vertex {}
 unsafe impl bytemuck::Zeroable for Vertex {}
 
 fn main() {
-    env_logger::init();
-
     let instance = gpu::Instance::new(&gpu::InstanceDesc::default()).unwrap();
 
     let event_loop = EventLoop::new();
@@ -130,12 +128,16 @@ fn main() {
 
         let out_col = builder.out_vec3(0, false, Some("out_color"));
 
-        let texture: spv::SampledTexture2D =
-            builder.sampled_texture(0, 0, false, Some("u_texture"));
+        // let texture: spv::SampledTexture2D =
+        //     builder.sampled_texture(0, 0, Some("u_texture"));
+
+        let texture = builder.texture_2d(0, 0, Some("u_tex"));
+        let sampler = builder.sampler(0, 1, Some("u_sampler"));
 
         builder.main(|b| {
             let uv = b.load_in(in_uv);
-            let col = b.sample_texture(texture, uv);
+            let sampled = b.combine_texture_sampler(texture, sampler);
+            let col = b.sample_texture(sampled, uv);
             let col_rgb = col.xyz(b);
             b.store_out(out_col, col_rgb);
         });
@@ -170,11 +172,23 @@ fn main() {
     let descriptor_layout = device
         .create_descriptor_layout(&gpu::DescriptorLayoutDesc {
             name: None,
-            entries: &[gpu::DescriptorLayoutEntry {
-                ty: gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
-                stage: gpu::ShaderStages::FRAGMENT,
-                count: std::num::NonZeroU32::new(1).unwrap(),
-            }],
+            entries: &[
+                // gpu::DescriptorLayoutEntry {
+                //     ty: gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
+                //     stage: gpu::ShaderStages::FRAGMENT,
+                //     count: std::num::NonZeroU32::new(1).unwrap(),
+                // }
+                gpu::DescriptorLayoutEntry {
+                    ty: gpu::DescriptorLayoutEntryType::SampledTexture,
+                    stage: gpu::ShaderStages::FRAGMENT,
+                    count: std::num::NonZeroU32::new(1).unwrap(),
+                },
+                gpu::DescriptorLayoutEntry {
+                    ty: gpu::DescriptorLayoutEntryType::Sampler,
+                    stage: gpu::ShaderStages::FRAGMENT,
+                    count: std::num::NonZeroU32::new(1).unwrap(),
+                }
+            ],
         })
         .unwrap();
 
@@ -336,11 +350,20 @@ fn main() {
         .create_descriptor_set(&gpu::DescriptorSetDesc {
             name: None,
             layout: &descriptor_layout,
-            entries: &[gpu::DescriptorSetEntry::combined_texture_sampler_ref(
-                &texture_view,
-                gpu::TextureLayout::ShaderReadOnlyOptimal,
-                &sampler,
-            )],
+            entries: &[
+                // gpu::DescriptorSetEntry::combined_texture_sampler_ref(
+                //     &texture_view,
+                //     gpu::TextureLayout::ShaderReadOnlyOptimal,
+                //     &sampler,
+                // )
+                gpu::DescriptorSetEntry::texture_ref(
+                    &texture_view,
+                    gpu::TextureLayout::ShaderReadOnlyOptimal,
+                ),
+                gpu::DescriptorSetEntry::sampler_ref(
+                    &sampler,
+                )
+            ],
         })
         .unwrap();
 

@@ -43,8 +43,6 @@ unsafe impl spv::AsSpvStruct for Uniform {
 }
 
 fn main() {
-    env_logger::init();
-
     let instance = gpu::Instance::new(&gpu::InstanceDesc::default()).unwrap();
 
     let event_loop = EventLoop::new();
