@@ -5,8 +5,6 @@ use winit::{
 };
 
 fn main() {
-    env_logger::init();
-
     for name in gpu::Instance::validation_layers().unwrap() {
         println!("{}", name);
     }

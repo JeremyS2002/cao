@@ -1,6 +1,4 @@
 fn main() {
-    env_logger::init();
-
     let instance = gpu::Instance::new(&gpu::InstanceDesc::default()).unwrap();
 
     let device = instance

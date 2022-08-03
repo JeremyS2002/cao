@@ -23,8 +23,6 @@ unsafe impl bytemuck::Pod for PushConstants {}
 unsafe impl bytemuck::Zeroable for PushConstants {}
 
 fn main() {
-    env_logger::init();
-
     let instance = gpu::Instance::new(&gpu::InstanceDesc::default()).unwrap();
 
     let event_loop = EventLoop::new();
