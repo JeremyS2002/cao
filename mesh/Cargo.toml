@@ -1,0 +1,12 @@
+[package]
+name = "mesh"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+glam               = { version = "0.21.2", features = ["bytemuck"] }
+bytemuck           = "^1.4.1"
+gpu                = { path="../gpu" }
+gfx                = { path="../gfx", default-features=false }
