@@ -1,0 +1,25 @@
+[package]
+name = "ddd"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bytemuck           = "^1.4.1"
+glam               = { version = "0.21.2", features = ["bytemuck"] }
+either             = "^1.6.1"
+bitflags           = "^1.2.1"
+gpu                = { path="../gpu" }
+gfx                = { path="../gfx" }
+spv                = { path="../spv" }
+mesh               = { path="../mesh" }
+
+[dev-dependencies]
+winit              = { version = "0.26.1", default-features = false, features = ["x11"] }
+winit_input_helper = { git = "https://github.com/JeremyS2002/winit_input_helper.git", branch = "master" }
+anyhow             = "1.0.57"
+tobj               = "3.2.3"
+
+[[example]]
+name = "cone"
