@@ -1267,7 +1267,7 @@ impl GTextureCube {
             name: None,
             dimension: gpu::TextureDimension::D2(w, h, gpu::Samples::S1),
             base_mip_level: mip,
-            mip_levels: mip,
+            mip_levels: 1,
             base_array_layer: face as _,
             format_change: None,
         })
