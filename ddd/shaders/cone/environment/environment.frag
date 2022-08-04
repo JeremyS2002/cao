@@ -10,7 +10,8 @@ layout(set = 0, binding = 2) uniform texture2D u_albedo;
 layout(set = 0, binding = 3) uniform texture2D u_roughness;
 layout(set = 0, binding = 4) uniform texture2D u_metallic;
 layout(set = 0, binding = 5) uniform texture2D u_subsurface;
-layout(set = 0, binding = 6) uniform sampler u_sampler;
+layout(set = 0, binding = 6) uniform texture2D u_ao;
+layout(set = 0, binding = 7) uniform sampler u_sampler;
 
 layout(set = 1, binding = 0) uniform CameraData {
     mat4 projection;
@@ -36,6 +37,7 @@ void main() {
     vec4 albedo = texture(sampler2D(u_albedo, u_sampler), uv);
     float metallic = texture(sampler2D(u_metallic, u_sampler), uv).x;
     float roughness = texture(sampler2D(u_roughness, u_sampler), uv).x;
+    float ao = texture(sampler2D(u_ao, u_sampler), uv).x;
 
     vec3 view = normalize(u_camera.position - position);
     vec3 ref = reflect(-view, normal);
@@ -43,8 +45,6 @@ void main() {
 
     vec3 f0 = vec3(0.04);
     f0 = mix(f0, albedo.rgb, metallic);
-
-    vec3 f = fresnelSchlickRoughness(max(dot(normal, view), 0.0), f0, roughness);
 
     vec3 kS = fresnelSchlickRoughness(max(dot(normal, view), 0.0), f0, roughness);
     vec3 kD = 1.0 - kS;
@@ -56,7 +56,7 @@ void main() {
 
     vec3 prefilteredColor = textureLod(samplerCube(u_specular, u_sampler), ref, roughness * max_reflection_lod).rgb;
     vec2 envBRDF = texture(sampler2D(u_brdf_lut, u_sampler), vec2(max(dot(normal, view), 0.0), roughness)).rg;
-    vec3 specular = prefilteredColor * (f * envBRDF.x + envBRDF.y);
+    vec3 specular = prefilteredColor * (kS * envBRDF.x + envBRDF.y);
 
-    out_color = vec4(strength * (kD * diffuse + specular), albedo.a);
+    out_color = vec4(ao * strength * (kD * diffuse + specular), albedo.a);
 }

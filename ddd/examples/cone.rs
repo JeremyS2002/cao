@@ -201,7 +201,7 @@ impl Cone {
 
         let device = instance.create_device(&gpu::DeviceDesc {
             compatible_surfaces: &[&surface],
-            features: gpu::DeviceFeatures::BASE | gpu::DeviceFeatures::SAMPLER_ANISOTROPY,
+            features: gpu::DeviceFeatures::BASE,
             ..Default::default()
         })?;
 
@@ -252,8 +252,8 @@ impl Cone {
             &device,
             &buffer.get("output").unwrap().view,
             cone::SMAAState {
-                edge: cone::SMAAEdgeMethod::Luma,
-                quality: cone::SMAAQuality::Medium,
+                edge: cone::SMAAEdgeMethod::Color,
+                quality: cone::SMAAQuality::High,
             },
             cone::DisplayFlags::all(),
             None,
@@ -274,6 +274,12 @@ impl Cone {
         )?;
 
         let sampler = device.create_sampler(&gpu::SamplerDesc {
+            wrap_x: gpu::WrapMode::ClampToEdge,
+            wrap_y: gpu::WrapMode::ClampToEdge,
+            wrap_z: gpu::WrapMode::ClampToEdge,
+            min_filter: gpu::FilterMode::Linear,
+            mag_filter: gpu::FilterMode::Linear,
+            mipmap_filter: gpu::FilterMode::Linear,
             ..Default::default()
         })?;
 
@@ -327,7 +333,7 @@ impl Cone {
             &device,
             &leather_albedo_image,
             gpu::TextureUsage::SAMPLED,
-            1,
+            3,
             None,
         )?;
 
@@ -375,7 +381,7 @@ impl Cone {
             &device,
             &metal_albedo_image,
             gpu::TextureUsage::SAMPLED,
-            1,
+            3,
             None,
         )?;
 
@@ -421,7 +427,7 @@ impl Cone {
             &wax_instance,
             &cone::MaterialData {
                 albedo: glam::vec4(1.0, 0.0, 0.0, 0.99),
-                roughness: 0.6,
+                roughness: 0.0,
                 metallic: 0.0,
                 subsurface: glam::vec4(0.95, 0.66, 0.35, 0.9),
             },
@@ -434,8 +440,8 @@ impl Cone {
             &cone::MaterialData {
                 albedo: glam::vec4(0.9, 0.9, 1.0, 1.0),
                 roughness: 0.1,
-                metallic: 0.9,
-                ..Default::default()
+                metallic: 1.0,
+                subsurface: glam::vec4(0.0, 0.0, 0.0, 1.0),
             },
         )?;
 
@@ -447,7 +453,7 @@ impl Cone {
             &device,
             &wood_albedo_image,
             gpu::TextureUsage::SAMPLED,
-            1,
+            3,
             None,
         )?;
 
@@ -502,7 +508,15 @@ impl Cone {
 
         let skybox = cone::new_skybox(&mut encoder, &device, &hdri, 512)?;
 
-        let env = cone::new_env_map(&mut encoder, &device, &skybox, 32, 4096)?;
+        let env = cone::new_env_map(
+            &mut encoder, 
+            &device, 
+            &skybox, 
+            32,
+            128,
+            512, 
+            4096
+        )?;
 
         let light = cone::PointLight::new(
             &mut encoder,
@@ -538,11 +552,13 @@ impl Cone {
         let shadow_renderer =
             cone::PointDepthMapRenderer::new(&device, Some(gpu::FrontFace::Clockwise))?;
 
+        println!("pre-computing lookup tables...");
+
         encoder.submit(&mut command_buffer, true)?;
 
         let display_renderer = cone::DisplayRenderer::new(
             &device, 
-            &buffer.get("output").unwrap().view, 
+            &buffer.get("roughness").unwrap().view, 
             cone::DisplayFlags::all(),
             None,
         )?;
@@ -592,11 +608,7 @@ impl Cone {
             offscreen_command,
         };
 
-        println!("recording commands...");
-
         s.render_offscreen()?;
-
-        println!("done!");
 
         Ok(s)
     }
@@ -665,6 +677,12 @@ impl Cone {
             Some(&self.plane as _),
             false,
         )?;
+
+        self.buffer.clear_texture_ref(
+            &mut encoder, 
+            "ao", 
+            gpu::ClearValue::ColorFloat([1.0; 4]),
+        );
 
         self.env_renderer
             .ambient_pass(&mut encoder, &self.device, &self.buffer, 0.1, true)?;

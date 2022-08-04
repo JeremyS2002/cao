@@ -22,7 +22,7 @@ pub struct MaterialData {
 impl Default for MaterialData {
     fn default() -> Self {
         Self {
-            albedo: glam::vec4(1.0, 1.0, 1.0, 1.0),
+            albedo: glam::vec4(0.7, 0.7, 0.7, 1.0),
             subsurface: glam::vec4(0.0, 0.0, 0.0, 0.0),
             roughness: 0.5,
             metallic: 0.0,
@@ -81,6 +81,7 @@ pub struct MaterialBuilder<'a> {
     pub metallic: spv::Output<spv::Float>,
     /// optional subsurface output
     pub subsurface: spv::Output<spv::Vec4>,
+    /// the uv coordinate at that point
     pub uv: spv::Output<spv::Vec2>,
 }
 
@@ -872,185 +873,53 @@ impl Material {
             gpu::LoadOp::Load
         };
         let clear_color = gpu::ClearValue::ColorFloat([0.0; 4]);
-        let (color_attachments, resolve_attachments) = if buffer.ms() {
-            let color = vec![
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get_ms("position").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::DontCare,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get_ms("normal").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::DontCare,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get_ms("albedo").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::DontCare,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get_ms("roughness").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::DontCare,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get_ms("metallic").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::DontCare,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get_ms("subsurface").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::DontCare,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get_ms("uv").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::DontCare,
-                },
-            ];
-            let resolve = vec![
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get("position").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get("normal").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get("albedo").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get("roughness").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get("metallic").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get("subsurface").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get("uv").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                }
-            ];
-            (color, resolve)
-        } else {
-            let color = vec![
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get("position").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get("normal").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get("albedo").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get("roughness").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get("metallic").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get("subsurface").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                },
-                gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&buffer.get("uv").unwrap().view),
-                        clear_color,
-                    ),
-                    load,
-                    store: gpu::StoreOp::Store,
-                },
-            ];
+        let attachments = &[
+            "position",
+            "normal",
+            "albedo",
+            "roughness",
+            "metallic",
+            "subsurface",
+            "uv",
+        ];
 
-            (color, vec![])
+        let (color_attachments, resolve_attachments) = if buffer.ms() {
+            let mut colors = Vec::with_capacity(attachments.len());
+            let mut resolves = Vec::with_capacity(attachments.len());
+            for attachment in attachments {
+                colors.push(gfx::Attachment {
+                    raw: gpu::Attachment::View(
+                        Cow::Borrowed(&buffer.get_ms(attachment).unwrap().view),
+                        clear_color,
+                    ),
+                    load,
+                    store: gpu::StoreOp::DontCare,
+                });
+                resolves.push(gfx::Attachment {
+                    raw: gpu::Attachment::View(
+                        Cow::Borrowed(&buffer.get(attachment).unwrap().view),
+                        clear_color,
+                    ),
+                    load,
+                    store: gpu::StoreOp::DontCare,
+                });
+            }
+            (colors, resolves)
+        } else {
+            let mut colors = Vec::with_capacity(attachments.len());
+
+            for attachment in attachments {
+                colors.push(gfx::Attachment {
+                    raw: gpu::Attachment::View(
+                        Cow::Borrowed(&buffer.get(attachment).unwrap().view),
+                        clear_color,
+                    ),
+                    load,
+                    store: gpu::StoreOp::DontCare,
+                });
+            }
+            
+            (colors, vec![])
         };
         let mut pass = encoder.graphics_pass_reflected(
             device,

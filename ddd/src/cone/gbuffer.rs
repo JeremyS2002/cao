@@ -32,6 +32,7 @@ impl GeometryBuffer {
             ("metallic", gpu::Format::R32Float),
             ("subsurface", gpu::Format::Rgba32Float),
             ("uv", gpu::Format::Rg32Float),
+            ("ao", gpu::Format::R32Float),
             ("output", gpu::Format::Rgba32Float),
         ];
 
@@ -107,10 +108,17 @@ impl GeometryBuffer {
         };
 
         let sampler = device.create_sampler(&gpu::SamplerDesc {
+            wrap_x: gpu::WrapMode::ClampToEdge,
+            wrap_y: gpu::WrapMode::ClampToEdge,
+            wrap_z: gpu::WrapMode::ClampToEdge,
+            min_filter: gpu::FilterMode::Linear,
+            mag_filter: gpu::FilterMode::Linear,
+            mipmap_filter: gpu::FilterMode::Linear,
             ..Default::default()
         })?;
 
         let depth_sampler = device.create_sampler(&gpu::SamplerDesc {
+            compare: Some(gpu::CompareOp::LessEqual),
             ..Default::default()
         })?;
 
@@ -152,12 +160,34 @@ impl GeometryBuffer {
             let dst = self.maps.get(n).unwrap();
             encoder.resolve_texture(src.whole_slice_ref(), dst.whole_slice_ref())
         }
+        if let Some(ms_depth) = &self.ms_depth {
+            encoder.resolve_texture(ms_depth.whole_slice_ref(), self.depth.whole_slice_ref())
+        }
     }
 
     pub fn resolve_owned<'a>(&'a self, encoder: &mut gfx::CommandEncoder<'_>) {
         for (n, src) in self.ms_maps.iter() {
             let dst = self.maps.get(n).unwrap();
             encoder.resolve_texture(src.whole_slice_owned(), dst.whole_slice_owned())
+        }
+        if let Some(ms_depth) = &self.ms_depth {
+            encoder.resolve_texture(ms_depth.whole_slice_owned(), self.depth.whole_slice_owned())
+        }
+    }
+
+    pub fn clear_texture_ref<'a>(&'a self, encoder: &mut gfx::CommandEncoder<'a>, name: &str, value: gpu::ClearValue) {
+        if let Some(t) = self.get(name) {
+            encoder.clear_texture(t.texture.whole_slice_ref(), value);
+        } else {
+            eprintln!("Called GeometryBuffer::clear_texture(.., {})\nNo entry with that name.", name);
+        }
+    }
+
+    pub fn clear_texture_owned(&self, encoder: &mut gfx::CommandEncoder<'_>, name: &str, value: gpu::ClearValue) {
+        if let Some(t) = self.get(name) {
+            encoder.clear_texture(t.texture.whole_slice_owned(), value);
+        } else {
+            eprintln!("Called GeometryBuffer::clear_texture(.., {})\nNo entry with that name.", name);
         }
     }
 }

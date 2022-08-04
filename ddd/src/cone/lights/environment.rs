@@ -25,11 +25,13 @@ pub fn new_skybox<'a>(
     encoder: &mut gfx::CommandEncoder<'a>,
     device: &gpu::Device,
     hdri: &'a ImageBuffer<Rgb<f32>, Vec<f32>>,
-    width: u32,
+    resolution: u32,
 ) -> Result<SkyBox, gpu::Error> {
     let mut generator = SkyBoxGenerator::new(encoder, device)?;
 
-    generator.generate_from_image(encoder, device, &hdri, width, width)
+    let mip_levels = gfx::max_mip_levels(gfx::Cube(resolution, resolution));
+
+    generator.generate_from_image(encoder, device, &hdri, resolution, resolution, mip_levels)
 }
 
 /// Create a new [`EnvironmentMap`]
@@ -44,22 +46,24 @@ pub fn new_env_map(
     encoder: &mut gfx::CommandEncoder<'_>,
     device: &gpu::Device,
     sky: &SkyBox,
-    width: u32,
+    diffuse_resolution: u32,
+    specular_resolution: u32,
+    brdf_resolution: u32,
     sample_count: u32,
 ) -> Result<EnvironmentMap, gpu::Error> {
     let generator = EnvironmentMapGenerator::new(encoder, device)?;
-    let mip_levels = gfx::max_mip_levels(gfx::texture::D1(2 * width));
+    let mip_levels = gfx::max_mip_levels(gfx::texture::D1(specular_resolution));
     generator.generate(
         encoder,
         device,
         sky,
-        width,
-        width,
-        2 * width,
-        2 * width,
+        diffuse_resolution,
+        diffuse_resolution,
+        specular_resolution,
+        specular_resolution,
         mip_levels,
-        4 * width,
-        4 * width,
+        brdf_resolution,
+        brdf_resolution,
         sample_count,
     )
 }
@@ -68,7 +72,6 @@ pub fn new_env_map(
 #[derive(Debug, Clone, Copy)]
 struct SpecularData {
     sample_count: u32,
-    roughness: f32,
     width: u32,
     height: u32,
 }
@@ -147,9 +150,11 @@ impl<'a> SkyBoxGenerator<'a> {
         hdri: &'a ImageBuffer<Rgb<f32>, Vec<f32>>,
         width: u32,
         height: u32,
+        mip_levels: u32,
     ) -> Result<SkyBox, gpu::Error> {
         // It is quite common that Rgb32Float is unsupported so if that is the case
         // a work around needs to be done
+        // This will be made unnecissary with more robust GTexture::from_image methods and dynamic images
         let mut ok = true;
         if let Ok(p) = device.texture_properties(
             gpu::Format::Rgb32Float,
@@ -182,7 +187,7 @@ impl<'a> SkyBoxGenerator<'a> {
                 device,
                 hdri,
                 gpu::TextureUsage::SAMPLED,
-                1,
+                mip_levels,
                 None,
             )?;
 
@@ -194,7 +199,7 @@ impl<'a> SkyBoxGenerator<'a> {
                 hdri.height(),
                 gpu::Samples::S1,
                 gpu::TextureUsage::SAMPLED | gpu::TextureUsage::STORAGE,
-                1,
+                mip_levels,
                 gpu::Format::Rgba32Float,
                 None,
             )?;
@@ -325,6 +330,8 @@ impl<'a> SkyBoxGenerator<'a> {
             }
         }
 
+        cube_texture.gen_mipmaps_owned(encoder);
+
         Ok(cube_texture)
     }
 }
@@ -359,7 +366,8 @@ impl EnvironmentMapGenerator<'static> {
 
 impl<'a> EnvironmentMapGenerator<'a> {
     pub fn pipelines(device: &gpu::Device) -> Result<[gfx::ReflectedGraphics; 3], gpu::Error> {
-        let cube_vertex_spv = gpu::include_spirv!("../../../shaders/cone/cube_push.vert.spv");
+        let cube_push_vertex_spv = gpu::include_spirv!("../../../shaders/cone/cube_push.vert.spv");
+        let cube_buffer_vertex_spv = gpu::include_spirv!("../../../shaders/cone/cube_buffer.vert.spv");
         let diffuse_spv =
             gpu::include_spirv!("../../../shaders/cone/creation/ibl_diffuse.frag.spv");
         let specular_spv =
@@ -369,7 +377,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
 
         let diffuse = match gfx::ReflectedGraphics::from_spv(
             device,
-            &cube_vertex_spv,
+            &cube_push_vertex_spv,
             None,
             Some(&diffuse_spv),
             gpu::Rasterizer::default(),
@@ -380,13 +388,13 @@ impl<'a> EnvironmentMapGenerator<'a> {
             Ok(g) => g,
             Err(e) => match e {
                 gfx::error::ReflectedError::Gpu(e) => Err(e)?,
-                _ => unreachable!(),
+                e => unreachable!("{}", e),
             },
         };
 
         let specular = match gfx::ReflectedGraphics::from_spv(
             device,
-            &cube_vertex_spv,
+            &cube_buffer_vertex_spv,
             None,
             Some(&specular_spv),
             gpu::Rasterizer::default(),
@@ -397,7 +405,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
             Ok(g) => g,
             Err(e) => match e {
                 gfx::error::ReflectedError::Gpu(e) => Err(e)?,
-                _ => unreachable!(),
+                e => unreachable!("{}", e),
             },
         };
 
@@ -414,7 +422,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
             Ok(g) => g,
             Err(e) => match e {
                 gfx::error::ReflectedError::Gpu(e) => Err(e)?,
-                _ => unreachable!(),
+                e => unreachable!("{}", e),
             },
         };
 
@@ -511,9 +519,19 @@ impl<'a> EnvironmentMapGenerator<'a> {
             device,
             SpecularData {
                 sample_count,
-                roughness: 0.0,
                 width: specular_width,
                 height: specular_height,
+            },
+            None,
+        )?;
+
+        let mut camera = gfx::Uniform::new(
+            encoder,
+            device,
+            CameraData {
+                projection,
+                view: views[0],
+                position: glam::Vec3::ZERO,
             },
             None,
         )?;
@@ -528,12 +546,15 @@ impl<'a> EnvironmentMapGenerator<'a> {
             .unwrap()
             .set_resource("u_data", &specular_data)
             .unwrap()
+            .set_resource("u_camera", &camera)
+            .unwrap()
             .build(device)?;
 
         for mip in 0..specular_mip_levels {
             for face in gfx::CubeFace::iter() {
                 let w = (specular_width as f32 * 0.5f32.powi(mip as _)) as u32;
                 let h = (specular_height as f32 * 0.5f32.powi(mip as _)) as u32;
+                let roughness = mip as f32 / (specular_mip_levels as f32 - 1.0);
                 let view = specular.create_view(&gpu::TextureViewDesc {
                     dimension: gpu::TextureDimension::D2(w, h, gpu::Samples::S1),
                     base_mip_level: mip,
@@ -542,6 +563,8 @@ impl<'a> EnvironmentMapGenerator<'a> {
                     name: None,
                     format_change: None,
                 })?;
+                camera.data.view = views[face as usize];
+                camera.update_gpu_owned(encoder);
                 let mut pass = encoder.graphics_pass_reflected(
                     device,
                     &[gfx::Attachment {
@@ -557,8 +580,9 @@ impl<'a> EnvironmentMapGenerator<'a> {
                     &self.specular_pipeline,
                 )?;
                 pass.set_bundle_owned(&specular_bundle);
-                pass.push_mat4("projection", projection.to_cols_array());
-                pass.push_mat4("view", views[face as usize].to_cols_array());
+                pass.push_f32("roughness", roughness);
+                // pass.push_mat4("projection", projection.to_cols_array());
+                // pass.push_mat4("view", views[face as usize].to_cols_array());
                 match &self.cube {
                     Cow::Borrowed(c) => {
                         pass.draw_mesh_ref(*c);
@@ -833,6 +857,8 @@ impl EnvironmentRenderer {
                 .unwrap()
                 .set_resource("u_albedo", buffer.get("albedo").unwrap())
                 .unwrap()
+                .set_resource("u_ao", buffer.get("ao").unwrap())
+                .unwrap()
                 .set_resource("u_sampler", &buffer.sampler)
                 .unwrap()
                 .build(device)?;
@@ -898,6 +924,8 @@ impl EnvironmentRenderer {
                 .set_resource("u_metallic", buffer.get("metallic").unwrap())
                 .unwrap()
                 .set_resource("u_subsurface", buffer.get("subsurface").unwrap())
+                .unwrap()
+                .set_resource("u_ao", buffer.get("ao").unwrap())
                 .unwrap()
                 .set_resource("u_sampler", &buffer.sampler)
                 .unwrap()
@@ -1055,6 +1083,7 @@ impl EnvironmentRenderer {
 
         let bundle = self.environment_bundle(&device, buffer, camera, environment)?;
 
+        pass.push_f32("max_reflection_lod", environment.specular.texture.mip_levels() as f32);
         pass.push_f32("strength", strength);
         pass.push_f32("width", buffer.width as _);
         pass.push_f32("height", buffer.height as _);

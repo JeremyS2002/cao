@@ -35,5 +35,5 @@ void main() {
 
     irradiance = PI * irradiance * (1.0 / float(n_samples));
 
-    out_color = PI * vec4(irradiance, 1.0);
+    out_color = vec4(irradiance, 1.0);
 }
