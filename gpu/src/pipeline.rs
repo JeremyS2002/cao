@@ -76,7 +76,7 @@ impl PipelineLayout {
         let descriptor_sets = desc
             .descriptor_sets
             .iter()
-            .map(|b| b.raw)
+            .map(|b| **b.raw)
             .collect::<Vec<_>>();
         let push_constants = desc
             .push_constants
@@ -449,7 +449,6 @@ impl GraphicsPipeline {
 impl Drop for GraphicsPipeline {
     fn drop(&mut self) {
         unsafe {
-            self.device.wait_idle().unwrap();
             let raw = Md::take(&mut self.raw);
             if let Ok(raw) = Arc::try_unwrap(raw) {
                 self.device.destroy_pipeline(raw, None);

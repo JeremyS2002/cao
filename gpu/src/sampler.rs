@@ -245,7 +245,6 @@ impl Drop for Sampler {
         unsafe {
             let raw = Md::take(&mut self.raw);
             if let Ok(raw) = Arc::try_unwrap(raw) {
-                self.device.wait_idle().unwrap();
                 self.device.destroy_sampler(raw, None);
             }
         }

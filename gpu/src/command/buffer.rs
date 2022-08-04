@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 use std::ptr;
 use std::sync::Arc;
+use std::mem::ManuallyDrop as Md;
 
 use super::raw;
 
@@ -12,14 +13,20 @@ pub struct CommandBuffer {
     pub(crate) pool: vk::CommandPool,
     pub(crate) buffer: vk::CommandBuffer,
 
-    pub(crate) semaphore: vk::Semaphore,
+    pub(crate) semaphore: Md<Arc<vk::Semaphore>>,
     pub(crate) fence: vk::Fence,
 
     pub(crate) queue: vk::Queue,
     pub(crate) device: Arc<crate::RawDevice>,
+    /// version shouldn't overflow
+    /// 
+    /// assume 120fps and submit command buffer 1000 times per frame 
+    /// (i don't think anyone would submit 1000 times per frame but why not)
+    /// ((1/120)*u64::max / 1000) / (60 * 60 * 24 * 365) ~= 5million years
     pub(crate) version: u64,
 
     pub(crate) swapchain: Option<(vk::Semaphore, vk::Semaphore)>,
+    pub(crate) garbage: super::Garbage,
 }
 
 impl std::fmt::Debug for CommandBuffer {
@@ -38,7 +45,7 @@ impl CommandBuffer {
     }
 
     pub unsafe fn raw_semaphore(&self) -> vk::Semaphore {
-        self.semaphore
+        **self.semaphore
     }
 
     pub unsafe fn raw_fence(&self) -> vk::Fence {
@@ -112,11 +119,12 @@ impl CommandBuffer {
             pool,
             buffer,
             fence,
-            semaphore,
+            semaphore: Md::new(Arc::new(semaphore)),
             queue: device.queue,
             device: Arc::clone(&device.raw),
             version: 0,
             swapchain: None,
+            garbage: super::Garbage::default(),
         };
 
         if let Some(name) = &s.name {
@@ -129,19 +137,21 @@ impl CommandBuffer {
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkQueueSubmit.html>
-    pub fn submit(&self) -> Result<(), crate::Error> {
+    pub fn submit(&mut self) -> Result<(), crate::Error> {
+        self.wait(!0)?;
         raw::submit(
             &self.device,
             self.queue,
             self.buffer,
-            self.semaphore,
+            &self.semaphore,
             self.swapchain,
             self.fence,
+            &mut self.garbage,
         )
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkWaitForFences.html>
-    pub fn wait(&self, timeout: u64) -> Result<(), crate::Error> {
+    pub fn wait(&mut self, timeout: u64) -> Result<(), crate::Error> {
         let wait_result = unsafe { self.device.wait_for_fences(&[self.fence], true, timeout) };
 
         match wait_result {
@@ -152,6 +162,11 @@ impl CommandBuffer {
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkResetCommandPool.html>
     pub fn reset(&mut self) -> Result<(), crate::Error> {
+        self.wait(!0)?;
+        unsafe {
+            self.garbage.clean(&self.device);
+        }
+
         self.version += 1;
         let result = unsafe {
             self.device
@@ -177,13 +192,14 @@ impl CommandBuffer {
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkBeginCommandBuffer.html>
     pub fn begin(&mut self, one_time_submit: bool) -> Result<(), crate::Error> {
-        let wait_result = unsafe { self.device.wait_for_fences(&[self.fence], true, !0) };
-
-        match wait_result {
-            Ok(_) => (),
-            Err(e) => return Err(e.into()),
+        // wait for previous submission to complete if any
+        if self.version != 0 {
+            self.wait(!0)?;
+            unsafe {
+                self.garbage.clean(&self.device);
+            }
         }
-
+        
         self.version += 1;
         raw::begin_primary(self.buffer, &self.device, one_time_submit)
     }
@@ -221,7 +237,7 @@ impl CommandBuffer {
     where
         B: Borrow<crate::Buffer>,
     {
-        raw::update_buffer(self.buffer, &self.device, buffer, offset, data)
+        raw::update_buffer(self.buffer, &self.device, buffer, offset, data, &mut self.garbage)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdClearColorImage.html>
@@ -235,7 +251,7 @@ impl CommandBuffer {
     where
         T: Borrow<crate::TextureSlice<'a>>,
     {
-        raw::clear_texture(self.buffer, &self.device, texture, layout, value)
+        raw::clear_texture(self.buffer, &self.device, texture, layout, value, &mut self.garbage)
     }
 
     /// Only the base mip level of the slices will be used for the blit
@@ -260,6 +276,7 @@ impl CommandBuffer {
             dst.borrow(),
             dst_layout,
             filter,
+            &mut self.garbage,
         )
     }
 
@@ -273,7 +290,7 @@ impl CommandBuffer {
         B1: Borrow<crate::BufferSlice<'a>>,
         B2: Borrow<crate::BufferSlice<'a>>,
     {
-        raw::copy_buffer_to_buffer(self.buffer, &self.device, src, dst)
+        raw::copy_buffer_to_buffer(self.buffer, &self.device, src, dst, &mut self.garbage)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkBufferImageCopy.html>
@@ -287,7 +304,7 @@ impl CommandBuffer {
         T: Borrow<crate::TextureSlice<'a>>,
         B: Borrow<crate::BufferSlice<'a>>,
     {
-        raw::copy_texture_to_buffer(self.buffer, &self.device, src, src_layout, dst)
+        raw::copy_texture_to_buffer(self.buffer, &self.device, src, src_layout, dst, &mut self.garbage)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkBufferImageCopy.html>
@@ -301,7 +318,7 @@ impl CommandBuffer {
         B: Borrow<crate::BufferSlice<'a>>,
         T: Borrow<crate::TextureSlice<'a>>,
     {
-        raw::copy_buffer_to_texture(self.buffer, &self.device, src, dst, dst_layout)
+        raw::copy_buffer_to_texture(self.buffer, &self.device, src, dst, dst_layout, &mut self.garbage)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdCopyImage.html>
@@ -316,7 +333,7 @@ impl CommandBuffer {
         T1: Borrow<crate::TextureSlice<'a>>,
         T2: Borrow<crate::TextureSlice<'a>>,
     {
-        raw::copy_texture_to_texture(self.buffer, &self.device, src, src_layout, dst, dst_layout)
+        raw::copy_texture_to_texture(self.buffer, &self.device, src, src_layout, dst, dst_layout, &mut self.garbage)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdResolveImage.html>
@@ -331,7 +348,7 @@ impl CommandBuffer {
         T1: Borrow<crate::TextureSlice<'a>>,
         T2: Borrow<crate::TextureSlice<'a>>,
     {
-        raw::resolve_texture(self.buffer, &self.device, src, src_layout, dst, dst_layout)
+        raw::resolve_texture(self.buffer, &self.device, src, src_layout, dst, dst_layout, &mut self.garbage)
     }
 
     /// Begin and end a render pass without doing anything in the pass, to draw use a graphics pass and pipeline
@@ -353,6 +370,7 @@ impl CommandBuffer {
             resolve_attachments,
             depth_attachment,
             render_pass,
+            &mut self.garbage,
         )? {
             self.swapchain = Some(swapchain)
         }
@@ -379,6 +397,7 @@ impl CommandBuffer {
             resolve_attachments,
             depth_attachment,
             pipeline,
+            &mut self.garbage,
         )? {
             self.swapchain = Some(swapchain)
         }
@@ -438,7 +457,7 @@ impl CommandBuffer {
     where
         B: Borrow<crate::BufferSlice<'a>>,
     {
-        raw::bind_index_buffer(self.buffer, &self.device, buffer, ty)
+        raw::bind_index_buffer(self.buffer, &self.device, buffer, ty, &mut self.garbage)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdBindVertexBuffers.html>
@@ -446,7 +465,7 @@ impl CommandBuffer {
     where
         B: Borrow<crate::BufferSlice<'a>>,
     {
-        raw::bind_vertex_buffers(self.buffer, &self.device, &[buffer], binding)
+        raw::bind_vertex_buffers(self.buffer, &self.device, &[buffer], binding, &mut self.garbage)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdBindVertexBuffers.html>
@@ -458,7 +477,7 @@ impl CommandBuffer {
     where
         B: Borrow<crate::BufferSlice<'a>>,
     {
-        raw::bind_vertex_buffers(self.buffer, &self.device, buffers, first_binding)
+        raw::bind_vertex_buffers(self.buffer, &self.device, buffers, first_binding, &mut self.garbage)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdBindDescriptorSets.html>
@@ -479,6 +498,7 @@ impl CommandBuffer {
             &[group],
             bind_point,
             layout,
+            &mut self.garbage
         )
     }
 
@@ -500,6 +520,7 @@ impl CommandBuffer {
             groups,
             bind_point,
             layout,
+            &mut self.garbage
         )
     }
 
@@ -519,7 +540,7 @@ impl CommandBuffer {
         &mut self,
         pipeline: &crate::ComputePipeline,
     ) -> Result<(), crate::Error> {
-        raw::begin_compute_pass(self.buffer, &self.device, pipeline)
+        raw::begin_compute_pass(self.buffer, &self.device, pipeline, &mut self.garbage)
     }
 
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdBindPipeline.html>
@@ -531,9 +552,14 @@ impl CommandBuffer {
 impl Drop for CommandBuffer {
     fn drop(&mut self) {
         unsafe {
-            self.device.wait_idle().unwrap();
+            self.wait(!0).unwrap();
+            self.garbage.clean(&self.device);
+
             self.device.destroy_command_pool(self.pool, None);
-            self.device.destroy_semaphore(self.semaphore, None);
+            let semaphore = Md::take(&mut self.semaphore);
+            if let Ok(semaphore) = Arc::try_unwrap(semaphore) {
+                self.device.destroy_semaphore(semaphore, None);
+            }
             self.device.destroy_fence(self.fence, None);
         }
     }

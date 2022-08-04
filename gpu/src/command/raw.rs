@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::ptr;
+use std::sync::Arc;
 
 use ash::vk;
 
@@ -72,10 +73,14 @@ pub(crate) fn update_buffer<B>(
     buffer: B,
     offset: u64,
     data: &[u8],
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error>
 where
     B: Borrow<crate::Buffer>,
 {
+    garbage.buffers.push(Arc::clone(&*(buffer.borrow().raw)));
+    garbage.memory.push(Arc::clone(&*buffer.borrow().memory));
+
     #[cfg(feature = "logging")]
     log::trace!("GPU: cmd_update_buffer");
     unsafe {
@@ -90,10 +95,16 @@ pub(crate) fn clear_texture<'a, T1>(
     texture: T1,
     layout: crate::TextureLayout,
     value: crate::ClearValue,
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error>
 where
     T1: Borrow<crate::TextureSlice<'a>>,
 {
+    if let Some(mem) = &texture.borrow().texture.memory {
+        garbage.textures.push(Arc::clone(&*(texture.borrow().texture.raw)));
+        garbage.memory.push(Arc::clone(mem));
+    }
+
     #[cfg(feature = "logging")]
     log::trace!("GPU: cmd_clear_color_texture");
     if value.color() {
@@ -141,11 +152,21 @@ pub(crate) fn blit_textures<'a, T1, T2>(
     dst: T2,
     dst_layout: crate::TextureLayout,
     filter: crate::FilterMode,
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error>
 where
     T1: Borrow<crate::TextureSlice<'a>>,
     T2: Borrow<crate::TextureSlice<'a>>,
 {
+    if let Some(mem) = &src.borrow().texture.memory {
+        garbage.textures.push(Arc::clone(&*(src.borrow().texture.raw)));
+        garbage.memory.push(Arc::clone(mem));
+    }
+    if let Some(mem) = &dst.borrow().texture.memory {
+        garbage.textures.push(Arc::clone(&*(dst.borrow().texture.raw)));
+        garbage.memory.push(Arc::clone(mem));
+    }
+
     #[cfg(feature = "logging")]
     log::trace!("GPU: cmd_blit_textures src: {:?} in layout {:?}, dst: {:?} in layout {:?}, filter mode: {:?}", src.borrow(), dst.borrow(), src_layout, dst_layout, filter);
     #[cfg(feature = "logging")]
@@ -200,11 +221,17 @@ pub(crate) fn copy_buffer_to_buffer<'a, B1, B2>(
     device: &crate::RawDevice,
     src: B1,
     dst: B2,
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error>
 where
     B1: Borrow<crate::BufferSlice<'a>>,
     B2: Borrow<crate::BufferSlice<'a>>,
 {
+    garbage.buffers.push(Arc::clone(&*(src.borrow().buffer.raw)));
+    garbage.memory.push(Arc::clone(&*src.borrow().buffer.memory));
+    garbage.buffers.push(Arc::clone(&*(dst.borrow().buffer.raw)));
+    garbage.memory.push(Arc::clone(&*dst.borrow().buffer.memory));
+
     #[cfg(feature = "logging")]
     log::trace!(
         "GPU: cmd_copy_buffer_to_buffer src: {:?}, dst: {:?}",
@@ -232,11 +259,19 @@ pub(crate) fn copy_texture_to_buffer<'a, B, T>(
     src: T,
     src_layout: crate::TextureLayout,
     dst: B,
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error>
 where
     B: Borrow<crate::BufferSlice<'a>>,
     T: Borrow<crate::TextureSlice<'a>>,
 {
+    if let Some(mem) = &src.borrow().texture.memory {
+        garbage.textures.push(Arc::clone(&*src.borrow().texture.raw));
+        garbage.memory.push(Arc::clone(mem));
+    }
+    garbage.buffers.push(Arc::clone(&*dst.borrow().buffer.raw));
+    garbage.memory.push(Arc::clone(&*dst.borrow().buffer.memory));
+
     #[cfg(feature = "logging")]
     log::trace!(
         "GPU: cmd_copy_texture_to_buffer src: {:?} in layout {:?} dst: {:?}",
@@ -278,11 +313,19 @@ pub(crate) fn copy_buffer_to_texture<'a, B, T>(
     src: B,
     dst: T,
     dst_layout: crate::TextureLayout,
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error>
 where
     B: Borrow<crate::BufferSlice<'a>>,
     T: Borrow<crate::TextureSlice<'a>>,
 {
+    garbage.buffers.push(Arc::clone(&*src.borrow().buffer.raw));
+    garbage.memory.push(Arc::clone(&*src.borrow().buffer.memory));
+    if let Some(mem) = &dst.borrow().texture.memory {
+        garbage.textures.push(Arc::clone(&*dst.borrow().texture.raw));
+        garbage.memory.push(Arc::clone(mem));
+    }
+
     #[cfg(feature = "logging")]
     log::trace!(
         "GPU: cmd_copy_buffer_to_texture src: {:?}, dst: {:?} in layout {:?}",
@@ -325,11 +368,21 @@ pub(crate) fn copy_texture_to_texture<'a, T1, T2>(
     src_layout: crate::TextureLayout,
     dst: T2,
     dst_layout: crate::TextureLayout,
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error>
 where
     T1: Borrow<crate::TextureSlice<'a>>,
     T2: Borrow<crate::TextureSlice<'a>>,
 {
+    if let Some(mem) = &src.borrow().texture.memory {
+        garbage.textures.push(Arc::clone(&*src.borrow().texture.raw));
+        garbage.memory.push(Arc::clone(mem));
+    }
+    if let Some(mem) = &dst.borrow().texture.memory {
+        garbage.textures.push(Arc::clone(&*dst.borrow().texture.raw));
+        garbage.memory.push(Arc::clone(mem));
+    }
+
     #[cfg(feature = "logging")]
     log::trace!(
         "GPU: cmd_copy_texture_to_texture src: {:?} in layout {:?}, dst: {:?} in layout {:?}",
@@ -382,11 +435,21 @@ pub(crate) fn resolve_texture<'a, T1, T2>(
     src_layout: crate::TextureLayout,
     dst: T2,
     dst_layout: crate::TextureLayout,
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error>
 where
     T1: Borrow<crate::TextureSlice<'a>>,
     T2: Borrow<crate::TextureSlice<'a>>,
 {
+    if let Some(mem) = &src.borrow().texture.memory {
+        garbage.textures.push(Arc::clone(&*src.borrow().texture.raw));
+        garbage.memory.push(Arc::clone(mem));
+    }
+    if let Some(mem) = &dst.borrow().texture.memory {
+        garbage.textures.push(Arc::clone(&*dst.borrow().texture.raw));
+        garbage.memory.push(Arc::clone(mem));
+    }
+
     #[cfg(feature = "logging")]
     log::trace!(
         "GPU: cmd_resolve_texture src: {:?} in layout {:?} dst: {:?} in layout {:?}",
@@ -506,7 +569,10 @@ pub(crate) fn begin_compute_pass(
     command_buffer: vk::CommandBuffer,
     device: &crate::RawDevice,
     pipeline: &crate::ComputePipeline,
+    garbage: &mut super::Garbage
 ) -> Result<(), crate::Error> {
+    garbage.pipelines.push(Arc::clone(&pipeline.raw));
+
     #[cfg(feature = "logging")]
     log::trace!("GPU: cmd_begin_compute_pass pipeine: {:?}", pipeline);
     unsafe {
@@ -526,6 +592,7 @@ pub(crate) fn begin_graphics_pass<'a, B>(
     resolve_attachments: &[B],
     depth_attachment: Option<B>,
     pipeline: &crate::GraphicsPipeline,
+    garbage: &mut super::Garbage,
 ) -> Result<Option<(vk::Semaphore, vk::Semaphore)>, crate::Error>
 where
     B: std::borrow::Borrow<crate::Attachment<'a>>,
@@ -539,7 +606,12 @@ where
         resolve_attachments,
         depth_attachment,
         &pipeline.pass,
+        garbage,
     )?;
+
+    garbage.pipeline_layouts.push(Arc::clone(&pipeline.layout.raw));
+    garbage.pipelines.push(Arc::clone(&pipeline.raw));
+
     unsafe {
         device.cmd_bind_pipeline(
             command_buffer,
@@ -558,15 +630,19 @@ pub(crate) fn begin_render_pass<'a, B>(
     resolve_attachments: &[B],
     depth_attachment: Option<B>,
     pass: &crate::RenderPass,
+    garbage: &mut super::Garbage,
 ) -> Result<Option<(vk::Semaphore, vk::Semaphore)>, crate::Error>
 where
     B: std::borrow::Borrow<crate::Attachment<'a>>,
 {
+    garbage.render_passes.push(Arc::clone(&pass.raw));
+
     let (framebuffer_key, swapchain, extent) = framebuffer_key(
         color_attachments,
         resolve_attachments,
         depth_attachment.as_ref(),
         **pass.raw,
+        garbage,
     );
     let framebuffer_cache = device.framebuffers.read();
 
@@ -581,7 +657,10 @@ where
         raw_framebuffer(device, &framebuffer_key, extent, &framebuffers)?;
     }
 
-    let framebuffer = *device.framebuffers.read().get(&framebuffer_key).unwrap();
+    let c = device.framebuffers.read();
+    let framebuffer = c.get(&framebuffer_key).unwrap();
+
+    garbage.framebuffers.push(Arc::clone(&framebuffer));
 
     let clear_values = color_attachments
         .into_iter()
@@ -597,7 +676,7 @@ where
                 s_type: vk::StructureType::RENDER_PASS_BEGIN_INFO,
                 p_next: ptr::null(),
                 render_pass: **pass.raw,
-                framebuffer,
+                framebuffer: **framebuffer,
                 render_area: vk::Rect2D {
                     offset: vk::Offset2D { x: 0, y: 0 },
                     extent: vk::Extent2D {
@@ -622,6 +701,7 @@ pub(crate) fn framebuffer_key<'a, B>(
     resolve_attachments: &[B],
     depth_attachment: Option<&B>,
     pass: vk::RenderPass,
+    garbage: &mut super::Garbage,
 ) -> (
     crate::FramebufferKey,
     Option<(vk::Semaphore, vk::Semaphore)>,
@@ -643,14 +723,28 @@ where
         .map(|v| {
             match v.borrow() {
                 crate::Attachment::Swapchain(s, _) => {
-                    swapchain = Some((s.wait_semaphore, s.signal_semaphore));
+                    let wait_semaphore = **s.inner.acquire_complete_semaphores.get(s.wait_semaphore).unwrap();
+                    let signal_semaphore = **s.inner.rendering_complete_semaphores.get(s.signal_semaphore).unwrap();
+                    swapchain = Some((wait_semaphore, signal_semaphore));
                     s.drawn.set(true);
                     extent.width = s.view.extent.width;
                     extent.height = s.view.extent.height;
+
+                    garbage.swapchains.push(s.inner.clone());
+                    garbage.views.push(Arc::clone(&*s.view.raw));
+                    // since it's swapchain know there's no memory
+                    // don't cache texture as from swapchain
                 }
                 crate::Attachment::View(v, _) => {
                     extent.width = v.extent.width;
                     extent.height = v.extent.height;
+
+                    garbage.views.push(Arc::clone(&*v.raw));
+                    if let Some(mem) = &v.texture.memory {
+                        // somethings gone wrong if v.texture.memory is None
+                        garbage.textures.push(Arc::clone(&*v.texture.raw));
+                        garbage.memory.push(Arc::clone(mem));
+                    }
                 }
             }
             **v.borrow().view().raw
@@ -689,10 +783,11 @@ pub(crate) fn raw_framebuffer(
 
     let f = match framebuffer_result {
         Ok(f) => {
+            let framebuffer = Arc::new(f);
             device
                 .framebuffers
                 .write()
-                .insert(framebuffer_key.clone(), f);
+                .insert(framebuffer_key.clone(), framebuffer);
             for framebuffers in caches {
                 framebuffers.lock().push(framebuffer_key.clone());
             }
@@ -785,6 +880,7 @@ pub(crate) fn bind_vertex_buffers<'a, B>(
     device: &crate::RawDevice,
     buffers: &[B],
     first_binding: u32,
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error>
 where
     B: Borrow<crate::BufferSlice<'a>>,
@@ -793,7 +889,12 @@ where
     log::trace!("GPU: cmd_bind_vertex_buffers");
     let raw_buffers = buffers
         .iter()
-        .map(|b| **b.borrow().buffer.raw)
+        .map(|b| {
+            let slice: &'_ crate::BufferSlice = b.borrow();
+            garbage.buffers.push(Arc::clone(&*slice.buffer.raw));
+            garbage.memory.push(Arc::clone(&*slice.buffer.memory));
+            **slice.buffer.raw
+        })
         .collect::<Vec<_>>();
     let offsets = buffers
         .iter()
@@ -810,10 +911,14 @@ pub(crate) fn bind_index_buffer<'a, B>(
     device: &crate::RawDevice,
     buffer: B,
     ty: crate::IndexType,
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error>
 where
     B: Borrow<crate::BufferSlice<'a>>,
 {
+    garbage.buffers.push(Arc::clone(&*buffer.borrow().buffer.raw));
+    garbage.memory.push(Arc::clone(&*buffer.borrow().buffer.memory));
+
     #[cfg(feature = "logging")]
     log::trace!("GPU: cmd_bind_index_buffer {:?}", buffer.borrow());
     unsafe {
@@ -845,13 +950,33 @@ pub(crate) fn bind_descriptors<G>(
     groups: &[G],
     bind_point: crate::PipelineBindPoint,
     layout: &crate::PipelineLayout,
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error>
 where
     G: Borrow<crate::DescriptorSet>,
 {
     #[cfg(feature = "logging")]
     log::trace!("GPU: cmd_set_descriptors");
-    let descriptor_sets = groups.iter().map(|g| **g.borrow().set).collect::<Vec<_>>();
+    let descriptor_sets = groups.iter().map(|g| {
+        let set: &'_ crate::DescriptorSet = g.borrow();
+        for buffer in &*set.buffers {
+            garbage.buffers.push(Arc::clone(&*buffer.buffer.raw));
+            garbage.memory.push(Arc::clone(&*buffer.buffer.memory));
+        }
+        for texture in &*set.textures {
+            garbage.textures.push(Arc::clone(&*texture.0.texture.raw));
+            garbage.views.push(Arc::clone(&*texture.0.raw));
+            if let Some(mem) = &texture.0.texture.memory {
+                garbage.memory.push(Arc::clone(mem));
+            }
+        }
+        for sampler in &*set.samplers {
+            garbage.samplers.push(Arc::clone(&*sampler.raw));
+        }
+        garbage.descriptor_layouts.push(Arc::clone(&*g.borrow().layout));
+        garbage.descriptor_pools.push(Arc::clone(&*g.borrow().pool));
+        **g.borrow().set
+    }).collect::<Vec<_>>();
     unsafe {
         device.cmd_bind_descriptor_sets(
             command_buffer,
@@ -891,9 +1016,10 @@ pub(crate) fn submit(
     device: &crate::RawDevice,
     queue: vk::Queue,
     command_buffer: vk::CommandBuffer,
-    semaphore: vk::Semaphore,
+    semaphore: &Arc<vk::Semaphore>,
     swapchain_sync: Option<(vk::Semaphore, vk::Semaphore)>,
     fence: vk::Fence,
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error> {
     #[cfg(feature = "logging")]
     log::trace!("GPU: cmd_submit");
@@ -903,20 +1029,21 @@ pub(crate) fn submit(
         Err(e) => return Err(e.into()),
     }
     // get the semaphore of the last command to have been submitted and use it to wait on
-    let mut semaphores = device.semaphore.lock();
+    let mut semaphores = device.semaphores.lock();
 
     let mut wait_semaphores = Vec::new();
     let mut signal_semaphores = Vec::new();
 
     if let Some(s) = semaphores.get(&std::thread::current().id()) {
-        wait_semaphores.push(*s);
+        garbage.prev_semaphore = Some(Arc::clone(s));
+        wait_semaphores.push(**s);
     }
-    signal_semaphores.push(semaphore);
+    signal_semaphores.push(**semaphore);
     if let Some((wait, signal)) = swapchain_sync {
         wait_semaphores.push(wait);
         signal_semaphores.push(signal);
     }
-    semaphores.insert(std::thread::current().id(), semaphore);
+    semaphores.insert(std::thread::current().id(), Arc::clone(semaphore));
 
     let wait_dst_stage_mask = if wait_semaphores.len() == 0 {
         [vk::PipelineStageFlags::empty(); 2]

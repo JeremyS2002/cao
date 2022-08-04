@@ -12,9 +12,15 @@ use parking_lot::RwLock;
 use crate::error::*;
 
 pub(crate) struct RawDevice {
-    pub framebuffers: RwLock<HashMap<crate::FramebufferKey, vk::Framebuffer>>,
-    pub descriptor_set_layouts:
-        RwLock<HashMap<crate::DescriptorLayoutKey, vk::DescriptorSetLayout>>,
+    /// Kinda ugly :(
+    /// 
+    /// Jusitification:
+    ///  - want to be able to re-use framebuffers -> HashMap with key
+    ///  - when a texture that is referenced by the framebuffer is destroyed the framebuffer won't be reused again
+    ///    but can still be in use by a command buffer
+    ///  - want to be able to keep framebuffers alive after textures that they referenced are dropped so long as a command
+    ///    buffer that references them is still being processed
+    pub framebuffers: RwLock<HashMap<crate::FramebufferKey, Arc<vk::Framebuffer>>>,
 
     pub device: ash::Device,
     pub features: crate::DeviceFeatures,
@@ -24,7 +30,7 @@ pub(crate) struct RawDevice {
     pub debug_loader: Option<ext::DebugUtils>,
     pub error: RwLock<Vec<String>>,
 
-    pub semaphore: Mutex<HashMap<ThreadId, vk::Semaphore>>,
+    pub semaphores: Mutex<HashMap<ThreadId, Arc<vk::Semaphore>>>,
 }
 
 impl std::ops::Deref for RawDevice {
@@ -71,7 +77,6 @@ impl RawDevice {
         debug_loader: Option<ext::DebugUtils>,
     ) -> Self {
         Self {
-            descriptor_set_layouts: RwLock::new(HashMap::new()),
             framebuffers: RwLock::new(HashMap::new()),
 
             device: raw,
@@ -82,7 +87,7 @@ impl RawDevice {
             debug_loader,
             error: RwLock::new(Vec::new()),
 
-            semaphore: Mutex::new(HashMap::new()),
+            semaphores: Mutex::new(HashMap::new()),
         }
     }
 
@@ -203,14 +208,19 @@ impl RawDevice {
 impl Drop for RawDevice {
     fn drop(&mut self) {
         unsafe {
-            self.wait_idle().unwrap();
+            for (_, semaphore) in self.semaphores.lock().drain() {
+                if let Ok(semaphore) = Arc::try_unwrap(semaphore) {
+                    self.device.destroy_semaphore(semaphore, None);
+                }
+            }
 
             for (_, framebuffer) in self.framebuffers.write().drain() {
-                self.device.destroy_framebuffer(framebuffer, None);
+                if let Ok(framebuffer) = Arc::try_unwrap(framebuffer) {
+                    self.device.destroy_framebuffer(framebuffer, None);
+                }
             }
-            for (_, layout) in self.descriptor_set_layouts.write().drain() {
-                self.device.destroy_descriptor_set_layout(layout, None);
-            }
+
+            self.wait_idle().unwrap();
 
             self.device.destroy_device(None);
             let instance = Md::take(&mut self.instance);

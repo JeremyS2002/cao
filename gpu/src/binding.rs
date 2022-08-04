@@ -5,7 +5,6 @@
 use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
-    hash::Hash,
     mem::ManuallyDrop as Md,
     ptr,
     sync::Arc,
@@ -14,11 +13,6 @@ use std::{
 use ash::vk;
 
 use crate::error::*;
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-pub(crate) struct DescriptorLayoutKey {
-    pub entries: Vec<crate::DescriptorLayoutEntry>,
-}
 
 /// Describes a DescriptorLayout
 #[derive(Debug)]
@@ -34,11 +28,10 @@ pub struct DescriptorLayoutDesc<'a> {
 /// Describes the layout of a DescriptorSet
 /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkDescriptorSetLayout.html>
 pub struct DescriptorLayout {
-    pub(crate) key: DescriptorLayoutKey,
     pub(crate) shader_stages: crate::ShaderStages,
-    // doesn't need device as kept alive for lifetime of device
-    // for convinience
-    pub(crate) raw: vk::DescriptorSetLayout,
+    pub(crate) entries: Arc<[crate::DescriptorLayoutEntry]>,
+    pub(crate) device: Arc<crate::RawDevice>,
+    pub(crate) raw: Md<Arc<vk::DescriptorSetLayout>>,
     pub(crate) name: Option<String>,
 }
 
@@ -59,10 +52,11 @@ impl Eq for DescriptorLayout {}
 impl Clone for DescriptorLayout {
     fn clone(&self) -> Self {
         Self {
-            key: self.key.clone(),
+            device: Arc::clone(&self.device),
             shader_stages: self.shader_stages,
-            raw: self.raw,
+            raw: Md::new(Arc::clone(&self.raw)),
             name: self.name.clone(),
+            entries: Arc::clone(&self.entries),
         }
     }
 }
@@ -79,7 +73,7 @@ impl std::fmt::Debug for DescriptorLayout {
 
 impl DescriptorLayout {
     pub unsafe fn raw_descriptor_set_layout(&self) -> vk::DescriptorSetLayout {
-        self.raw
+        **self.raw
     }
 }
 
@@ -89,43 +83,7 @@ impl DescriptorLayout {
         #[cfg(feature = "logging")]
         log::trace!("GPU: Create DescriptorLayout, name {:?}", desc.name);
 
-        let key = Self::key(desc);
-        let cache = device.raw.descriptor_set_layouts.read();
-
-        if let None = cache.get(&key) {
-            drop(cache);
-            Self::raw(device, &key)?;
-        }
-        let raw = *device.raw.descriptor_set_layouts.read().get(&key).unwrap();
-
-        let mut shader_stages = crate::ShaderStages::empty();
-        for e in desc.entries.as_ref() {
-            shader_stages |= e.stage;
-        }
-        let s = Self {
-            key,
-            raw,
-            shader_stages,
-            name: desc.name.as_ref().map(|s| s.to_string()),
-        };
-        if let Some(name) = &desc.name {
-            device.raw.set_descriptor_layout_name(&s, name.as_ref())?;
-        }
-        device.raw.check_errors()?;
-        Ok(s)
-    }
-
-    fn key(desc: &DescriptorLayoutDesc<'_>) -> DescriptorLayoutKey {
-        DescriptorLayoutKey {
-            entries: desc.entries.iter().cloned().collect(),
-        }
-    }
-
-    fn raw(
-        device: &crate::Device,
-        key: &DescriptorLayoutKey,
-    ) -> Result<vk::DescriptorSetLayout, Error> {
-        let bindings = key
+        let bindings = desc
             .entries
             .iter()
             .enumerate()
@@ -150,17 +108,40 @@ impl DescriptorLayout {
             Ok(l) => l,
             Err(e) => return Err(e.into()),
         };
-        device
-            .raw
-            .descriptor_set_layouts
-            .write()
-            .insert(key.clone(), layout);
-        Ok(layout)
+        
+        let mut shader_stages = crate::ShaderStages::empty();
+        for e in desc.entries.as_ref() {
+            shader_stages |= e.stage;
+        }
+
+        let s = Self {
+            device: Arc::clone(&device.raw),
+            raw: Md::new(Arc::new(layout)),
+            entries: desc.entries.into(),
+            shader_stages,
+            name: desc.name.as_ref().map(|s| s.to_string()),
+        };
+        if let Some(name) = &desc.name {
+            device.raw.set_descriptor_layout_name(&s, name.as_ref())?;
+        }
+        device.raw.check_errors()?;
+        Ok(s)
     }
 
     /// Get the id of the descriptor layout
     pub fn id(&self) -> u64 {
-        unsafe { std::mem::transmute(self.raw) }
+        unsafe { std::mem::transmute(**self.raw) }
+    }
+}
+
+impl Drop for DescriptorLayout {
+    fn drop(&mut self) {
+        unsafe {
+            let raw = Md::take(&mut self.raw);
+            if let Ok(layout) = Arc::try_unwrap(raw) {
+                self.device.destroy_descriptor_set_layout(layout, None);
+            }
+        }
     }
 }
 
@@ -185,7 +166,7 @@ pub struct DescriptorSetDesc<'a, 'b> {
 /// Contians resources sent to the gpu to be accessed in shaders
 /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkDescriptorSet.html>
 pub struct DescriptorSet {
-    pub(crate) layout: vk::DescriptorSetLayout,
+    pub(crate) layout: Md<Arc<vk::DescriptorSetLayout>>,
     pub(crate) pool: Md<Arc<vk::DescriptorPool>>,
     pub(crate) set: Md<Arc<vk::DescriptorSet>>,
     pub(crate) shader_stages: crate::ShaderStages,
@@ -214,7 +195,7 @@ impl Eq for DescriptorSet {}
 impl Clone for DescriptorSet {
     fn clone(&self) -> Self {
         Self {
-            layout: self.layout,
+            layout: Md::new(Arc::clone(&self.layout)),
             pool: Md::new(Arc::clone(&self.pool)),
             set: Md::new(Arc::clone(&self.set)),
             shader_stages: self.shader_stages,
@@ -260,7 +241,6 @@ impl DescriptorSet {
             Ok(d) => d,
             Err(e) => {
                 unsafe {
-                    device.wait_idle().unwrap();
                     device.raw.destroy_descriptor_pool(pool, None);
                 }
                 return Err(e.into());
@@ -271,7 +251,7 @@ impl DescriptorSet {
             pool: Md::new(Arc::new(pool)),
             set: Md::new(Arc::new(set)),
             shader_stages: desc.layout.shader_stages,
-            layout: desc.layout.raw,
+            layout: Md::new(Arc::clone(&desc.layout.raw)),
             device: Arc::clone(&device.raw),
 
             textures: textures.into_iter().collect::<Arc<[_]>>(),
@@ -394,7 +374,7 @@ impl DescriptorSet {
         let mut i = 0;
         for list in &descriptors {
             let mut j = 0;
-            let buffer = match desc.layout.key.entries[i].ty {
+            let buffer = match desc.layout.entries[i].ty {
                 crate::DescriptorLayoutEntryType::UniformBuffer => true,
                 crate::DescriptorLayoutEntryType::StorageBuffer { .. } => true,
                 _ => false,
@@ -406,7 +386,7 @@ impl DescriptorSet {
                     dst_set: set,
                     dst_binding: i as u32,
                     dst_array_element: j,
-                    descriptor_type: desc.layout.key.entries[i].ty.into(),
+                    descriptor_type: desc.layout.entries[i].ty.into(),
                     descriptor_count: 1,
                     p_buffer_info: if buffer {
                         unsafe { &d.buffer }
@@ -689,7 +669,7 @@ impl DescriptorSet {
         Ok(desc
             .entries
             .iter()
-            .zip(&desc.layout.key.entries)
+            .zip(&*desc.layout.entries)
             .map(|(e, l)| Self::make_descriptor(e, l))
             .collect::<Result<Vec<_>, Error>>()?)
     }
@@ -700,7 +680,6 @@ impl DescriptorSet {
     ) -> Result<(vk::DescriptorPool, vk::DescriptorSet), Error> {
         let pool_sizes = desc
             .layout
-            .key
             .entries
             .iter()
             .map(|e| (*e).into())
@@ -725,7 +704,7 @@ impl DescriptorSet {
             p_next: ptr::null(),
             descriptor_pool: pool,
             descriptor_set_count: 1,
-            p_set_layouts: &desc.layout.raw,
+            p_set_layouts: &**desc.layout.raw,
         };
 
         let set_result = unsafe { device.raw.allocate_descriptor_sets(&allocate_info) };
@@ -762,9 +741,13 @@ impl DescriptorSet {
 impl Drop for DescriptorSet {
     fn drop(&mut self) {
         unsafe {
+            let layout = Md::take(&mut self.layout);
+            if let Ok(layout) = Arc::try_unwrap(layout) {
+                self.device.destroy_descriptor_set_layout(layout, None);
+            }
+
             let pool = Md::take(&mut self.pool);
             if let Ok(pool) = Arc::try_unwrap(pool) {
-                self.device.wait_idle().unwrap();
                 self.device.destroy_descriptor_pool(pool, None);
             }
         }

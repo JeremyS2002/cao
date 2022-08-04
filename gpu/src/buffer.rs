@@ -255,12 +255,10 @@ impl Drop for Buffer {
         unsafe {
             let raw = Md::take(&mut self.raw);
             if let Ok(raw) = Arc::try_unwrap(raw) {
-                self.device.wait_idle().unwrap();
                 self.device.destroy_buffer(raw, None);
             }
             let memory = Md::take(&mut self.memory);
             if let Ok(memory) = Arc::try_unwrap(memory) {
-                self.device.wait_idle().unwrap();
                 self.device.free_memory(memory, None);
             }
         }

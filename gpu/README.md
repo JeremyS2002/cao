@@ -13,7 +13,6 @@ cargo run --example compute
 
 # TODO
 - Support Windows + Wayland on linux
-- Optimization
 - Testing / Refactor (specifically binding.rs)
 - Compression Textures
 - Ray Tracing support

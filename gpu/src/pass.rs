@@ -68,17 +68,6 @@ impl std::clone::Clone for RenderPass {
     }
 }
 
-impl Drop for RenderPass {
-    fn drop(&mut self) {
-        unsafe {
-            let raw = Md::take(&mut self.raw);
-            if let Ok(raw) = Arc::try_unwrap(raw) {
-                self.device.destroy_render_pass(raw, None);
-            }
-        }
-    }
-}
-
 impl std::fmt::Debug for RenderPass {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "RenderPass {:?}, name: {:?}", **self.raw, self.name)
@@ -259,5 +248,16 @@ impl RenderPass {
     /// Get the depth attachment if any
     pub fn depth(&self) -> Option<crate::DepthAttachmentDesc> {
         self.depth.clone()
+    }
+}
+
+impl Drop for RenderPass {
+    fn drop(&mut self) {
+        unsafe {
+            let raw = Md::take(&mut self.raw);
+            if let Ok(raw) = Arc::try_unwrap(raw) {
+                self.device.destroy_render_pass(raw, None);
+            }
+        }
     }
 }

@@ -9,6 +9,8 @@ use std::collections::HashSet;
 use std::ffi::{c_void, CStr};
 use std::ptr;
 use std::sync::Arc;
+use std::mem::ManuallyDrop as Md;
+use std::sync::Mutex;
 
 use ash::extensions::ext;
 use ash::vk;
@@ -84,8 +86,9 @@ pub struct Device {
     // a command objects used for under the hood initialization
     pub(crate) command_pool: vk::CommandPool,
     pub(crate) command_buffer: vk::CommandBuffer,
+    pub(crate) semaphore: Md<Arc<vk::Semaphore>>,
     pub(crate) fence: vk::Fence,
-    pub(crate) semaphore: vk::Semaphore,
+    pub(crate) waiting_on_semaphore: Mutex<Option<Arc<vk::Semaphore>>>,
     // for debugging + error catching
     pub(crate) debug_utils: Option<ext::DebugUtils>,
     pub(crate) debug_messenger: Option<vk::DebugUtilsMessengerEXT>,
@@ -207,8 +210,9 @@ impl Device {
             queue_family: queue_info.queue_family_index,
             command_pool,
             command_buffer,
+            semaphore: Md::new(Arc::new(semaphore)),
             fence,
-            semaphore,
+            waiting_on_semaphore: Mutex::new(None),
             debug_utils,
             debug_messenger,
         })
@@ -459,11 +463,7 @@ impl Device {
 
     /// wait for the device to be idle
     pub fn wait_idle(&self) -> Result<(), Error> {
-        let result = unsafe { self.raw.device_wait_idle() };
-        match result {
-            Ok(_) => Ok(()),
-            Err(e) => return Err(e.into()),
-        }
+        self.raw.wait_idle()
     }
 
     /// returns the limits of the device
@@ -606,8 +606,16 @@ impl Drop for Device {
                 utils.destroy_debug_utils_messenger(self.debug_messenger.unwrap(), None);
             }
             self.raw.destroy_command_pool(self.command_pool, None);
+            let semaphore = Md::take(&mut self.semaphore);
+            if let Ok(semaphore) = Arc::try_unwrap(semaphore) {
+                self.raw.destroy_semaphore(semaphore, None);
+            }
             self.raw.destroy_fence(self.fence, None);
-            self.raw.destroy_semaphore(self.semaphore, None);
+            if let Some(semaphore) = self.waiting_on_semaphore.lock().unwrap().take() {
+                if let Ok(semaphore) = Arc::try_unwrap(semaphore) {
+                    self.raw.destroy_semaphore(semaphore, None);
+                }
+            }
         }
     }
 }

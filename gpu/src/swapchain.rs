@@ -50,19 +50,29 @@ impl SwapchainDesc {
 }
 
 /// TODO: consider making view field public?
-#[derive(Debug)]
 pub struct SwapchainView<'a> {
+    /// The inner from the swapchain this view is from
+    pub(crate) inner: &'a SwapchainInner,
     /// The texture view that is currently acquired
     pub(crate) view: &'a crate::TextureView,
-    /// Semaphore to wait on before rendering to this frame
-    pub(crate) wait_semaphore: vk::Semaphore,
-    /// Semaphore to signal when rendering to this frame is complete
-    pub(crate) signal_semaphore: vk::Semaphore,
+    /// Index of the semaphore to wait on before rendering to this frame
+    pub(crate) wait_semaphore: usize,
+    /// Index of the semaphore to signal when rendering to this frame is complete
+    pub(crate) signal_semaphore: usize,
     /// The index of the view
     pub(crate) index: u32,
     /// Flags to store if the view has been rendered to
     /// and therefore if the semaphore should be waited on
     pub(crate) drawn: Cell<bool>,
+}
+
+impl<'a> std::fmt::Debug for SwapchainView<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{:?}", self.view)?;
+        writeln!(f, "Swapchain Index: {}", self.index)?;
+
+        Ok(())
+    }
 }
 
 impl<'a> PartialEq for SwapchainView<'a> {
@@ -80,22 +90,44 @@ pub struct SwapchainInfo {
     pub format: crate::Format,
 }
 
+pub(crate) struct SwapchainInner {
+    pub loader: khr::Swapchain,
+    pub raw: Md<Arc<Cell<vk::SwapchainKHR>>>,
+
+    pub rendering_complete_semaphores: Vec<Arc<vk::Semaphore>>,
+    pub acquire_complete_semaphores: Vec<Arc<vk::Semaphore>>, 
+
+    pub surface: Md<Arc<vk::SurfaceKHR>>,
+    pub surface_loader: khr::Surface,
+
+    pub device: Arc<crate::RawDevice>,
+}
+
+impl std::clone::Clone for SwapchainInner {
+    fn clone(&self) -> Self {
+        Self { 
+            loader: self.loader.clone(), 
+            raw: Md::new(Arc::clone(&self.raw)), 
+            rendering_complete_semaphores: self.rendering_complete_semaphores.clone(), 
+            acquire_complete_semaphores: self.acquire_complete_semaphores.clone(), 
+            surface: Md::new(Arc::clone(&self.surface)), 
+            surface_loader: self.surface_loader.clone(), 
+            device: Arc::clone(&self.device),
+        }
+    }
+}
+
 /// A Swapchain
 ///
 /// A series of Textures that can be presented to the window
 /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkSwapchainKHR.html>
 pub struct Swapchain {
-    pub(crate) loader: khr::Swapchain,
-    pub(crate) raw: vk::SwapchainKHR,
+    pub(crate) inner: SwapchainInner,
 
     pub(crate) textures: Vec<crate::Texture>,
     pub(crate) views: Vec<crate::TextureView>,
     pub(crate) framebuffers: Mutex<Vec<crate::FramebufferKey>>,
 
-    pub(crate) surface: Md<Arc<vk::SurfaceKHR>>,
-    pub(crate) surface_loader: Arc<khr::Surface>,
-
-    pub(crate) device: Arc<crate::RawDevice>,
     pub(crate) version: u64,
     pub(crate) queue: vk::Queue,
 
@@ -107,20 +139,17 @@ pub struct Swapchain {
 
     pub(crate) frames_in_flight: usize,
     pub(crate) frame: Cell<usize>,
-
-    pub(crate) rendering_complete_semaphores: Vec<vk::Semaphore>,
-    pub(crate) acquire_complete_semaphores: Vec<vk::Semaphore>,
 }
 
 impl std::fmt::Debug for Swapchain {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Swapchain id: {:?}", self.raw)
+        write!(f, "Swapchain id: {:?}", self.inner.raw)
     }
 }
 
 impl std::cmp::PartialEq for Swapchain {
     fn eq(&self, other: &Swapchain) -> bool {
-        self.raw == other.raw
+        self.inner.raw == other.inner.raw
     }
 }
 
@@ -128,7 +157,7 @@ impl std::cmp::Eq for Swapchain {}
 
 impl std::hash::Hash for Swapchain {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.raw.hash(state)
+        self.inner.raw.get().hash(state)
     }
 }
 
@@ -153,15 +182,23 @@ impl Swapchain {
         device.raw.check_errors()?;
 
         Ok(Self {
-            loader,
-            raw,
+            inner: SwapchainInner { 
+                loader, 
+                raw: Md::new(Arc::new(Cell::new(raw))), 
+                rendering_complete_semaphores, 
+                acquire_complete_semaphores,
+
+                surface: Md::new(Arc::clone(&surface.raw)),
+                surface_loader: surface.loader.clone(),
+
+                device: Arc::clone(&device.raw),
+            },
 
             textures,
             views,
             framebuffers: Mutex::new(Vec::new()),
 
-            surface: Md::new(Arc::clone(&surface.raw)),
-            surface_loader: Arc::clone(&surface.loader),
+            
 
             format,
             extent,
@@ -169,15 +206,11 @@ impl Swapchain {
             present_mode: desc.present_mode.into(),
             image_count,
 
-            device: Arc::clone(&device.raw),
             version: 0,
             queue: device.queue,
 
             frames_in_flight: desc.frames_in_flight,
             frame: Cell::new(0),
-
-            rendering_complete_semaphores,
-            acquire_complete_semaphores,
         })
     }
 
@@ -326,7 +359,7 @@ impl Swapchain {
     fn create_sync(
         device: &crate::Device,
         frames_in_flight: usize,
-    ) -> Result<(Vec<vk::Semaphore>, Vec<vk::Semaphore>), crate::Error> {
+    ) -> Result<(Vec<Arc<vk::Semaphore>>, Vec<Arc<vk::Semaphore>>), crate::Error> {
         let semaphore_create_info = vk::SemaphoreCreateInfo {
             s_type: vk::StructureType::SEMAPHORE_CREATE_INFO,
             p_next: ptr::null(),
@@ -346,7 +379,7 @@ impl Swapchain {
                 Err(e) => return Err(e.into()),
             };
 
-            semaphores_1.push(semaphore_1);
+            semaphores_1.push(Arc::new(semaphore_1));
 
             let semaphore_2_res =
                 unsafe { device.raw.create_semaphore(&semaphore_create_info, None) };
@@ -356,32 +389,13 @@ impl Swapchain {
                 Err(e) => return Err(e.into()),
             };
 
-            semaphores_2.push(semaphore_2);
-
-            // let fence_create_info = vk::FenceCreateInfo {
-            //     s_type: vk::StructureType::FENCE_CREATE_INFO,
-            //     p_next: ptr::null(),
-            //     flags: vk::FenceCreateFlags::empty(),
-            // };
-
-            // let fence_res = unsafe {
-            //     device.raw.create_fence(&fence_create_info, None)
-            // };
-
-            // let fence = match fence_res {
-            //     Ok(f) => f,
-            //     Err(e) => return Err(e.into())
-            // };
-
-            // fences.push(fence);
+            semaphores_2.push(Arc::new(semaphore_2));
         }
 
         Ok((semaphores_1, semaphores_2))
     }
 
     pub fn recreate(&mut self, device: &crate::Device) -> Result<(), crate::Error> {
-        self.device.wait_idle()?;
-
         // destroy previous resources
         for texture in self.textures.drain(..) {
             drop(texture)
@@ -393,15 +407,17 @@ impl Swapchain {
 
         for key in self.framebuffers.lock().drain(..) {
             unsafe {
-                if let Some(framebuffer) = self.device.framebuffers.write().remove(&key) {
-                    self.device.destroy_framebuffer(framebuffer, None);
+                if let Some(framebuffer) = self.inner.device.framebuffers.write().remove(&key) {
+                    if let Ok(framebuffer) = Arc::try_unwrap(framebuffer) {
+                        self.inner.device.destroy_framebuffer(framebuffer, None);
+                    }
                 }
             }
         }
 
         let caps_result = unsafe {
-            self.surface_loader
-                .get_physical_device_surface_capabilities(device.physical, **self.surface)
+            self.inner.surface_loader
+                .get_physical_device_surface_capabilities(device.physical, **self.inner.surface)
         };
 
         let caps = match caps_result {
@@ -412,8 +428,8 @@ impl Swapchain {
         let create_info = vk::SwapchainCreateInfoKHR {
             s_type: vk::StructureType::SWAPCHAIN_CREATE_INFO_KHR,
             p_next: ptr::null(),
-            surface: **self.surface,
-            old_swapchain: self.raw,
+            surface: **self.inner.surface,
+            old_swapchain: self.inner.raw.get(),
             min_image_count: self.image_count,
             image_extent: caps.current_extent,
             image_format: self.format.format,
@@ -430,7 +446,7 @@ impl Swapchain {
             flags: vk::SwapchainCreateFlagsKHR::empty(),
         };
 
-        let swapchain_result = unsafe { self.loader.create_swapchain(&create_info, None) };
+        let swapchain_result = unsafe { self.inner.loader.create_swapchain(&create_info, None) };
 
         let swapchain = match swapchain_result {
             Ok(s) => s,
@@ -440,9 +456,9 @@ impl Swapchain {
         self.extent = caps.current_extent;
 
         let (textures, views) =
-            Self::create_frames(device, &self.loader, &swapchain, self.format, self.extent)?;
+            Self::create_frames(device, &self.inner.loader, &swapchain, self.format, self.extent)?;
 
-        self.raw = swapchain;
+        self.inner.raw.set(swapchain);
         self.textures = textures;
         self.views = views;
         self.version += 1;
@@ -457,10 +473,10 @@ impl Swapchain {
         let frame = self.frame.get();
 
         let result = unsafe {
-            self.loader.acquire_next_image(
-                self.raw,
+            self.inner.loader.acquire_next_image(
+                self.inner.raw.get(),
                 timeout,
-                self.acquire_complete_semaphores[frame],
+                *self.inner.acquire_complete_semaphores[frame],
                 // vk::Semaphore::null(),
                 vk::Fence::null(),
                 //self.acquire_complete_fences[frame],
@@ -472,39 +488,15 @@ impl Swapchain {
             Err(e) => return Err(e.into()),
         };
 
-        // let elapsed = start.elapsed().as_nanos();
-        // let remaining = timeout.saturating_sub(elapsed as _);
-
-        // let wait_result = unsafe {
-        //     self.device.wait_for_fences(
-        //         &[self.acquire_complete_fences[frame]],
-        //         true,
-        //         remaining
-        //     )
-        // };
-
-        // match wait_result {
-        //     Ok(_) => (),
-        //     Err(e) => return Err(e.into())
-        // }
-
-        // let reset_result = unsafe {
-        //     self.device.reset_fences(&[self.acquire_complete_fences[frame]])
-        // };
-
-        // match reset_result {
-        //     Ok(_) => (),
-        //     Err(e) => return Err(e.into())
-        // }
-
-        self.device.check_errors()?;
+        self.inner.device.check_errors()?;
 
         Ok((
             SwapchainView {
+                inner: &self.inner,
                 view: self.views.get(index as usize).unwrap(),
                 index: index as _,
-                wait_semaphore: self.acquire_complete_semaphores[frame],
-                signal_semaphore: self.rendering_complete_semaphores[frame],
+                wait_semaphore: frame,
+                signal_semaphore: frame,
                 drawn: Cell::new(false),
             },
             suboptimal,
@@ -524,16 +516,16 @@ impl Swapchain {
                 s_type: vk::StructureType::SUBMIT_INFO,
                 p_next: ptr::null(),
                 wait_semaphore_count: 1,
-                p_wait_semaphores: &view.wait_semaphore as _,
+                p_wait_semaphores: Arc::as_ptr(view.inner.acquire_complete_semaphores.get(view.wait_semaphore).unwrap()),
                 p_wait_dst_stage_mask: &stage,
                 command_buffer_count: 0,
                 p_command_buffers: ptr::null(),
                 signal_semaphore_count: 1,
-                p_signal_semaphores: &view.signal_semaphore as _,
+                p_signal_semaphores: Arc::as_ptr(view.inner.rendering_complete_semaphores.get(view.signal_semaphore).unwrap()),
             };
 
             let submit_result = unsafe {
-                self.device
+                self.inner.device
                     .queue_submit(self.queue, &[submit_info], vk::Fence::null())
             };
 
@@ -547,18 +539,18 @@ impl Swapchain {
             s_type: vk::StructureType::PRESENT_INFO_KHR,
             p_next: ptr::null(),
             p_image_indices: &view.index as _,
-            p_swapchains: &self.raw,
+            p_swapchains: self.inner.raw.as_ptr(),
             swapchain_count: 1,
-            p_wait_semaphores: &view.signal_semaphore as _,
+            p_wait_semaphores: Arc::as_ptr(&self.inner.rendering_complete_semaphores[view.signal_semaphore]),
             wait_semaphore_count: 1,
             p_results: ptr::null_mut(),
         };
 
-        let result = unsafe { self.loader.queue_present(self.queue, &present_info) };
+        let result = unsafe { self.inner.loader.queue_present(self.queue, &present_info) };
 
         match result {
             Ok(b) => {
-                self.device.check_errors()?;
+                self.inner.device.check_errors()?;
                 let frame = (self.frame.get() + 1) % self.frames_in_flight;
                 self.frame.set(frame);
                 Ok(b)
@@ -576,19 +568,30 @@ impl Swapchain {
     }
 }
 
-impl Drop for Swapchain {
+impl Drop for SwapchainInner {
     fn drop(&mut self) {
-        self.device.wait_idle().unwrap();
-
-        for texture in self.textures.drain(..) {
-            drop(texture);
+        let swapchain = unsafe { Md::take(&mut self.raw) };
+        if let Ok(swapchain) = Arc::try_unwrap(swapchain) {
+            unsafe { 
+                self.loader.destroy_swapchain(swapchain.get(), None) 
+            }
         }
 
-        for view in self.views.drain(..) {
-            drop(view);
+        for semaphore in self.acquire_complete_semaphores.drain(..) {
+            if let Ok(semaphore) = Arc::try_unwrap(semaphore) {
+                unsafe {
+                    self.device.destroy_semaphore(semaphore, None);
+                }
+            }
         }
 
-        unsafe { self.loader.destroy_swapchain(self.raw, None) }
+        for semaphore in self.rendering_complete_semaphores.drain(..) {
+            if let Ok(semaphore) = Arc::try_unwrap(semaphore) {
+                unsafe {
+                    self.device.destroy_semaphore(semaphore, None);
+                }
+            }
+        }
 
         let surface = unsafe { Md::take(&mut self.surface) };
         if let Ok(surface) = Arc::try_unwrap(surface) {
@@ -596,17 +599,17 @@ impl Drop for Swapchain {
                 self.surface_loader.destroy_surface(surface, None);
             }
         }
+    }   
+}
 
-        for semaphore in self.acquire_complete_semaphores.drain(..) {
-            unsafe {
-                self.device.destroy_semaphore(semaphore, None);
-            }
+impl Drop for Swapchain {
+    fn drop(&mut self) {
+        for texture in self.textures.drain(..) {
+            drop(texture);
         }
 
-        for semaphore in self.rendering_complete_semaphores.drain(..) {
-            unsafe {
-                self.device.destroy_semaphore(semaphore, None);
-            }
+        for view in self.views.drain(..) {
+            drop(view);
         }
     }
 }

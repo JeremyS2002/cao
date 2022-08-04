@@ -39,7 +39,7 @@ pub struct SurfaceInfo {
 /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkSurfaceKHR.html>
 pub struct Surface {
     pub(crate) raw: Md<Arc<vk::SurfaceKHR>>,
-    pub(crate) loader: Arc<khr::Surface>,
+    pub(crate) loader: khr::Surface,
 }
 
 impl std::fmt::Debug for Surface {
@@ -157,7 +157,7 @@ impl Surface {
         let loader = khr::Surface::new(&*crate::VK_ENTRY, &**instance.raw);
         Ok(Self {
             raw: Md::new(Arc::new(surface)),
-            loader: Arc::new(loader),
+            loader,
         })
     }
 
@@ -182,7 +182,7 @@ impl Surface {
         let loader = khr::Surface::new(&*crate::VK_ENTRY, &**instance.raw);
         Ok(Self {
             raw: Md::new(Arc::new(surface)),
-            loader: Arc::new(loader),
+            loader,
         })
     }
 
@@ -207,7 +207,7 @@ impl Surface {
         let loader = khr::Surface::new(&*crate::VK_ENTRY, &**instance.raw);
         Ok(Self {
             raw: Md::new(Arc::new(surface)),
-            loader: Arc::new(loader),
+            loader,
         })
     }
 

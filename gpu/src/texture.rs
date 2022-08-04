@@ -13,116 +13,142 @@ pub(crate) fn init_image_layout(
     texture: &crate::Texture,
     layout: crate::TextureLayout,
 ) -> Result<(), Error> {
-    use crate::command::raw;
+    // raw::begin_primary(device.command_buffer, &device.raw, true)?;
 
-    raw::begin_primary(device.command_buffer, &device.raw, true)?;
+    // raw::pipeline_barrier(
+    //     device.command_buffer,
+    //     &device.raw,
+    //     crate::PipelineStageFlags::TOP_OF_PIPE,
+    //     crate::PipelineStageFlags::BOTTOM_OF_PIPE,
+    //     &[],
+    //     &[crate::TextureAccessInfo {
+    //         texture: Cow::Borrowed(&texture),
+    //         base_array_layer: 0,
+    //         array_layers: texture.dimension().layers(),
+    //         base_mip_level: 0,
+    //         mip_levels: texture.mip_levels(),
+    //         src_access: crate::AccessFlags::empty(),
+    //         dst_access: crate::AccessFlags::empty(),
+    //         src_layout: crate::TextureLayout::Undefined,
+    //         dst_layout: layout,
+    //     }],
+    // )?;
 
-    raw::pipeline_barrier(
-        device.command_buffer,
-        &device.raw,
-        crate::PipelineStageFlags::TOP_OF_PIPE,
-        crate::PipelineStageFlags::BOTTOM_OF_PIPE,
-        &[],
-        &[crate::TextureAccessInfo {
-            texture: Cow::Borrowed(&texture),
-            base_array_layer: 0,
-            array_layers: texture.dimension().layers(),
-            base_mip_level: 0,
-            mip_levels: texture.mip_levels(),
-            src_access: crate::AccessFlags::empty(),
-            dst_access: crate::AccessFlags::empty(),
-            src_layout: crate::TextureLayout::Undefined,
-            dst_layout: layout,
-        }],
-    )?;
+    // raw::end_recording(device.command_buffer, &device.raw)?;
 
-    raw::end_recording(device.command_buffer, &device.raw)?;
+    // raw::submit(
+    //     &device.raw,
+    //     device.queue,
+    //     device.command_buffer,
+    //     &device.semaphore,
+    //     None,
+    //     device.fence,
+    //     None,
+    // )?;
 
-    raw::submit(
-        &device.raw,
-        device.queue,
-        device.command_buffer,
-        device.semaphore,
-        None,
-        device.fence,
-    )?;
+    let result = unsafe {
+        device.raw.begin_command_buffer(
+            device.command_buffer,
+            &vk::CommandBufferBeginInfo {
+                s_type: vk::StructureType::COMMAND_BUFFER_BEGIN_INFO,
+                p_next: ptr::null(),
+                p_inheritance_info: ptr::null(),
+                flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
+            }
+        )
+    };
+    match result {
+        Ok(_) => (),
+        Err(e) => return Err(e.into())
+    }
 
-    // let begin_info = vk::CommandBufferBeginInfo {
-    //     s_type: vk::StructureType::COMMAND_BUFFER_BEGIN_INFO,
-    //     p_next: ptr::null(),
-    //     p_inheritance_info: ptr::null(),
-    //     flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
-    // };
+    unsafe {
+        device.raw.cmd_pipeline_barrier(
+            device.command_buffer, 
+            vk::PipelineStageFlags::TOP_OF_PIPE, 
+            vk::PipelineStageFlags::BOTTOM_OF_PIPE, 
+            vk::DependencyFlags::empty(), 
+            &[], 
+            &[], 
+            &[vk::ImageMemoryBarrier {
+                s_type: vk::StructureType::IMAGE_MEMORY_BARRIER,
+                p_next: ptr::null(),
+                src_access_mask: vk::AccessFlags::empty(),
+                dst_access_mask: vk::AccessFlags::empty(),
+                old_layout: vk::ImageLayout::UNDEFINED,
+                new_layout: layout.into(),
+                image: **texture.raw,
+                src_queue_family_index: vk::QUEUE_FAMILY_IGNORED,
+                dst_queue_family_index: vk::QUEUE_FAMILY_IGNORED,
+                subresource_range: vk::ImageSubresourceRange {
+                    aspect_mask: texture.format.aspects().into(),
+                    base_mip_level: 0,
+                    level_count: texture.mip_levels,
+                    base_array_layer: 0,
+                    layer_count: texture.dimension().layers(),
+                },
+            }]
+        );
+    }
+    
+    let result = unsafe { device.raw.end_command_buffer(device.command_buffer) };
+    match result {
+        Ok(_) => (),
+        Err(e) => return Err(e.into()),
+    }
 
-    // let begin_result = unsafe {
-    //     device
-    //         .raw
-    //         .begin_command_buffer(device.command_buffer, &begin_info)
-    // };
+    let mut semaphores = device.raw.semaphores.lock();
 
-    // match begin_result {
-    //     Ok(_) => (),
-    //     Err(e) => return Err(e.into()),
-    // }
+    let wait_semaphore = if let Some(s) = semaphores.get(&std::thread::current().id()) {
+        Some(s)
+    } else {
+        None
+    };
 
-    // unsafe {
-    //     device.raw.cmd_pipeline_barrier(
-    //         device.command_buffer,
-    //         vk::PipelineStageFlags::TOP_OF_PIPE,
-    //         vk::PipelineStageFlags::BOTTOM_OF_PIPE,
-    //         vk::DependencyFlags::empty(),
-    //         &[],
-    //         &[],
-    //         &[vk::ImageMemoryBarrier {
-    //             s_type: vk::StructureType::IMAGE_MEMORY_BARRIER,
-    //             p_next: ptr::null(),
-    //             src_access_mask: vk::AccessFlags::empty(),
-    //             dst_access_mask: vk::AccessFlags::empty(),
-    //             old_layout: vk::ImageLayout::UNDEFINED,
-    //             new_layout: layout,
-    //             image,
-    //             src_queue_family_index: vk::QUEUE_FAMILY_IGNORED,
-    //             dst_queue_family_index: vk::QUEUE_FAMILY_IGNORED,
-    //             subresource_range: vk::ImageSubresourceRange {
-    //                 aspect_mask: format.aspects().into(),
-    //                 base_mip_level: 0,
-    //                 level_count: vk::REMAINING_MIP_LEVELS,
-    //                 base_array_layer: 0,
-    //                 layer_count: vk::REMAINING_ARRAY_LAYERS,
-    //             },
-    //         }],
-    //     );
-    // }
+    let signal_semaphore = &**device.semaphore;
 
-    // let end_result = unsafe { device.raw.end_command_buffer(device.command_buffer) };
+    let wait_dst_stage_mask = vk::PipelineStageFlags::BOTTOM_OF_PIPE;
 
-    // match end_result {
-    //     Ok(_) => (),
-    //     Err(e) => return Err(e.into()),
-    // }
+    let submit_info = vk::SubmitInfo {
+        s_type: vk::StructureType::SUBMIT_INFO,
+        p_next: ptr::null(),
+        wait_semaphore_count: if wait_semaphore.is_some() { 1 } else { 0 },
+        p_wait_semaphores: wait_semaphore.as_ref().map(|s| (&***s)  as _).unwrap_or(ptr::null() as _),
+        p_wait_dst_stage_mask: &wait_dst_stage_mask,
+        signal_semaphore_count: 1,
+        p_signal_semaphores: signal_semaphore as _,
+        command_buffer_count: 1,
+        p_command_buffers: &device.command_buffer,
+    };
 
-    // let submit_info = vk::SubmitInfo {
-    //     s_type: vk::StructureType::SUBMIT_INFO,
-    //     p_next: ptr::null(),
-    //     wait_semaphore_count: 0,
-    //     p_wait_semaphores: ptr::null(),
-    //     p_wait_dst_stage_mask: ptr::null(),
-    //     signal_semaphore_count: 0,
-    //     p_signal_semaphores: ptr::null(),
-    //     command_buffer_count: 1,
-    //     p_command_buffers: &device.command_buffer,
-    // };
+    let mut waiting_on_semaphore = device.waiting_on_semaphore.lock().unwrap();
+    if let Some(semaphore) = waiting_on_semaphore.take() {
+        if let Ok(semaphore) = Arc::try_unwrap(semaphore) {
+            unsafe {
+                device.raw.destroy_semaphore(semaphore, None);
+            }
+        }
+    }
 
-    // let submit_result = unsafe {
-    //     device
-    //         .raw
-    //         .queue_submit(device.queue, &[submit_info], device.fence)
-    // };
+    if let Some(wait) = wait_semaphore {
+        *waiting_on_semaphore = Some(Arc::clone(wait));
+    }
 
-    // match submit_result {
-    //     Ok(_) => (),
-    //     Err(e) => return Err(e.into()),
-    // }
+    semaphores.insert(std::thread::current().id(), Arc::clone(&*device.semaphore));
+
+    let submit_result = unsafe { 
+        device.raw.queue_submit(
+            device.queue, 
+            &[submit_info], 
+            device.fence
+        )
+    };
+
+
+    match submit_result {
+        Ok(_) => (),
+        Err(e) => return Err(e.into()),
+    }
 
     let wait_result = unsafe { device.raw.wait_for_fences(&[device.fence], true, !0) };
 
@@ -138,7 +164,7 @@ pub(crate) fn init_image_layout(
         Err(e) => return Err(e.into()),
     };
 
-    Ok(())
+    Ok(device.raw.check_errors()?)
 }
 
 /// Describes a Texture on the gpu
@@ -548,11 +574,9 @@ impl Drop for Texture {
             if let Some(memory) = self.memory.take() {
                 let raw = Md::take(&mut self.raw);
                 if let Ok(raw) = Arc::try_unwrap(raw) {
-                    self.device.wait_idle().unwrap();
                     self.device.destroy_image(raw, None);
                 }
                 if let Ok(memory) = Arc::try_unwrap(memory) {
-                    self.device.wait_idle().unwrap();
                     self.device.free_memory(memory, None);
                 }
             }
@@ -713,7 +737,6 @@ impl TextureView {
 impl Drop for TextureView {
     fn drop(&mut self) {
         unsafe {
-            self.device.wait_idle().unwrap();
             let framebuffers = Md::take(&mut self.framebuffers);
             #[cfg(feature = "parking_lot")]
             if let Ok(framebuffers) = Arc::try_unwrap(framebuffers) {
@@ -727,7 +750,9 @@ impl Drop for TextureView {
             if let Ok(framebuffers) = Arc::try_unwrap(framebuffers) {
                 for key in framebuffers.into_inner().drain(..) {
                     if let Some(framebuffer) = self.device.framebuffers.write().remove(&key) {
-                        self.device.destroy_framebuffer(framebuffer, None);
+                        if let Ok(framebuffer) = Arc::try_unwrap(framebuffer) {
+                            self.device.destroy_framebuffer(framebuffer, None);
+                        }
                     }
                 }
             }
