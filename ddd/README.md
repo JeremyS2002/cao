@@ -25,6 +25,9 @@ cargo run --example cone --release
         - [ ] subsurface scattering
         - [ ] shadow volumes
         - [ ] raytraced shadows
+    - [ ] volume lights
+        - [ ] basic lighting
+        - [ ] shadows
     - [ ] hdr
         - [ ] gamma correction
         - [x] reinhard
@@ -33,7 +36,7 @@ cargo run --example cone --release
     - [ ] antialiasing
         - [x] msaa
         - [ ] smaa (1x ✔️ T2x ❌ S2x ❌ 4x ❌)
-    - [ ] normal mapping
+    - [x] normal mapping
     - [ ] parallax mapping
     - [ ] postprocessing
         - [ ] bloom

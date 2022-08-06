@@ -1,3 +1,14 @@
+//! Environment lighting effects
+//! 
+//! This module provides utilities for image based lighting (IBL).
+//! IBL provides much more realistic effects especiallly for smooth metallic materials
+//!  
+//! The basic steps to set up image based lighting are:
+//!  - load hdri image
+//!  - convert equirectangular image to cubemap texture (see [`new_skybox`])
+//!  - convert cubemap texture to environment map (see [`new_env_map`])
+//!  - use the environment map to render lighting (see [`EnvironmentRenderer::environment_pass`])
+
 use crate::cone::*;
 use crate::prelude::*;
 
@@ -51,7 +62,7 @@ pub fn new_env_map(
     brdf_resolution: u32,
     sample_count: u32,
 ) -> Result<EnvironmentMap, gpu::Error> {
-    let generator = EnvironmentMapGenerator::new(encoder, device)?;
+    let generator = EnvironmentMapGenerator::new(encoder, device, None)?;
     let mip_levels = gfx::max_mip_levels(gfx::texture::D1(specular_resolution));
     generator.generate(
         encoder,
@@ -96,7 +107,7 @@ impl SkyBoxGenerator<'static> {
     ) -> Result<Self, gpu::Error> {
         let pipeline = Self::pipeline(device)?;
         let sampler = device.create_sampler(&gpu::SamplerDesc::default())?;
-        let cube = mesh::create_cube(encoder, device, None)?;
+        let cube = mesh::cube(encoder, device, None)?;
         Ok(Self {
             pipeline,
             rgb_to_rgba: None,
@@ -350,10 +361,19 @@ impl EnvironmentMapGenerator<'static> {
     pub fn new(
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
+        name: Option<String>,
     ) -> Result<Self, gpu::Error> {
-        let [diffuse_pipeline, specular_pipeline, brdf_pipeline] = Self::pipelines(device)?;
-        let sampler = device.create_sampler(&gpu::SamplerDesc::default())?;
-        let cube = mesh::create_cube(encoder, device, None)?;
+        let sampler = device.create_sampler(&gpu::SamplerDesc {
+            name: name.as_ref().map(|n| format!("{}_sampler", n)),
+            ..Default::default()
+        })?;
+        let cube = mesh::cube(
+            encoder, 
+            device, 
+            name.as_ref().map(|n| format!("{}_cube", n))
+        )?;
+        let [diffuse_pipeline, specular_pipeline, brdf_pipeline] = Self::pipelines(device, name)?;
+        
         Ok(Self {
             diffuse_pipeline,
             specular_pipeline,
@@ -365,7 +385,7 @@ impl EnvironmentMapGenerator<'static> {
 }
 
 impl<'a> EnvironmentMapGenerator<'a> {
-    pub fn pipelines(device: &gpu::Device) -> Result<[gfx::ReflectedGraphics; 3], gpu::Error> {
+    pub fn pipelines(device: &gpu::Device, name: Option<String>) -> Result<[gfx::ReflectedGraphics; 3], gpu::Error> {
         let cube_push_vertex_spv = gpu::include_spirv!("../../../shaders/cone/cube_push.vert.spv");
         let cube_buffer_vertex_spv = gpu::include_spirv!("../../../shaders/cone/cube_buffer.vert.spv");
         let diffuse_spv =
@@ -383,7 +403,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
-            None,
+            name.as_ref().map(|n| format!("{}_diffuse_renderer", n)),
         ) {
             Ok(g) => g,
             Err(e) => match e {
@@ -659,7 +679,7 @@ impl EnvironmentMap {
 }
 
 bitflags::bitflags!(
-    pub struct EnvironmentRendererFlags: u32 {
+    pub struct EnvironmentRendererFlags: u8 {
         const AMBIENT          = 0b0001;
         const SKYBOX           = 0b0010;
         const ENVIRONMENT      = 0b0100;
@@ -678,6 +698,7 @@ pub struct EnvironmentRenderer {
     /// Environment map lighting
     pub environment: Option<gfx::ReflectedGraphics>,
     pub environment_bundles: HashMap<(u64, u64, u64), gfx::Bundle>,
+    pub sampler: gpu::Sampler,
 }
 
 impl EnvironmentRenderer {
@@ -685,18 +706,23 @@ impl EnvironmentRenderer {
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
         flags: EnvironmentRendererFlags,
-        name: Option<&str>,
+        name: Option<String>,
     ) -> Result<Self, gpu::Error> {
+        let sampler = device.create_sampler(&gpu::SamplerDesc {
+            name: name.as_ref().map(|n| format!("{}_sampler", n)),
+            ..gpu::SamplerDesc::LINEAR
+        })?;
+
         Ok(Self {
-            cube: mesh::create_cube(
+            cube: mesh::cube(
                 encoder,
                 device,
-                name.map(|n| format!("{}_cube", n)).as_ref().map(|n| &**n),
+                name.as_ref().map(|n| format!("{}_cube", n)),
             )?,
             ambient: if flags.contains(EnvironmentRendererFlags::AMBIENT) {
                 Some(Self::create_ambient(
                     device,
-                    name.map(|n| format!("{}_ambient", n)),
+                    name.as_ref().map(|n| format!("{}_ambient", n)),
                 )?)
             } else {
                 None
@@ -705,7 +731,7 @@ impl EnvironmentRenderer {
             skybox: if flags.contains(EnvironmentRendererFlags::SKYBOX) {
                 Some(Self::create_skybox(
                     device,
-                    name.map(|n| format!("{}_skybox", n)),
+                    name.as_ref().map(|n| format!("{}_skybox", n)),
                 )?)
             } else {
                 None
@@ -714,12 +740,13 @@ impl EnvironmentRenderer {
             environment: if flags.contains(EnvironmentRendererFlags::ENVIRONMENT) {
                 Some(Self::create_environment(
                     device,
-                    name.map(|n| format!("{}_environment", n)),
+                    name.as_ref().map(|n| format!("{}_environment", n)),
                 )?)
             } else {
                 None
             },
             environment_bundles: HashMap::new(),
+            sampler,
         })
     }
 
@@ -841,6 +868,7 @@ impl EnvironmentRenderer {
 }
 
 impl EnvironmentRenderer {
+    /// Create and insert or get a bundle referencing the geometry buffer and return it
     pub fn ambient_bundle(
         &mut self,
         device: &gpu::Device,
@@ -859,7 +887,7 @@ impl EnvironmentRenderer {
                 .unwrap()
                 .set_resource("u_ao", buffer.get("ao").unwrap())
                 .unwrap()
-                .set_resource("u_sampler", &buffer.sampler)
+                .set_resource("u_sampler", &self.sampler)
                 .unwrap()
                 .build(device)?;
             self.ambient_bundles.insert(buffer.id, b.clone());
@@ -867,6 +895,7 @@ impl EnvironmentRenderer {
         }
     }
 
+    /// Create and insert or get a bundle referencing the geometry buffer camera and skybox and return it
     pub fn skybox_bundle(
         &mut self,
         device: &gpu::Device,
@@ -888,7 +917,7 @@ impl EnvironmentRenderer {
                 .unwrap()
                 .set_resource("u_skybox", skybox)
                 .unwrap()
-                .set_resource("u_sampler", &buffer.sampler)
+                .set_resource("u_sampler", &self.sampler)
                 .unwrap()
                 .build(device)?;
             self.skybox_bundles.insert(key, b.clone());
@@ -896,6 +925,7 @@ impl EnvironmentRenderer {
         }
     }
 
+    /// Create and insert or get a bundle referencing the geometry buffer camera and environment map and return it
     pub fn environment_bundle(
         &mut self,
         device: &gpu::Device,
@@ -927,7 +957,7 @@ impl EnvironmentRenderer {
                 .unwrap()
                 .set_resource("u_ao", buffer.get("ao").unwrap())
                 .unwrap()
-                .set_resource("u_sampler", &buffer.sampler)
+                .set_resource("u_sampler", &self.sampler)
                 .unwrap()
                 .set_resource("u_camera", camera)
                 .unwrap()

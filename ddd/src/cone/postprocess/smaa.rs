@@ -1,3 +1,7 @@
+//! SMAA: (Enhanced) Subpixel Morphological Antialiasing
+//! 
+//! See the reference implementation for more info <https://github.com/iryoku/smaa>
+
 use gfx::prelude::*;
 
 use super::smaa_area;

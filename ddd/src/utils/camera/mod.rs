@@ -1,5 +1,21 @@
-// use embers_gfx as gfx;
-// use embers_gpu as gpu;
+//! Camera and Camera Controlling
+//! 
+//! A camera is just
+//!  - projection: Mat4
+//!  - view: Mat4
+//!  - position: Mat4
+//! 
+//! The camera's matrices transform between different corrdinate systems.
+//! The fourth component of the matrix is used to translate corrdinates.
+//! 
+//! Objects vertices have positions in "world space", this is the coordinate system that is most intuitive and is what mesh's positions are given in.
+//! The view matrix transforms the world space into view space, it moves the origin to the camera's position and rotates the axes to be oriented to the camera
+//! The projection matrix transforms the view space to screen space, this is essentiall the final position the object appears on the screen
+//! 
+//! For more information on camera transforms see: <https://learnopengl.com/Getting-started/Coordinate-Systems>
+//! 
+//! Since it's not intuitive to work directly with matrices camera controllers produce the view and projection matrices from and internal state that is easier
+//! to understand and control based on user input. See [`controller`] for more infomation.
 
 use crate::*;
 

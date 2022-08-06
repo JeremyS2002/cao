@@ -124,19 +124,19 @@ impl PointLightRenderer {
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
         flags: PointLightRendererFlags,
-        name: Option<&str>,
+        name: Option<String>,
     ) -> Result<Self, gpu::Error> {
         Ok(Self {
-            sphere: mesh::create_ico_sphere(
+            sphere: mesh::ico_sphere(
                 encoder,
                 device,
                 3,
-                name.map(|n| format!("{}_sphere", n)).as_ref().map(|n| &**n),
+                name.as_ref().map(|n| format!("{}_sphere", n)),
             )?,
             base_clipped: if flags.contains(PointLightRendererFlags::BASE_CLIPPED) {
                 Some(Self::create_base_clipped(
                     device,
-                    name.map(|n| format!("{}_base_clipped_pipeline", n)),
+                    name.as_ref().map(|n| format!("{}_base_clipped_pipeline", n)),
                 )?)
             } else {
                 None
@@ -145,7 +145,7 @@ impl PointLightRenderer {
             base_full: if flags.contains(PointLightRendererFlags::BASE_FULL) {
                 Some(Self::create_base_full(
                     device,
-                    name.map(|n| format!("{}_base_full", n)),
+                    name.as_ref().map(|n| format!("{}_base_full", n)),
                 )?)
             } else {
                 None
@@ -154,7 +154,7 @@ impl PointLightRenderer {
             shadow_clipped: if flags.contains(PointLightRendererFlags::SHADOW_CLIPPED) {
                 Some(Self::create_shadow_clipped(
                     device,
-                    name.map(|n| format!("{}_base_full", n)),
+                    name.as_ref().map(|n| format!("{}_base_full", n)),
                 )?)
             } else {
                 None
@@ -163,7 +163,7 @@ impl PointLightRenderer {
             shadow_full: if flags.contains(PointLightRendererFlags::SHADOW_FULL) {
                 Some(Self::create_shadow_full(
                     device,
-                    name.map(|n| format!("{}_base_full", n)),
+                    name.as_ref().map(|n| format!("{}_base_full", n)),
                 )?)
             } else {
                 None
@@ -172,7 +172,7 @@ impl PointLightRenderer {
             subsurface_clipped: if flags.contains(PointLightRendererFlags::SUBSURFACE_CLIPPED) {
                 Some(Self::create_subsurface_clipped(
                     device,
-                    name.map(|n| format!("{}_base_full", n)),
+                    name.as_ref().map(|n| format!("{}_base_full", n)),
                 )?)
             } else {
                 None
@@ -181,7 +181,7 @@ impl PointLightRenderer {
             subsurface_full: if flags.contains(PointLightRendererFlags::SUBSURFACE_FULL) {
                 Some(Self::create_subsurface_full(
                     device,
-                    name.map(|n| format!("{}_base_full", n)),
+                    name.as_ref().map(|n| format!("{}_base_full", n)),
                 )?)
             } else {
                 None

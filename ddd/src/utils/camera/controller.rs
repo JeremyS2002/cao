@@ -1,3 +1,12 @@
+//! Controlling cameras
+//! 
+//! [`CameraController`] provides an interface to controll cameras.
+//! 
+//! FPS games control very differently to isomorphic games or third person adventures but the cameras are all doing essentially the same thing.
+//! This module provides and interface and some basic implementations of how cameras can be controlled.
+//! 
+//! [`DebugController`] provides a free cam type interface. Able to move anywhere and look anywhere
+
 use super::CameraData;
 
 #[derive(Copy, Clone, Hash, Debug, PartialEq, Eq)]
@@ -27,7 +36,7 @@ pub trait CameraController {
         &self,
         encoder: &mut gfx::CommandEncoder,
         device: &gpu::Device,
-        name: Option<&str>,
+        name: Option<String>,
     ) -> Result<super::Camera, gpu::Error> {
         let data = self.cam_data();
         super::Camera::new(encoder, device, data, name)
@@ -55,9 +64,9 @@ pub trait CameraController {
     }
 }
 
-/// A basic fps camera controller type supporting either perspective or orthographic projections
+/// A basic free cam controller type supporting either perspective or orthographic projections
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub struct GameController {
+pub struct DebugController {
     pub position: glam::Vec3,
     pub forward: glam::Vec3,
     pub world_up: glam::Vec3,
@@ -70,7 +79,7 @@ pub struct GameController {
     pub projection: glam::Mat4,
 }
 
-impl Default for GameController {
+impl Default for DebugController {
     fn default() -> Self {
         Self::from_flipped_perspective(
             glam::vec3(0.0, 0.0, 0.0),
@@ -87,7 +96,7 @@ impl Default for GameController {
     }
 }
 
-impl GameController {
+impl DebugController {
     pub fn from_raw(
         position: glam::Vec3,
         forward: glam::Vec3,
@@ -238,7 +247,7 @@ impl GameController {
     }
 }
 
-impl CameraController for GameController {
+impl CameraController for DebugController {
     fn move_cam(&mut self, dir: CameraMoveDirection, dt: f32) {
         match dir {
             CameraMoveDirection::Forward => self.position += self.forward * self.speed * dt,

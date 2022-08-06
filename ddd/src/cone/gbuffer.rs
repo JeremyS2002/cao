@@ -1,12 +1,27 @@
 use std::collections::HashMap;
 // use std::collections::hash_map::DefaultHasher;
 
+/// How precise the geometry buffer should store data
+pub enum GeometryBufferPrecision {
+    /// 8 bit normalized textures
+    /// 
+    /// NOTE: This removes the ability to perform some post-processing effects
+    /// like bloom or tonemapping
+    Low,
+    /// 16 bit floating point textures
+    Medium,
+    /// 32 bit floating point textures
+    High,
+    /// 64 bit floating point textures
+    Ultra,
+}
+
 pub struct GeometryBuffer {
     pub(crate) id: u64,
     pub(crate) width: u32,
     pub(crate) height: u32,
-    maps: HashMap<String, gfx::GTexture2D>,
-    ms_maps: HashMap<String, gfx::GTexture2D>,
+    pub maps: HashMap<String, gfx::GTexture2D>,
+    pub ms_maps: HashMap<String, gfx::GTexture2D>,
     pub depth: gfx::GTexture2D,
     pub ms_depth: Option<gfx::GTexture2D>,
     pub sampler: gpu::Sampler,
@@ -19,21 +34,32 @@ impl GeometryBuffer {
         width: u32,
         height: u32,
         ms: gpu::Samples,
+        quality: GeometryBufferPrecision,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let mut maps = HashMap::new();
         let mut ms_maps = HashMap::new();
 
+        use gpu::Format::*;
+
+        let (r, rg, rgb, rgba) = match quality {
+            GeometryBufferPrecision::Low => (R8Unorm, Rg8Unorm, Rgb8Unorm, Rgba8Unorm),
+            GeometryBufferPrecision::Medium => (R16Float, Rg16Float, Rgb16Float, Rgba16Float),
+            GeometryBufferPrecision::High => (R32Float, Rg32Float, Rgb32Float, Rgba32Float),
+            GeometryBufferPrecision::Ultra => (R64Float, Rg64Float, Rgb64Float, Rgba64Float),
+        };
+
         let map_name_formats = [
-            ("position", gpu::Format::Rgb32Float),
-            ("normal", gpu::Format::Rgb32Float),
-            ("albedo", gpu::Format::Rgba32Float),
-            ("roughness", gpu::Format::R32Float),
-            ("metallic", gpu::Format::R32Float),
-            ("subsurface", gpu::Format::Rgba32Float),
-            ("uv", gpu::Format::Rg32Float),
-            ("ao", gpu::Format::R32Float),
-            ("output", gpu::Format::Rgba32Float),
+            ("position", rgb),
+            ("normal", rgb),
+            ("albedo", rgba),
+            ("roughness", r),
+            ("metallic", r),
+            ("subsurface", rgba),
+            ("uv", rg),
+            ("ao_tmp", r),
+            ("ao", r),
+            ("output", rgba),
         ];
 
         for (n, format) in map_name_formats {
@@ -111,9 +137,8 @@ impl GeometryBuffer {
             wrap_x: gpu::WrapMode::ClampToEdge,
             wrap_y: gpu::WrapMode::ClampToEdge,
             wrap_z: gpu::WrapMode::ClampToEdge,
-            min_filter: gpu::FilterMode::Linear,
-            mag_filter: gpu::FilterMode::Linear,
-            mipmap_filter: gpu::FilterMode::Linear,
+            min_filter: gpu::FilterMode::Nearest,
+            mag_filter: gpu::FilterMode::Nearest,
             ..Default::default()
         })?;
 
@@ -133,6 +158,10 @@ impl GeometryBuffer {
             sampler,
             depth_sampler,
         })
+    }
+
+    pub fn id(&self) -> u64 {
+        self.id
     }
 
     pub fn ms(&self) -> bool {

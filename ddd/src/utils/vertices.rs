@@ -1,3 +1,5 @@
+//! Vertices used internally
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BasicVertex(pub glam::Vec3);
 
@@ -33,12 +35,36 @@ impl gfx::Vertex for BasicVertex {
     }
 }
 
-impl mesh::BasicVertex for BasicVertex {
-    fn new(pos: glam::Vec3) -> Self {
+impl mesh::Vertex for BasicVertex {
+    fn new(
+        pos: glam::Vec3,
+        _: glam::Vec2,
+        _: glam::Vec3,
+        _: Option<glam::Vec3>,
+        _: Option<glam::Vec3>,
+    ) -> Self {
         Self(pos)
     }
 
+    fn set_tangents(&mut self, _: glam::Vec3, _: glam::Vec3) { }
+
     fn pos(&self) -> glam::Vec3 {
         self.0
+    }
+
+    fn normal(&self) -> Option<glam::Vec3> {
+        None
+    }
+
+    fn tangent_u(&self) -> Option<glam::Vec3> {
+        None
+    }
+
+    fn tangent_v(&self) -> Option<glam::Vec3> {
+        None
+    }
+
+    fn uv(&self) -> Option<glam::Vec2> {
+        None
     }
 }

@@ -17,133 +17,8 @@ use winit::{
 
 use winit_input_helper::WinitInputHelper;
 
-use std::convert::TryFrom;
-
 const WIDTH: u32 = 850;
 const HEIGHT: u32 = 850;
-
-#[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
-#[repr(C)]
-pub struct Vertex {
-    position: glam::Vec3,
-    normal: glam::Vec3,
-    uv: glam::Vec2,
-}
-
-unsafe impl bytemuck::Pod for Vertex {}
-unsafe impl bytemuck::Zeroable for Vertex {}
-
-impl gfx::Vertex for Vertex {
-    fn get(name: &str) -> Option<(u32, gpu::VertexFormat)> {
-        match name {
-            "in_pos" => Some((0, gpu::VertexFormat::Vec3)),
-            "in_normal" => Some((
-                std::mem::size_of::<glam::Vec3>() as u32,
-                gpu::VertexFormat::Vec3,
-            )),
-            "in_uv" => Some((
-                std::mem::size_of::<glam::Vec3>() as u32 * 2,
-                gpu::VertexFormat::Vec2,
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
-#[repr(C)]
-pub struct TVertex {
-    position: glam::Vec3,
-    normal: glam::Vec3,
-    tangent: glam::Vec3,
-    uv: glam::Vec2,
-}
-
-impl TVertex {
-    pub fn new(pos: [f32; 3], normal: [f32; 3], uv: [f32; 2]) -> Self {
-        Self {
-            position: pos.into(),
-            normal: normal.into(),
-            tangent: glam::vec3(0.0, 0.0, 0.0),
-            uv: uv.into(),
-        }
-    }
-}
-
-unsafe impl bytemuck::Pod for TVertex {}
-unsafe impl bytemuck::Zeroable for TVertex {}
-
-impl gfx::Vertex for TVertex {
-    fn get(name: &str) -> Option<(u32, gpu::VertexFormat)> {
-        match name {
-            "in_pos" => Some((0, gpu::VertexFormat::Vec3)),
-            "in_normal" => Some((
-                std::mem::size_of::<glam::Vec3>() as u32,
-                gpu::VertexFormat::Vec3,
-            )),
-            "in_tangent" => Some((
-                std::mem::size_of::<glam::Vec3>() as u32 * 2,
-                gpu::VertexFormat::Vec3,
-            )),
-            "in_uv" => Some((
-                std::mem::size_of::<glam::Vec3>() as u32 * 3,
-                gpu::VertexFormat::Vec2,
-            )),
-            _ => None,
-        }
-    }
-}
-
-impl mesh::TangentVertex for TVertex {
-    fn position(&self) -> glam::Vec3 {
-        self.position
-    }
-
-    fn uv(&self) -> glam::Vec2 {
-        self.uv
-    }
-
-    fn set_tangent(&mut self, tangent: glam::Vec3) {
-        self.tangent = tangent;
-    }
-}
-
-pub fn load_obj(
-    encoder: &mut gfx::CommandEncoder<'_>,
-    device: &gpu::Device,
-    path: &str,
-) -> Result<gfx::IndexedMesh<Vertex>, anyhow::Error> {
-    let (models, _) = tobj::load_obj(
-        path,
-        &tobj::LoadOptions {
-            triangulate: false,
-            ignore_lines: true,
-            ignore_points: true,
-            single_index: true,
-        },
-    )?;
-
-    let mesh = &models[0].mesh;
-    let vertices = mesh
-        .positions
-        .chunks(3)
-        .zip(mesh.normals.chunks(3))
-        .zip(mesh.texcoords.chunks(2))
-        .map(|((position, normal), uv)| Vertex {
-            position: <[f32; 3]>::try_from(position).unwrap().into(),
-            normal: <[f32; 3]>::try_from(normal).unwrap().into(),
-            uv: <[f32; 2]>::try_from(uv).unwrap().into(),
-        })
-        .collect::<Vec<_>>();
-
-    let indices = &*mesh.indices;
-
-    Ok(gfx::IndexedMesh::new(
-        encoder, device, &vertices, indices, None,
-    )?)
-}
 
 #[allow(dead_code)]
 pub struct Cone {
@@ -152,16 +27,17 @@ pub struct Cone {
     device: gpu::Device,
     swapchain: gpu::Swapchain,
 
-    controller: ddd::utils::GameController,
+    controller: ddd::utils::DebugController,
     camera: ddd::utils::Camera,
     buffer: cone::GeometryBuffer,
     env_renderer: cone::EnvironmentRenderer,
     point_renderer: cone::PointLightRenderer,
+    ao_renderer: cone::AORenderer,
     smaa_renderer: cone::SMAARenderer,
     display_renderer: cone::DisplayRenderer,
 
-    monkey: gfx::IndexedMesh<Vertex>,
-    plane: gfx::IndexedMesh<TVertex>,
+    mesh: gfx::IndexedMesh<cone::Vertex>,
+    plane: gfx::IndexedMesh<cone::Vertex>,
 
     leather_instance: ddd::utils::Instance,
     metal_instance: ddd::utils::Instance,
@@ -216,20 +92,17 @@ impl Cone {
 
         println!("loading objects...");
 
-        let monkey = load_obj(&mut encoder, &device, "../resources/models/suzanne.obj")?;
-        let mut plane_vertices = [
-            TVertex::new([-1.0, 0.0, -1.0], [0.0, 1.0, 0.0], [0.0, 0.0]),
-            TVertex::new([1.0, 0.0, -1.0], [0.0, 1.0, 0.0], [1.0, 0.0]),
-            TVertex::new([1.0, 0.0, 1.0], [0.0, 1.0, 0.0], [1.0, 1.0]),
-            TVertex::new([-1.0, 0.0, 1.0], [0.0, 1.0, 0.0], [0.0, 1.0]),
-        ];
-        let plane_indices = [0, 1, 2, 2, 3, 0];
-        mesh::calc_tangent_indexed(&mut plane_vertices, &plane_indices);
+        let mesh = mesh::load_meshes_from_obj(
+            &mut encoder, 
+            &device, 
+            true, 
+            "../resources/models/dragon.obj",
+            None,
+        )?.remove(0);
+        
+        let plane = mesh::xz_plane(&mut encoder, &device, None)?;
 
-        let plane =
-            gfx::IndexedMesh::new(&mut encoder, &device, &plane_vertices, &plane_indices, None)?;
-
-        let controller = ddd::utils::GameController::from_flipped_perspective(
+        let controller = ddd::utils::DebugController::from_flipped_perspective(
             glam::vec3(0.0, 0.0, 2.0),
             0.0,
             -std::f32::consts::FRAC_PI_2,
@@ -244,17 +117,20 @@ impl Cone {
 
         let camera = controller.create_cam(&mut encoder, &device, None)?;
 
-        let buffer =
-            cone::GeometryBuffer::new(&device, WIDTH, HEIGHT, gpu::Samples::S1, Some("buffers"))?;
+        let buffer = cone::GeometryBuffer::new(
+            &device, 
+            WIDTH, 
+            HEIGHT, 
+            gpu::Samples::S1, 
+            cone::GeometryBufferPrecision::Medium,
+            Some("buffers"),
+        )?;
 
         let smaa_renderer = cone::SMAARenderer::new(
             &mut encoder,
             &device,
             &buffer.get("output").unwrap().view,
-            cone::SMAAState {
-                edge: cone::SMAAEdgeMethod::Color,
-                quality: cone::SMAAQuality::High,
-            },
+            cone::SMAAState::MEDIUM,
             cone::DisplayFlags::all(),
             None,
         )?;
@@ -273,6 +149,18 @@ impl Cone {
             None,
         )?;
 
+        let ao_renderer = cone::AORenderer::new(
+            &mut encoder, 
+            &device, 
+            cone::AOParams {
+                kernel_size: 16,
+                radius: 0.5,
+                bias: 0.025,
+                ..Default::default()
+            }, 
+            None
+        )?;
+
         let sampler = device.create_sampler(&gpu::SamplerDesc {
             wrap_x: gpu::WrapMode::ClampToEdge,
             wrap_y: gpu::WrapMode::ClampToEdge,
@@ -286,28 +174,28 @@ impl Cone {
         let leather_instance = ddd::utils::Instance::new(
             &mut encoder,
             &device,
-            glam::Mat4::from_translation(glam::vec3(-4.5, 0.0, 0.0)).into(),
+            glam::Mat4::from_translation(glam::vec3(-4.5, -1.0, 0.0)).into(),
             None,
         )?;
 
         let metal_instance = ddd::utils::Instance::new(
             &mut encoder,
             &device,
-            glam::Mat4::from_translation(glam::vec3(-1.5, 0.0, 0.0)).into(),
+            glam::Mat4::from_translation(glam::vec3(-1.5, -1.0, 0.0)).into(),
             None,
         )?;
 
         let wax_instance = ddd::utils::Instance::new(
             &mut encoder,
             &device,
-            glam::Mat4::from_translation(glam::vec3(1.5, 0.0, 0.0)).into(),
+            glam::Mat4::from_translation(glam::vec3(1.5, -1.0, 0.0)).into(),
             None,
         )?;
 
         let chrome_instance = ddd::utils::Instance::new(
             &mut encoder,
             &device,
-            glam::Mat4::from_translation(glam::vec3(4.5, 0.0, 0.0)).into(),
+            glam::Mat4::from_translation(glam::vec3(4.5, -1.0, 0.0)).into(),
             None,
         )?;
 
@@ -317,7 +205,7 @@ impl Cone {
             glam::Mat4::from_scale_rotation_translation(
                 glam::vec3(7.0, 1.0, 7.0),
                 glam::Quat::IDENTITY,
-                glam::vec3(0.0, -1.5, 0.0),
+                glam::vec3(0.0, -1.0, 0.0),
             )
             .into(),
             None,
@@ -426,8 +314,8 @@ impl Cone {
             &camera,
             &wax_instance,
             &cone::MaterialData {
-                albedo: glam::vec4(1.0, 0.0, 0.0, 0.99),
-                roughness: 0.0,
+                albedo: glam::vec4(0.5, 0.1, 0.0, 1.0),
+                roughness: 0.8,
                 metallic: 0.0,
                 subsurface: glam::vec4(0.95, 0.66, 0.35, 0.9),
             },
@@ -493,7 +381,7 @@ impl Cone {
         )
         .unwrap();
 
-        let read = BufReader::new(File::open("../resources/images/hdri/night.hdr")?);
+        let read = BufReader::new(File::open("../resources/images/hdri/env.hdr")?);
         let decoder = image::codecs::hdr::HdrDecoder::new(read)?;
         let meta = decoder.metadata();
 
@@ -558,7 +446,7 @@ impl Cone {
 
         let display_renderer = cone::DisplayRenderer::new(
             &device, 
-            &buffer.get("roughness").unwrap().view, 
+            &buffer.get("ao").unwrap().view, 
             cone::DisplayFlags::all(),
             None,
         )?;
@@ -575,9 +463,10 @@ impl Cone {
             env_renderer,
             smaa_renderer,
             point_renderer,
+            ao_renderer,
             display_renderer,
 
-            monkey,
+            mesh,
             plane,
             metal_material,
             leather_material,
@@ -621,10 +510,10 @@ impl Cone {
             &self.device,
             &self.shadow,
             [
-                (&self.monkey as _, &self.leather_instance),
-                (&self.monkey as _, &self.metal_instance),
-                (&self.monkey as _, &self.wax_instance),
-                (&self.monkey as _, &self.chrome_instance),
+                (&self.mesh as _, &self.leather_instance),
+                (&self.mesh as _, &self.metal_instance),
+                (&self.mesh as _, &self.wax_instance),
+                (&self.mesh as _, &self.chrome_instance),
             ]
             .into_iter(),
             true,
@@ -634,7 +523,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.subsurface,
-            std::iter::once((&self.monkey as _, &self.wax_instance)),
+            std::iter::once((&self.mesh as _, &self.wax_instance)),
             true,
         )?;
 
@@ -642,7 +531,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.buffer,
-            Some(&self.monkey as _),
+            Some(&self.mesh as _),
             true,
         )?;
 
@@ -650,7 +539,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.buffer,
-            Some(&self.monkey as _),
+            Some(&self.mesh as _),
             false,
         )?;
 
@@ -658,7 +547,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.buffer,
-            Some(&self.monkey as _),
+            Some(&self.mesh as _),
             false,
         )?;
 
@@ -666,7 +555,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.buffer,
-            Some(&self.monkey as _),
+            Some(&self.mesh as _),
             false,
         )?;
 
@@ -678,14 +567,12 @@ impl Cone {
             false,
         )?;
 
-        self.buffer.clear_texture_ref(
+        self.ao_renderer.ao_pass(
             &mut encoder, 
-            "ao", 
-            gpu::ClearValue::ColorFloat([1.0; 4]),
-        );
-
-        self.env_renderer
-            .ambient_pass(&mut encoder, &self.device, &self.buffer, 0.1, true)?;
+            &self.device, 
+            &self.buffer, 
+            &self.camera
+        )?;
 
         self.env_renderer.environment_pass(
             &mut encoder,
@@ -693,8 +580,8 @@ impl Cone {
             &self.buffer,
             &self.camera,
             &self.env,
-            1.0,
-            false,
+            0.5,
+            true,
         )?;
 
         // self.point_renderer.base_full_pass(
@@ -725,8 +612,8 @@ impl Cone {
             &self.camera,
             Some((&self.light, &self.shadow, &self.subsurface)),
             1.0,
-            25,
-            25,
+            15,
+            15,
             false,
         )?;
 
