@@ -160,7 +160,8 @@ impl<'a> MaterialBuilder<'a> {
             let model_y = b.mat_col(model, 1).xyz(b);
             let model_z = b.mat_col(model, 2).xyz(b);
             let model3 = b.mat3(&model_x, &model_y, &model_z);
-            let out_norm = b.mul(model3, in_norm);
+            let mut out_norm = b.mul(model3, in_norm);
+            out_norm = out_norm.normalize(b);
             b.store_out(out_normal, out_norm);
 
             b.store_out(out_uv, b.load_in(in_uv));
@@ -223,7 +224,8 @@ impl<'a> MaterialBuilder<'a> {
             let model_y = b.mat_col(model, 1).xyz(b);
             let model_z = b.mat_col(model, 2).xyz(b);
             let model3 = b.mat3(&model_x, &model_y, &model_z);
-            let out_norm = b.mul(model3, in_norm);
+            let mut out_norm = b.mul(model3, in_norm);
+            out_norm = out_norm.normalize(b);
             b.store_out(out_normal, out_norm);
 
             let uv = b.load_in(in_uv);

@@ -171,31 +171,33 @@ impl Cone {
             ..Default::default()
         })?;
 
+        let scale = glam::Mat4::from_scale(glam::vec3(2.0, 2.0, 2.0));
+
         let leather_instance = ddd::utils::Instance::new(
             &mut encoder,
             &device,
-            glam::Mat4::from_translation(glam::vec3(-4.5, -1.0, 0.0)).into(),
+            (glam::Mat4::from_translation(glam::vec3(-4.5, -1.0, 0.0)) * scale).into(),
             None,
         )?;
 
         let metal_instance = ddd::utils::Instance::new(
             &mut encoder,
             &device,
-            glam::Mat4::from_translation(glam::vec3(-1.5, -1.0, 0.0)).into(),
+            (glam::Mat4::from_translation(glam::vec3(-1.5, -1.0, 0.0)) * scale).into(),
             None,
         )?;
 
         let wax_instance = ddd::utils::Instance::new(
             &mut encoder,
             &device,
-            glam::Mat4::from_translation(glam::vec3(1.5, -1.0, 0.0)).into(),
+            (glam::Mat4::from_translation(glam::vec3(1.5, -1.0, 0.0)) * scale).into(),
             None,
         )?;
 
         let chrome_instance = ddd::utils::Instance::new(
             &mut encoder,
             &device,
-            glam::Mat4::from_translation(glam::vec3(4.5, -1.0, 0.0)).into(),
+            (glam::Mat4::from_translation(glam::vec3(4.5, -1.0, 0.0)) * scale).into(),
             None,
         )?;
 
