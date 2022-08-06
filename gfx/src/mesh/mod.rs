@@ -74,7 +74,7 @@ impl<V: Vertex> IndexedMesh<V> {
         device: &gpu::Device,
         vertices: &[V],
         indices: &[u32],
-        name: Option<&str>,
+        name: Option<String>,
     ) -> Result<Self, gpu::Error> {
         Self::from_usage(
             encoder,
@@ -97,9 +97,9 @@ impl<V: Vertex> IndexedMesh<V> {
         vertex_usage: gpu::BufferUsage,
         indices: &[u32],
         index_usage: gpu::BufferUsage,
-        name: Option<&str>,
+        name: Option<String>,
     ) -> Result<Self, gpu::Error> {
-        let vertex_name = if let Some(name) = name {
+        let vertex_name = if let Some(name) = &name {
             Some(format!("{}_vertex_buffer", name))
         } else {
             None
@@ -114,7 +114,7 @@ impl<V: Vertex> IndexedMesh<V> {
             name: vertex_name,
         })?;
 
-        let index_name = if let Some(name) = name {
+        let index_name = if let Some(name) = &name {
             Some(format!("{}_index_buffer", name))
         } else {
             None
@@ -268,7 +268,7 @@ impl<V: Vertex> BasicMesh<V> {
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
         vertices: &[V],
-        name: Option<&str>,
+        name: Option<String>,
     ) -> Result<Self, gpu::Error> {
         Self::from_usage(encoder, device, vertices, gpu::BufferUsage::empty(), name)
     }
@@ -281,7 +281,7 @@ impl<V: Vertex> BasicMesh<V> {
         device: &gpu::Device,
         vertices: &[V],
         vertex_usage: gpu::BufferUsage,
-        name: Option<&str>,
+        name: Option<String>,
     ) -> Result<Self, gpu::Error> {
         let vertex_name = if let Some(name) = name {
             Some(format!("{}_vertex_buffer", name))
