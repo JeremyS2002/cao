@@ -777,7 +777,7 @@ impl<'a> BundleBuilder<'a> {
         &self,
         device: &gpu::Device,
         set: u32,
-    ) -> Result<gpu::DescriptorSet, gpu::Error> {
+    ) -> Result<gpu::DescriptorSet, error::BundleBuildError> {
         let name = self.parent_name.as_ref();
 
         let v: &Vec<Option<gpu::DescriptorSetEntry<'_>>> =
@@ -789,12 +789,13 @@ impl<'a> BundleBuilder<'a> {
             .map(|e| {
                 if let Some(e) = e {
                     binding += 1;
-                    e.clone()
+                    Ok(e.clone())
                 } else {
-                    panic!("ERROR: Call to build set {} on bundle {:?} without setting all fields\nMissing binding {}", set, name, binding);
+                    Err(error::BundleBuildError::MissingField(set, binding))
+                    //panic!("ERROR: Call to build set {} on bundle {:?} without setting all fields\nMissing binding {}", set, name, binding);
                 }
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(device.create_descriptor_set(&gpu::DescriptorSetDesc {
             name: name
@@ -806,7 +807,7 @@ impl<'a> BundleBuilder<'a> {
     }
 
     /// Build a Bundle from the current set
-    pub fn build(&self, device: &gpu::Device) -> Result<Bundle, gpu::Error> {
+    pub fn build(&self, device: &gpu::Device) -> Result<Bundle, error::BundleBuildError> {
         let mut set: u32 = 0;
         let mut binding: u32 = 0;
         let name = &self.parent_name;
@@ -820,12 +821,13 @@ impl<'a> BundleBuilder<'a> {
                     .map(|e| {
                         if let Some(e) = e {
                             binding += 1;
-                            e.clone()
+                            Ok(e.clone())
                         } else {
-                            panic!("ERROR: Call to build on bundle from Parent ({} {:?}) without setting all fields\nMissing set: {} binding: {}", self.parent_id, self.parent_name, set, binding)
+                            Err(error::BundleBuildError::MissingField(set, binding))
+                            //panic!("ERROR: Call to build on bundle from Parent ({} {:?}) without setting all fields\nMissing set: {} binding: {}", self.parent_id, self.parent_name, set, binding)
                         }
                     })
-                    .collect::<Vec<_>>();
+                    .collect::<Result<Vec<_>, _>>()?;
 
                 set += 1;
                 binding = 0;
@@ -839,7 +841,7 @@ impl<'a> BundleBuilder<'a> {
                 let descriptor = device.create_descriptor_set(&desc)?;
                 Ok(descriptor)
             })
-            .collect::<Result<Vec<_>, gpu::Error>>()?;
+            .collect::<Result<Vec<_>, error::BundleBuildError>>()?;
 
         Ok(Bundle {
             parent_id: self.parent_id,
