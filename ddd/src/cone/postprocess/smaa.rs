@@ -326,15 +326,21 @@ impl SMAARenderer {
         area: &gfx::GTexture2D,
         search: &gfx::GTexture2D,
     ) -> Result<(gfx::Bundle, gfx::Bundle), gpu::Error> {
-        let edge_detect_bundle = edge_detect
+        let edge_detect_bundle = match edge_detect
             .bundle()
             .unwrap()
             .set_resource("u_data", uniform)
             .unwrap()
             .set_combined_texture_sampler_ref("u_tex", (target, sampler))
             .unwrap()
-            .build(device)?;
-        let blend_weight_bundle = blend_weight
+            .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
+        let blend_weight_bundle = match blend_weight
             .bundle()
             .unwrap()
             .set_resource("u_data", uniform)
@@ -345,7 +351,13 @@ impl SMAARenderer {
             .unwrap()
             .set_resource("u_search", &(search, sampler))
             .unwrap()
-            .build(device)?;
+            .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
         Ok((edge_detect_bundle, blend_weight_bundle))
     }
 
@@ -467,7 +479,7 @@ impl SMAARenderer {
         let (neighborhood_blend_clip, neighborhood_blend_clip_bundle) =
             if flags.contains(DisplayFlags::CLIP) {
                 let g = Self::crate_clip(device, &state, name)?;
-                let b = g
+                let b = match g
                     .bundle()
                     .unwrap()
                     .set_resource("u_data", &uniform)
@@ -476,7 +488,13 @@ impl SMAARenderer {
                     .unwrap()
                     .set_resource("u_blend", &(&blend_target, &sampler))
                     .unwrap()
-                    .build(device)?;
+                    .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
 
                 (Some(g), Some(b))
             } else {
@@ -486,7 +504,7 @@ impl SMAARenderer {
         let (neighborhood_blend_reinhard, neighborhood_blend_reinhard_bundle) =
             if flags.contains(DisplayFlags::REINHARD) {
                 let g = Self::crate_reinhard(device, &state, name)?;
-                let b = g
+                let b = match g
                     .bundle()
                     .unwrap()
                     .set_resource("u_data", &uniform)
@@ -495,7 +513,13 @@ impl SMAARenderer {
                     .unwrap()
                     .set_resource("u_blend", &(&blend_target, &sampler))
                     .unwrap()
-                    .build(device)?;
+                    .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
 
                 (Some(g), Some(b))
             } else {
@@ -505,7 +529,7 @@ impl SMAARenderer {
         let (neighborhood_blend_aces, neighborhood_blend_aces_bundle) =
             if flags.contains(DisplayFlags::ACES) {
                 let g = Self::crate_clip(device, &state, name)?;
-                let b = g
+                let b = match g
                     .bundle()
                     .unwrap()
                     .set_resource("u_data", &uniform)
@@ -514,7 +538,13 @@ impl SMAARenderer {
                     .unwrap()
                     .set_resource("u_blend", &(&blend_target, &sampler))
                     .unwrap()
-                    .build(device)?;
+                    .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
 
                 (Some(g), Some(b))
             } else {

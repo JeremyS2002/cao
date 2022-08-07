@@ -48,42 +48,60 @@ impl DisplayRenderer {
         })?;
         let (clip, clip_bundle) = if flags.contains(DisplayFlags::CLIP) {
             let c = Self::create_clip(device, None)?;
-            let b = c
+            let b = match c
                 .bundle()
                 .unwrap()
                 .set_resource("u_texture", target)
                 .unwrap()
                 .set_resource("u_sampler", &sampler)
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
             (Some(c), Some(b))
         } else {
             (None, None)
         };
         let (reinhard, reinhard_bundle) = if flags.contains(DisplayFlags::REINHARD) {
             let c = Self::create_reinhard(device, None)?;
-            let b = c
+            let b = match c
                 .bundle()
                 .unwrap()
                 .set_resource("u_texture", target)
                 .unwrap()
                 .set_resource("u_sampler", &sampler)
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
             (Some(c), Some(b))
         } else {
             (None, None)
         };
         let (aces, aces_bundle) = if flags.contains(DisplayFlags::ACES) {
             let c = Self::create_aces(device, None)?;
-            let b = c
+            let b = match c
                 .bundle()
                 .unwrap()
                 .set_resource("u_texture", target)
                 .unwrap()
                 .set_resource("u_sampler", &sampler)
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
             (Some(c), Some(b))
         } else {
             (None, None)

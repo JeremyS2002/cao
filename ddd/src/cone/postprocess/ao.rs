@@ -10,11 +10,19 @@ use rand::Rng;
 use crate::cone::GeometryBuffer;
 use crate::utils::Camera;
 
+/// Parameters to tweak how ambient occlusion is calculated
 #[derive(Copy, Clone, Debug)]
+#[repr(C)]
 pub struct AOParams {
+    /// The number of samples to take for ambient occlusion calculation
     pub kernel_size: u32,
+    /// The radius to take the samples in stick to something small
     pub radius: f32,
+    /// The bias added to depth to prevent z fighting
     pub bias: f32,
+    /// The power to raise the occlusion to, higher powers create more occlusion
+    pub power: f32,
+    /// random sample vectors to sample depth values from use ..Default::default() for default random values
     pub samples: [glam::Vec3; 64],
 }
 
@@ -47,6 +55,7 @@ impl std::default::Default for AOParams {
             kernel_size: 32,
             radius: 0.5,
             bias: 0.025,
+            power: 1.0,
             samples: unsafe {
                 MaybeUninit::array_assume_init(samples)
             },
@@ -200,7 +209,7 @@ impl AORenderer {
         if let Some(b) = self.calc_bundles.get(&(buffer.id, camera.buffer.id())) {
             Ok(b.clone())
         } else {
-            let b = self.calc_pipeline.bundle().unwrap()
+            let b = match self.calc_pipeline.bundle().unwrap()
                 .set_resource("u_position", buffer.get("position").unwrap())
                 .unwrap()
                 .set_resource("u_normal", buffer.get("normal").unwrap())
@@ -215,7 +224,13 @@ impl AORenderer {
                 .unwrap()
                 .set_resource("u_camera", camera)
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
             self.calc_bundles.insert((buffer.id, camera.buffer.id()), b.clone());
             Ok(b)
         }
@@ -229,12 +244,18 @@ impl AORenderer {
         if let Some(b) = self.blur_bundles.get(&buffer.id) {
             Ok(b.clone())
         } else {
-            let b = self.blur_pipeline.bundle().unwrap()
+            let b = match self.blur_pipeline.bundle().unwrap()
                 .set_resource("u_ao_input", buffer.get("ao_tmp").unwrap())
                 .unwrap()
                 .set_resource("u_sampler", &buffer.sampler)
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
             self.blur_bundles.insert(buffer.id, b.clone());
             Ok(b)
         }

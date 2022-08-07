@@ -1,12 +1,14 @@
 #![feature(vec_into_raw_parts)]
 
 use ddd::cone;
+use ddd::clay;
 use ddd::glam;
 use ddd::prelude::*;
 use gfx::image;
 
 use std::fs::File;
 use std::io::BufReader;
+use std::borrow::Cow;
 
 use winit::{
     dpi::PhysicalSize,
@@ -35,14 +37,18 @@ pub struct Cone {
     ao_renderer: cone::AORenderer,
     smaa_renderer: cone::SMAARenderer,
     display_renderer: cone::DisplayRenderer,
+    solid_renderer: clay::SolidRenderer,
+    bloom_renderer: cone::BloomRenderer,
 
     mesh: gfx::IndexedMesh<cone::Vertex>,
     plane: gfx::IndexedMesh<cone::Vertex>,
+    cube: gfx::BasicMesh<clay::Vertex>,
 
     leather_instance: ddd::utils::Instance,
     metal_instance: ddd::utils::Instance,
     wax_instance: ddd::utils::Instance,
     chrome_instance: ddd::utils::Instance,
+    light_instance: ddd::utils::Instance,
 
     metal_material: cone::Material,
     leather_material: cone::Material,
@@ -102,6 +108,8 @@ impl Cone {
         
         let plane = mesh::xz_plane(&mut encoder, &device, None)?;
 
+        let cube = mesh::cube(&mut encoder, &device, None)?;
+
         let controller = ddd::utils::DebugController::from_flipped_perspective(
             glam::vec3(0.0, 0.0, 2.0),
             0.0,
@@ -122,7 +130,8 @@ impl Cone {
             WIDTH, 
             HEIGHT, 
             gpu::Samples::S1, 
-            cone::GeometryBufferPrecision::Medium,
+            cone::GeometryBufferPrecision::High,
+            cone::GeometryBuffer::ALL_MAPS,
             Some("buffers"),
         )?;
 
@@ -156,9 +165,25 @@ impl Cone {
                 kernel_size: 16,
                 radius: 0.5,
                 bias: 0.025,
+                power: 5.0,
                 ..Default::default()
             }, 
             None
+        )?;
+
+        let solid_renderer = clay::SolidRenderer::new(
+            &device,
+            None,
+        )?;
+
+        let bloom_renderer = cone::BloomRenderer::new(
+            &mut encoder, 
+            &device, 
+            8,
+            0.6,
+            1.2,
+            &buffer,
+            None,
         )?;
 
         let sampler = device.create_sampler(&gpu::SamplerDesc {
@@ -408,6 +433,8 @@ impl Cone {
             4096
         )?;
 
+        let light_pos = glam::vec3(0.0, 2.0, 0.0);
+
         let light = cone::PointLight::new(
             &mut encoder,
             &device,
@@ -415,10 +442,17 @@ impl Cone {
                 0.5,
                 0.0,
                 0.025,
-                [0.0, 2.0, 0.0].into(),
-                [5.0; 3].into(),
+                light_pos,
+                [2.5; 3].into(),
                 0.05,
             ),
+            None,
+        )?;
+
+        let light_instance = ddd::utils::Instance::new(
+            &mut encoder,
+            &device,
+            (glam::Mat4::from_translation(light_pos) * glam::Mat4::from_scale(glam::vec3(0.1, 0.1, 0.1))).into(),
             None,
         )?;
 
@@ -448,7 +482,7 @@ impl Cone {
 
         let display_renderer = cone::DisplayRenderer::new(
             &device, 
-            &buffer.get("ao").unwrap().view, 
+            &bloom_renderer.targets[0].view, 
             cone::DisplayFlags::all(),
             None,
         )?;
@@ -467,9 +501,13 @@ impl Cone {
             point_renderer,
             ao_renderer,
             display_renderer,
+            solid_renderer,
+            bloom_renderer,
 
             mesh,
             plane,
+            cube,
+
             metal_material,
             leather_material,
             chrome_material,
@@ -482,6 +520,7 @@ impl Cone {
             metal_instance,
             wax_instance,
             chrome_instance,
+            light_instance,
 
             light,
             shadow,
@@ -582,7 +621,7 @@ impl Cone {
             &self.buffer,
             &self.camera,
             &self.env,
-            0.5,
+            1.0,
             true,
         )?;
 
@@ -619,6 +658,33 @@ impl Cone {
             false,
         )?;
 
+        self.solid_renderer.pass(
+            &mut encoder, 
+            &self.device, 
+            gfx::Attachment {
+                raw: gpu::Attachment::View(
+                    Cow::Borrowed(&self.buffer.get("output").unwrap().view),
+                    gpu::ClearValue::ColorFloat([0.0; 4]),
+                ),
+                load: gpu::LoadOp::Load,
+                store: gpu::StoreOp::Store,
+            }, 
+            gfx::Attachment {
+                raw: gpu::Attachment::View(
+                    Cow::Borrowed(&self.buffer.depth.view),
+                    gpu::ClearValue::Depth(1.0),
+                ),
+                load: gpu::LoadOp::Load,
+                store: gpu::StoreOp::Store,
+            }, 
+            [(
+                &self.cube as _,
+                &self.light_instance,
+                [2.0, 2.0, 2.0, 1.0],
+            )], 
+            &self.camera
+        )?;
+
         self.env_renderer.skybox_pass(
             &mut encoder,
             &self.device,
@@ -627,6 +693,12 @@ impl Cone {
             &self.skybox,
             1.0,
             false,
+        )?;
+
+        self.bloom_renderer.bloom_pass(
+            &mut encoder, 
+            &self.device, 
+            &self.buffer
         )?;
 
         encoder.record(&mut self.offscreen_command, false)?;
@@ -723,10 +795,12 @@ impl Cone {
             self.subsurface.data.strength,
             self.subsurface.data.bias,
         );
+        self.light_instance.data.model = glam::Mat4::from_translation(self.light.data.position) * glam::Mat4::from_scale(glam::vec3(0.1, 0.1, 0.1));
 
         self.light.update_gpu_ref(&mut encoder);
         self.shadow.update_gpu_ref(&mut encoder);
         self.subsurface.update_gpu_ref(&mut encoder);
+        self.light_instance.update_gpu_ref(&mut encoder);
 
         self.controller
             .update_cam_owned(&mut encoder, &mut self.camera);
@@ -741,7 +815,7 @@ impl Cone {
             },
         )?;
 
-        // self.display_renderer.clip(
+        // self.display_renderer.aces(
         //     &mut encoder,
         //     &self.device,
         //     gfx::Attachment {

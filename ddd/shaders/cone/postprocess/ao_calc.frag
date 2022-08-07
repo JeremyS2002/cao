@@ -15,6 +15,7 @@ layout(set = 1, binding = 2) uniform Data {
     uint kernel_size;
     float radius;
     float bias;
+    float power;
     vec3 samples[64];
 } u_data;
 
@@ -56,5 +57,5 @@ void main() {
     }
     occlusion = 1.0 - (occlusion / float(u_data.kernel_size));
 
-    out_ao = occlusion;
+    out_ao = pow(occlusion, u_data.power);
 }

@@ -39,8 +39,8 @@ cargo run --example cone --release
     - [x] normal mapping
     - [ ] parallax mapping
     - [ ] postprocessing
-        - [ ] bloom
-        - [ ] ambient occlusion
+        - [x] bloom
+        - [x] ambient occlusion
         - [ ] screen space reflections
         - [ ] screen space refractions
         - [ ] outlining

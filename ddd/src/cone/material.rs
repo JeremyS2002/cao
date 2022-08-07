@@ -738,7 +738,13 @@ impl<'a> MaterialBuilder<'a> {
                 bundle = bundle.set_resource_by_location(1, i as _, f).unwrap()
             }
 
-            Some(bundle.build(device)?)
+            Some(match bundle.build(device)  {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            })
         } else {
             None
         };

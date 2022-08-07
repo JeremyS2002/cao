@@ -343,7 +343,7 @@ impl PointLightRenderer {
         if let Some(b) = self.base_clipped_bundles.get(&key) {
             Ok(b.clone())
         } else {
-            let b = self
+            let b = match self
                 .base_clipped
                 .as_ref()
                 .expect("ERROR: PointLightRenderer missing flags")
@@ -367,7 +367,13 @@ impl PointLightRenderer {
                 .unwrap()
                 .set_resource("u_camera", camera)
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                    Ok(b) => b,
+                    Err(e) => match e {
+                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    }
+                };
             self.base_clipped_bundles.insert(key, b.clone());
             Ok(b)
         }
@@ -384,7 +390,7 @@ impl PointLightRenderer {
         if let Some(b) = self.base_full_bundles.get(&key) {
             Ok(b.clone())
         } else {
-            let b = self
+            let b = match self
                 .base_full
                 .as_ref()
                 .expect("ERROR: PointLightRenderer missing flags")
@@ -408,7 +414,13 @@ impl PointLightRenderer {
                 .unwrap()
                 .set_resource("u_camera", camera)
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                    Ok(b) => b,
+                    Err(e) => match e {
+                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    }
+                };
             self.base_full_bundles.insert(key, b.clone());
             Ok(b)
         }
@@ -426,7 +438,7 @@ impl PointLightRenderer {
         if let Some(b) = self.shadow_clipped_bundles.get(&key) {
             Ok(b.clone())
         } else {
-            let b = self
+            let b = match self
                 .shadow_clipped
                 .as_ref()
                 .expect("ERROR: PointLightRenderer missing flags")
@@ -457,7 +469,13 @@ impl PointLightRenderer {
                     (&shadow.texture.view, &buffer.depth_sampler),
                 )
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
             self.shadow_clipped_bundles.insert(key, b.clone());
             Ok(b)
         }
@@ -475,7 +493,7 @@ impl PointLightRenderer {
         if let Some(b) = self.shadow_full_bundles.get(&key) {
             Ok(b.clone())
         } else {
-            let b = self
+            let b = match self
                 .shadow_full
                 .as_ref()
                 .expect("ERROR: PointLightRenderer missing flags")
@@ -506,7 +524,13 @@ impl PointLightRenderer {
                     (&shadow.texture.view, &buffer.depth_sampler),
                 )
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
             self.shadow_full_bundles.insert(key, b.clone());
             Ok(b)
         }
@@ -530,7 +554,7 @@ impl PointLightRenderer {
         if let Some(b) = self.subsurface_clipped_bundles.get(&key) {
             Ok(b.clone())
         } else {
-            let b = self
+            let b = match self
                 .subsurface_clipped
                 .as_ref()
                 .expect("ERROR: PointLightRenderer missing flags")
@@ -567,7 +591,13 @@ impl PointLightRenderer {
                 .unwrap()
                 .set_resource("u_subsurface_lut", &subsurface.lut)
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
             self.subsurface_clipped_bundles.insert(key, b.clone());
             Ok(b)
         }
@@ -591,7 +621,7 @@ impl PointLightRenderer {
         if let Some(b) = self.subsurface_full_bundles.get(&key) {
             Ok(b.clone())
         } else {
-            let b = self
+            let b = match self
                 .subsurface_full
                 .as_ref()
                 .expect("ERROR: PointLightRenderer missing flags")
@@ -628,7 +658,13 @@ impl PointLightRenderer {
                 .unwrap()
                 .set_resource("u_subsurface_lut", &subsurface.lut)
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
             self.subsurface_full_bundles.insert(key, b.clone());
             Ok(b)
         }

@@ -1,3 +1,4 @@
+use core::panic;
 use std::collections::HashMap;
 // use std::collections::hash_map::DefaultHasher;
 
@@ -29,14 +30,63 @@ pub struct GeometryBuffer {
 }
 
 impl GeometryBuffer {
-    pub fn new(
+    pub const SIMPLE_MAPS: &'static [(&'static str, u8)] = &[
+        ("position", 3),
+        ("normal", 3),
+        ("albedo", 4),
+        ("roughness", 1),
+        ("metallic", 1),
+        ("uv", 2),
+        ("output", 4),
+    ];
+
+    pub const SIMPLE_AND_SUBSURFACE_MAPS: &'static [(&'static str, u8)] = &[
+        ("position", 3),
+        ("normal", 3),
+        ("albedo", 4),
+        ("roughness", 1),
+        ("metallic", 1),
+        ("uv", 2),
+        ("output", 4),
+        ("subsurface", 4),
+    ];
+
+    pub const SIMPLE_AND_AO_MAPS: &'static [(&'static str, u8)] = &[
+        ("position", 3),
+        ("normal", 3),
+        ("albedo", 4),
+        ("roughness", 1),
+        ("metallic", 1),
+        ("uv", 2),
+        ("output", 4),
+        ("ao", 1),
+        ("ao_tmp", 1),
+    ];
+
+    pub const ALL_MAPS: &'static [(&'static str, u8)] = &[
+        ("position", 3),
+        ("normal", 3),
+        ("albedo", 4),
+        ("roughness", 1),
+        ("metallic", 1),
+        ("uv", 2),
+        ("subsurface", 4),
+        ("ao", 1),
+        ("ao_tmp", 1),
+        ("output", 4),
+    ];
+
+    pub fn new<'a>(
         device: &gpu::Device,
         width: u32,
         height: u32,
         ms: gpu::Samples,
         quality: GeometryBufferPrecision,
+        maps: impl IntoIterator<Item=&'a (&'a str, u8)>,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
+        let maps_iter = maps.into_iter();
+
         let mut maps = HashMap::new();
         let mut ms_maps = HashMap::new();
 
@@ -49,20 +99,15 @@ impl GeometryBuffer {
             GeometryBufferPrecision::Ultra => (R64Float, Rg64Float, Rgb64Float, Rgba64Float),
         };
 
-        let map_name_formats = [
-            ("position", rgb),
-            ("normal", rgb),
-            ("albedo", rgba),
-            ("roughness", r),
-            ("metallic", r),
-            ("subsurface", rgba),
-            ("uv", rg),
-            ("ao_tmp", r),
-            ("ao", r),
-            ("output", rgba),
-        ];
+        for (n, num_components) in maps_iter {
+            let format = match *num_components {
+                1 => r,
+                2 => rg,
+                3 => rgb,
+                4 => rgba,
+                _ => panic!("Call to create Geometry Buffer with map name {} components {}\nThe number of components must be in the range 1..=4", n, num_components),
+            };
 
-        for (n, format) in map_name_formats {
             let t = gfx::GTexture2D::from_formats(
                 device,
                 width,

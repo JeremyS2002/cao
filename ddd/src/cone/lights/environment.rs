@@ -221,7 +221,7 @@ impl<'a> SkyBoxGenerator<'a> {
                 self.rgb_to_rgba = Some(Self::rgb_to_rgba(device)?);
             }
 
-            let bundle = self
+            let bundle = match self
                 .rgb_to_rgba
                 .as_ref()
                 .unwrap()
@@ -231,7 +231,13 @@ impl<'a> SkyBoxGenerator<'a> {
                 .unwrap()
                 .set_resource("u_output", &texture)
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                    Ok(b) => b,
+                    Err(e) => match e {
+                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    }
+                };
 
             let mut comp_pass =
                 encoder.compute_pass_reflected_owned(self.rgb_to_rgba.as_ref().unwrap())?;
@@ -290,7 +296,7 @@ impl<'a> SkyBoxGenerator<'a> {
             None,
         )?;
 
-        let bundle = self
+        let bundle = match self
             .pipeline
             .bundle()
             .unwrap()
@@ -298,7 +304,13 @@ impl<'a> SkyBoxGenerator<'a> {
             .unwrap()
             .set_resource("u_sampler", self.sampler.as_ref())
             .unwrap()
-            .build(device)?;
+            .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
 
         let projection = glam::Mat4::perspective_rh(std::f32::consts::FRAC_PI_2, 1.0, 0.1, 10.0);
 
@@ -474,7 +486,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
             None,
         )?;
 
-        let diffuse_bundle = self
+        let diffuse_bundle = match self
             .diffuse_pipeline
             .bundle()
             .unwrap()
@@ -482,7 +494,13 @@ impl<'a> EnvironmentMapGenerator<'a> {
             .unwrap()
             .set_resource("u_sampler", self.sampler.as_ref())
             .unwrap()
-            .build(device)?;
+            .build(device)  {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
 
         let projection = glam::Mat4::perspective_rh(std::f32::consts::FRAC_PI_2, 1.0, 0.1, 10.0);
 
@@ -556,7 +574,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
             None,
         )?;
 
-        let specular_bundle = self
+        let specular_bundle = match self
             .specular_pipeline
             .bundle()
             .unwrap()
@@ -568,7 +586,13 @@ impl<'a> EnvironmentMapGenerator<'a> {
             .unwrap()
             .set_resource("u_camera", &camera)
             .unwrap()
-            .build(device)?;
+            .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
 
         for mip in 0..specular_mip_levels {
             for face in gfx::CubeFace::iter() {
@@ -877,7 +901,7 @@ impl EnvironmentRenderer {
         if let Some(b) = self.ambient_bundles.get(&buffer.id) {
             Ok(b.clone())
         } else {
-            let b = self
+            let b = match self
                 .ambient
                 .as_ref()
                 .expect("ERROR: EnvironmentRenderer missing flags")
@@ -889,7 +913,13 @@ impl EnvironmentRenderer {
                 .unwrap()
                 .set_resource("u_sampler", &self.sampler)
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                    Ok(b) => b,
+                    Err(e) => match e {
+                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    }
+                };
             self.ambient_bundles.insert(buffer.id, b.clone());
             Ok(b)
         }
@@ -907,7 +937,7 @@ impl EnvironmentRenderer {
         if let Some(b) = self.skybox_bundles.get(&key) {
             Ok(b.clone())
         } else {
-            let b = self
+            let b = match self
                 .skybox
                 .as_ref()
                 .expect("ERROR: EnvironmentRenderer missing flags")
@@ -919,7 +949,13 @@ impl EnvironmentRenderer {
                 .unwrap()
                 .set_resource("u_sampler", &self.sampler)
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                    Ok(b) => b,
+                    Err(e) => match e {
+                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    }
+                };
             self.skybox_bundles.insert(key, b.clone());
             Ok(b)
         }
@@ -937,7 +973,7 @@ impl EnvironmentRenderer {
         if let Some(b) = self.environment_bundles.get(&key) {
             Ok(b.clone())
         } else {
-            let b = self
+            let b = match self
                 .environment
                 .as_ref()
                 .expect("ERROR: EnvironmentRenderer missing flags")
@@ -967,7 +1003,13 @@ impl EnvironmentRenderer {
                 .unwrap()
                 .set_resource("u_brdf_lut", &environment.brdf_lut)
                 .unwrap()
-                .build(device)?;
+                .build(device) {
+                    Ok(b) => b,
+                    Err(e) => match e {
+                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    }
+                };
 
             self.environment_bundles.insert(key, b.clone());
             Ok(b)
