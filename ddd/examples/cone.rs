@@ -35,8 +35,8 @@ pub struct Cone {
     env_renderer: cone::EnvironmentRenderer,
     point_renderer: cone::PointLightRenderer,
     ao_renderer: cone::AORenderer,
-    smaa_renderer: cone::SMAARenderer,
-    display_renderer: cone::DisplayRenderer,
+    smaa_renderer: ddd::utils::SMAARenderer,
+    display_renderer: ddd::utils::DisplayRenderer,
     solid_renderer: clay::SolidRenderer,
     bloom_renderer: cone::BloomRenderer,
 
@@ -135,12 +135,12 @@ impl Cone {
             Some("buffers"),
         )?;
 
-        let smaa_renderer = cone::SMAARenderer::new(
+        let smaa_renderer = ddd::utils::SMAARenderer::new(
             &mut encoder,
             &device,
             &buffer.get("output").unwrap().view,
-            cone::SMAAState::MEDIUM,
-            cone::DisplayFlags::all(),
+            ddd::utils::SMAAState::MEDIUM,
+            ddd::utils::DisplayFlags::all(),
             None,
         )?;
 
@@ -480,10 +480,10 @@ impl Cone {
 
         encoder.submit(&mut command_buffer, true)?;
 
-        let display_renderer = cone::DisplayRenderer::new(
+        let display_renderer = ddd::utils::DisplayRenderer::new(
             &device, 
             &bloom_renderer.targets[0].view, 
-            cone::DisplayFlags::all(),
+            ddd::utils::DisplayFlags::all(),
             None,
         )?;
 

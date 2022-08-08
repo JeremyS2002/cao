@@ -2,10 +2,11 @@
 //! 
 //! See the reference implementation for more info <https://github.com/iryoku/smaa>
 
+pub(crate) mod smaa_area;
+pub(crate) mod smaa_search;
+
 use gfx::prelude::*;
 
-use super::smaa_area;
-use super::smaa_search;
 use super::DisplayFlags;
 
 use std::borrow::Cow;
@@ -42,16 +43,16 @@ impl SMAAState {
     pub fn edge_detect_vert(&self) -> Cow<'static, [u32]> {
         match self.quality {
             SMAAQuality::Low => gpu::include_spirv!(
-                "../../../shaders/cone/postprocess/smaa/SMAA_PRESET_LOW/edge_detect.vert.spv"
+                "../../../shaders/smaa/SMAA_PRESET_LOW/edge_detect.vert.spv"
             ),
             SMAAQuality::Medium => gpu::include_spirv!(
-                "../../../shaders/cone/postprocess/smaa/SMAA_PRESET_MEDIUM/edge_detect.vert.spv"
+                "../../../shaders/smaa/SMAA_PRESET_MEDIUM/edge_detect.vert.spv"
             ),
             SMAAQuality::High => gpu::include_spirv!(
-                "../../../shaders/cone/postprocess/smaa/SMAA_PRESET_HIGH/edge_detect.vert.spv"
+                "../../../shaders/smaa/SMAA_PRESET_HIGH/edge_detect.vert.spv"
             ),
             SMAAQuality::Ultra => gpu::include_spirv!(
-                "../../../shaders/cone/postprocess/smaa/SMAA_PRESET_ULTRA/edge_detect.vert.spv"
+                "../../../shaders/smaa/SMAA_PRESET_ULTRA/edge_detect.vert.spv"
             ),
         }
     }
@@ -66,82 +67,82 @@ impl SMAAState {
 
     pub fn edge_detect_depth_frag(&self) -> Cow<'static, [u32]> {
         match self.quality {
-            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_LOW/depth_edge_detect.frag.spv"),
-            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_MEDIUM/depth_edge_detect.frag.spv"),
-            SMAAQuality::High => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_HIGH/depth_edge_detect.frag.spv"),
-            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_ULTRA/depth_edge_detect.frag.spv"),
+            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_LOW/depth_edge_detect.frag.spv"),
+            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_MEDIUM/depth_edge_detect.frag.spv"),
+            SMAAQuality::High => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_HIGH/depth_edge_detect.frag.spv"),
+            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_ULTRA/depth_edge_detect.frag.spv"),
         }
     }
 
     pub fn edge_detect_luma_frag(&self) -> Cow<'static, [u32]> {
         match self.quality {
-            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_LOW/luma_edge_detect.frag.spv"),
-            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_MEDIUM/luma_edge_detect.frag.spv"),
-            SMAAQuality::High => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_HIGH/luma_edge_detect.frag.spv"),
-            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_ULTRA/luma_edge_detect.frag.spv"),
+            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_LOW/luma_edge_detect.frag.spv"),
+            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_MEDIUM/luma_edge_detect.frag.spv"),
+            SMAAQuality::High => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_HIGH/luma_edge_detect.frag.spv"),
+            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_ULTRA/luma_edge_detect.frag.spv"),
         }
     }
 
     pub fn edge_detect_color_frag(&self) -> Cow<'static, [u32]> {
         match self.quality {
-            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_LOW/color_edge_detect.frag.spv"),
-            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_MEDIUM/color_edge_detect.frag.spv"),
-            SMAAQuality::High => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_HIGH/color_edge_detect.frag.spv"),
-            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_ULTRA/color_edge_detect.frag.spv"),
+            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_LOW/color_edge_detect.frag.spv"),
+            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_MEDIUM/color_edge_detect.frag.spv"),
+            SMAAQuality::High => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_HIGH/color_edge_detect.frag.spv"),
+            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_ULTRA/color_edge_detect.frag.spv"),
         }
     }
 
     pub fn blend_weight_vert(&self) -> Cow<'static, [u32]> {
         match self.quality {
-            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_LOW/blending_weight.vert.spv"),
-            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_MEDIUM/blending_weight.vert.spv"),
-            SMAAQuality::High => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_HIGH/blending_weight.vert.spv"),
-            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_ULTRA/blending_weight.vert.spv"),
+            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_LOW/blending_weight.vert.spv"),
+            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_MEDIUM/blending_weight.vert.spv"),
+            SMAAQuality::High => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_HIGH/blending_weight.vert.spv"),
+            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_ULTRA/blending_weight.vert.spv"),
         }
     }
 
     pub fn blend_weight_frag(&self) -> Cow<'static, [u32]> {
         match self.quality {
-            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_LOW/blending_weight.frag.spv"),
-            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_MEDIUM/blending_weight.frag.spv"),
-            SMAAQuality::High => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_HIGH/blending_weight.frag.spv"),
-            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_ULTRA/blending_weight.frag.spv"),
+            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_LOW/blending_weight.frag.spv"),
+            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_MEDIUM/blending_weight.frag.spv"),
+            SMAAQuality::High => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_HIGH/blending_weight.frag.spv"),
+            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_ULTRA/blending_weight.frag.spv"),
         }
     }
 
     pub fn neighborhood_blend_vert(&self) -> Cow<'static, [u32]> {
         match self.quality {
-            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_LOW/neighborhood_blending.vert.spv"),
-            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_MEDIUM/neighborhood_blending.vert.spv"),
-            SMAAQuality::High => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_HIGH/neighborhood_blending.vert.spv"),
-            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_ULTRA/neighborhood_blending.vert.spv"),
+            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_LOW/neighborhood_blending.vert.spv"),
+            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_MEDIUM/neighborhood_blending.vert.spv"),
+            SMAAQuality::High => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_HIGH/neighborhood_blending.vert.spv"),
+            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_ULTRA/neighborhood_blending.vert.spv"),
         }
     }
 
     pub fn neighborhood_blend_clip_frag(&self) -> Cow<'static, [u32]> {
         match self.quality {
-            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_LOW/neighborhood_blending_clip.frag.spv"),
-            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_MEDIUM/neighborhood_blending_clip.frag.spv"),
-            SMAAQuality::High => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_HIGH/neighborhood_blending_clip.frag.spv"),
-            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_ULTRA/neighborhood_blending_clip.frag.spv"),
+            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_LOW/neighborhood_blending_clip.frag.spv"),
+            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_MEDIUM/neighborhood_blending_clip.frag.spv"),
+            SMAAQuality::High => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_HIGH/neighborhood_blending_clip.frag.spv"),
+            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_ULTRA/neighborhood_blending_clip.frag.spv"),
         }
     }
 
     pub fn neighborhood_blend_reinhard_frag(&self) -> Cow<'static, [u32]> {
         match self.quality {
-            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_LOW/neighborhood_blending_reinhard.frag.spv"),
-            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_MEDIUM/neighborhood_blending_reinhard.frag.spv"),
-            SMAAQuality::High => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_HIGH/neighborhood_blending_reinhard.frag.spv"),
-            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_ULTRA/neighborhood_blending_reinhard.frag.spv"),
+            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_LOW/neighborhood_blending_reinhard.frag.spv"),
+            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_MEDIUM/neighborhood_blending_reinhard.frag.spv"),
+            SMAAQuality::High => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_HIGH/neighborhood_blending_reinhard.frag.spv"),
+            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_ULTRA/neighborhood_blending_reinhard.frag.spv"),
         }
     }
 
     pub fn neighborhood_blend_aces_frag(&self) -> Cow<'static, [u32]> {
         match self.quality {
-            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_LOW/neighborhood_blending_aces.frag.spv"),
-            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_MEDIUM/neighborhood_blending_aces.frag.spv"),
-            SMAAQuality::High => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_HIGH/neighborhood_blending_aces.frag.spv"),
-            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/cone/postprocess/smaa/SMAA_PRESET_ULTRA/neighborhood_blending_aces.frag.spv"),
+            SMAAQuality::Low => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_LOW/neighborhood_blending_aces.frag.spv"),
+            SMAAQuality::Medium => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_MEDIUM/neighborhood_blending_aces.frag.spv"),
+            SMAAQuality::High => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_HIGH/neighborhood_blending_aces.frag.spv"),
+            SMAAQuality::Ultra => gpu::include_spirv!("../../../shaders/smaa/SMAA_PRESET_ULTRA/neighborhood_blending_aces.frag.spv"),
         }
     }
 }
@@ -388,13 +389,13 @@ impl SMAARenderer {
     pub fn new(
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
-        target: &gpu::TextureView,
+        src: &gpu::TextureView,
         state: SMAAState,
         flags: DisplayFlags,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
-        let width = target.extent().width;
-        let height = target.extent().height;
+        let width = src.extent().width;
+        let height = src.extent().height;
 
         let uniform = gfx::Uniform::new(
             encoder,
@@ -484,7 +485,7 @@ impl SMAARenderer {
                     .unwrap()
                     .set_resource("u_data", &uniform)
                     .unwrap()
-                    .set_combined_texture_sampler_ref("u_color", (&target, &sampler))
+                    .set_combined_texture_sampler_ref("u_color", (&src, &sampler))
                     .unwrap()
                     .set_resource("u_blend", &(&blend_target, &sampler))
                     .unwrap()
@@ -509,7 +510,7 @@ impl SMAARenderer {
                     .unwrap()
                     .set_resource("u_data", &uniform)
                     .unwrap()
-                    .set_combined_texture_sampler_ref("u_color", (&target, &sampler))
+                    .set_combined_texture_sampler_ref("u_color", (&src, &sampler))
                     .unwrap()
                     .set_resource("u_blend", &(&blend_target, &sampler))
                     .unwrap()
@@ -534,7 +535,7 @@ impl SMAARenderer {
                     .unwrap()
                     .set_resource("u_data", &uniform)
                     .unwrap()
-                    .set_combined_texture_sampler_ref("u_color", (&target, &sampler))
+                    .set_combined_texture_sampler_ref("u_color", (&src, &sampler))
                     .unwrap()
                     .set_resource("u_blend", &(&blend_target, &sampler))
                     .unwrap()
@@ -558,7 +559,7 @@ impl SMAARenderer {
             if let SMAAEdgeMethod::Depth(d) = &state.edge {
                 d
             } else {
-                target
+                src
             },
             &sampler,
             &blend_weight,
@@ -570,7 +571,7 @@ impl SMAARenderer {
         Ok(Self {
             uniform,
 
-            color_target: target.clone(),
+            color_target: src.clone(),
             edges_target,
             blend_target,
 

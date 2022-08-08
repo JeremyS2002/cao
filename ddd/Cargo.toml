@@ -24,3 +24,6 @@ tobj               = "3.2.3"
 
 [[example]]
 name = "cone"
+
+[[example]]
+name = "clay"

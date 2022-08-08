@@ -1,16 +1,7 @@
 
 use gfx::prelude::*;
 
-bitflags::bitflags!(
-    pub struct DisplayFlags: u32 {
-        /// Clip HDR images to 0-1 range any value outside will be set to 1
-        const CLIP         = 0b001;
-        /// Apply reinhard tonemapping
-        const REINHARD     = 0b010;
-        /// Apply aces tonemapping
-        const ACES         = 0b100;
-    }
-);
+use crate::utils::DisplayFlags;
 
 pub struct DisplayRenderer {
     target: gpu::TextureView,
@@ -127,7 +118,7 @@ impl DisplayRenderer {
         frag: &[u32],
         name: Option<String>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
-        let vert = gpu::include_spirv!("../../../shaders/cone/postprocess/display.vert.spv");
+        let vert = gpu::include_spirv!("../../shaders/cone/postprocess/display.vert.spv");
         match gfx::ReflectedGraphics::from_spv(
             device,
             &vert,
@@ -150,7 +141,7 @@ impl DisplayRenderer {
         device: &gpu::Device,
         name: Option<String>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
-        let frag = gpu::include_spirv!("../../../shaders/cone/postprocess/clip.frag.spv");
+        let frag = gpu::include_spirv!("../../shaders/cone/postprocess/clip.frag.spv");
         Self::create_pipeline(device, &frag, name)
     }
 
@@ -158,7 +149,7 @@ impl DisplayRenderer {
         device: &gpu::Device,
         name: Option<String>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
-        let frag = gpu::include_spirv!("../../../shaders/cone/postprocess/reinhard.frag.spv");
+        let frag = gpu::include_spirv!("../../shaders/cone/postprocess/reinhard.frag.spv");
         Self::create_pipeline(device, &frag, name)
     }
 
@@ -166,7 +157,7 @@ impl DisplayRenderer {
         device: &gpu::Device,
         name: Option<String>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
-        let frag = gpu::include_spirv!("../../../shaders/cone/postprocess/aces.frag.spv");
+        let frag = gpu::include_spirv!("../../shaders/cone/postprocess/aces.frag.spv");
         Self::create_pipeline(device, &frag, name)
     }
 

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use crate::cone::*;
 use crate::prelude::*;
+use crate::utils::*;
 
 pub type PointLight = gfx::Uniform<PointLightData>;
 pub type PointLights = gfx::Storage<PointLightData>;

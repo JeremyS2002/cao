@@ -12,8 +12,6 @@ pub use lights::*;
 pub use material::*;
 pub use postprocess::*;
 
-pub use crate::utils::*;
-
 #[derive(Debug, Clone, Copy)]
 #[allow(dead_code)]
 #[repr(C)]

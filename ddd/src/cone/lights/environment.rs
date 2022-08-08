@@ -10,6 +10,7 @@
 //!  - use the environment map to render lighting (see [`EnvironmentRenderer::environment_pass`])
 
 use crate::cone::*;
+use crate::utils::*;
 use crate::prelude::*;
 
 use gfx::image;
