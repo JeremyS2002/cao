@@ -94,6 +94,7 @@ pub(crate) struct SwapchainInner {
     pub loader: khr::Swapchain,
     pub raw: Md<Arc<Cell<vk::SwapchainKHR>>>,
 
+    pub fence: Md<Arc<vk::Fence>>,
     pub rendering_complete_semaphores: Vec<Arc<vk::Semaphore>>,
     pub acquire_complete_semaphores: Vec<Arc<vk::Semaphore>>, 
 
@@ -108,6 +109,7 @@ impl std::clone::Clone for SwapchainInner {
         Self { 
             loader: self.loader.clone(), 
             raw: Md::new(Arc::clone(&self.raw)), 
+            fence: Md::new(Arc::clone(&self.fence)),
             rendering_complete_semaphores: self.rendering_complete_semaphores.clone(), 
             acquire_complete_semaphores: self.acquire_complete_semaphores.clone(), 
             surface: Md::new(Arc::clone(&self.surface)), 
@@ -177,6 +179,19 @@ impl Swapchain {
         let (rendering_complete_semaphores, acquire_complete_semaphores) =
             Self::create_sync(device, desc.frames_in_flight)?;
 
+        let fence_result = unsafe { 
+            device.raw.create_fence(&vk::FenceCreateInfo {
+                s_type: vk::StructureType::FENCE_CREATE_INFO,
+                p_next: ptr::null(),
+                flags: vk::FenceCreateFlags::empty(),
+            }, None)
+        };
+
+        let fence = match fence_result {
+            Ok(f) => f,
+            Err(e) => return Err(e.into()),
+        };
+
         let image_count = textures.len() as u32;
 
         device.raw.check_errors()?;
@@ -185,6 +200,8 @@ impl Swapchain {
             inner: SwapchainInner { 
                 loader, 
                 raw: Md::new(Arc::new(Cell::new(raw))), 
+
+                fence: Md::new(Arc::new(fence)),
                 rendering_complete_semaphores, 
                 acquire_complete_semaphores,
 
@@ -526,10 +543,31 @@ impl Swapchain {
 
             let submit_result = unsafe {
                 self.inner.device
-                    .queue_submit(self.queue, &[submit_info], vk::Fence::null())
+                    .queue_submit(self.queue, &[submit_info], **self.inner.fence)
             };
 
             match submit_result {
+                Ok(_) => (),
+                Err(e) => return Err(e.into()),
+            }
+
+            // wait for the submission to finish so that if the swapchain is dropped then the semaphores can safely be destroyed
+            // this shouldn't have a major impact on performance as this submission doesn't depend on anything and should complete immediatly
+            // Also this is such a strange position that this code shouldn't really run in any "real" program
+            let wait_result = unsafe {
+                self.inner.device.wait_for_fences(&[**self.inner.fence], true, !0)
+            };
+
+            match wait_result {
+                Ok(_) => (),
+                Err(e) => return Err(e.into()),
+            }
+
+            let reset_result = unsafe {
+                self.inner.device.reset_fences(&[**self.inner.fence])
+            };
+
+            match reset_result {
                 Ok(_) => (),
                 Err(e) => return Err(e.into()),
             }
@@ -570,6 +608,13 @@ impl Swapchain {
 
 impl Drop for SwapchainInner {
     fn drop(&mut self) {
+        let fence = unsafe { Md::take(&mut self.fence) };
+        if let Ok(fence) = Arc::try_unwrap(fence) {
+            unsafe {
+                self.device.destroy_fence(fence, None);
+            }
+        }
+
         let swapchain = unsafe { Md::take(&mut self.raw) };
         if let Ok(swapchain) = Arc::try_unwrap(swapchain) {
             unsafe { 
