@@ -29,7 +29,7 @@ impl std::ops::Deref for DisplayRenderer {
 impl DisplayRenderer {
     pub fn new(
         device: &gpu::Device,
-        target: &gpu::TextureView,
+        src: &gpu::TextureView,
         flags: DisplayFlags,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
@@ -42,7 +42,7 @@ impl DisplayRenderer {
             let b = match c
                 .bundle()
                 .unwrap()
-                .set_resource("u_texture", target)
+                .set_resource("u_texture", src)
                 .unwrap()
                 .set_resource("u_sampler", &sampler)
                 .unwrap()
@@ -62,7 +62,7 @@ impl DisplayRenderer {
             let b = match c
                 .bundle()
                 .unwrap()
-                .set_resource("u_texture", target)
+                .set_resource("u_texture", src)
                 .unwrap()
                 .set_resource("u_sampler", &sampler)
                 .unwrap()
@@ -82,7 +82,7 @@ impl DisplayRenderer {
             let b = match c
                 .bundle()
                 .unwrap()
-                .set_resource("u_texture", target)
+                .set_resource("u_texture", src)
                 .unwrap()
                 .set_resource("u_sampler", &sampler)
                 .unwrap()
@@ -98,7 +98,7 @@ impl DisplayRenderer {
             (None, None)
         };
         Ok(Self {
-            target: target.clone(),
+            target: src.clone(),
 
             clip,
             clip_bundle,

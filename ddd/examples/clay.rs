@@ -132,12 +132,13 @@ impl Clay {
 
         let smooth_renderer = clay::SmoothRenderer::new(&device, None)?;
 
-        let scale = glam::Mat4::from_scale(glam::vec3(2.0, 2.0, 2.0));
+        let model = glam::Mat4::from_translation(glam::vec3(0.0, -0.5, 0.0)) 
+            * glam::Mat4::from_scale(glam::vec3(0.5, 0.5, 0.5));
 
         let mesh_instance = ddd::utils::Instance::new(
             &mut encoder,
             &device,
-            scale.into(),
+            model.into(),
             None,
         )?;
 
@@ -256,7 +257,7 @@ impl Clay {
             gfx::Attachment {
                 raw: gpu::Attachment::View(
                     Cow::Borrowed(&self.target.view),
-                    gpu::ClearValue::ColorFloat([0.2, 0.2, 0.2, 1.0]),
+                    gpu::ClearValue::ColorFloat([0.1, 0.1, 0.1, 1.0]),
                 ), 
                 load: gpu::LoadOp::Clear,
                 store: gpu::StoreOp::Store,
@@ -264,7 +265,7 @@ impl Clay {
             gfx::Attachment {
                 raw: gpu::Attachment::View(
                     Cow::Borrowed(&self.depth.view),
-                    gpu::ClearValue::ColorFloat([0.2, 0.2, 0.2, 1.0]),
+                    gpu::ClearValue::Depth(1.0),
                 ), 
                 load: gpu::LoadOp::Clear,
                 store: gpu::StoreOp::Store,
@@ -287,15 +288,15 @@ impl Clay {
         //     },
         // )?;
 
-        // self.display_renderer.aces(
-        //     &mut encoder,
-        //     &self.device,
-        //     gfx::Attachment {
-        //         raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
-        //         load: gpu::LoadOp::Clear,
-        //         store: gpu::StoreOp::Store,
-        //     },
-        // )?;
+        self.display_renderer.aces(
+            &mut encoder,
+            &self.device,
+            gfx::Attachment {
+                raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
+                load: gpu::LoadOp::Clear,
+                store: gpu::StoreOp::Store,
+            },
+        )?;
 
         encoder.submit(&mut self.command, true)?;
 
