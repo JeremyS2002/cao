@@ -1504,7 +1504,8 @@ impl Into<vk::PipelineDepthStencilStateCreateInfo> for DepthStencilState {
             } else {
                 vk::FALSE
             },
-            ..Default::default()
+            min_depth_bounds: 0.0,
+            max_depth_bounds: 1.0,
         }
     }
 }
