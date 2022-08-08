@@ -184,7 +184,7 @@ impl AORenderer {
         for _ in 0..(resolution * resolution) {
             let u = rng.gen_range(-1.0f32..1.0);
             let v = rng.gen_range(-1.0f32..1.0);
-            noise.push([u, v, 0.0]);
+            noise.push([u, v]);
         }
 
         gfx::GTexture2D::from_raw_image(

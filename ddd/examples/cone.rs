@@ -482,7 +482,7 @@ impl Cone {
 
         let display_renderer = ddd::utils::DisplayRenderer::new(
             &device, 
-            &bloom_renderer.targets[0].view, 
+            &buffer.get("albedo").unwrap().view, 
             ddd::utils::DisplayFlags::all(),
             None,
         )?;

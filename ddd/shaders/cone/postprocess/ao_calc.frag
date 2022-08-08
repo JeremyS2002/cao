@@ -33,7 +33,7 @@ void main() {
     vec3 position = texture(sampler2D(u_position, u_buf_sampler), in_uv).xyz;
     vec3 normal = texture(sampler2D(u_normal, u_buf_sampler), in_uv).xyz;
     // tile the noise texture over the screen by scaling the uv and mirroring the texture
-    vec3 random = texture(sampler2D(u_noise, u_noise_sampler), in_uv * noise_scale).xyz;
+    vec3 random = vec3(texture(sampler2D(u_noise, u_noise_sampler), in_uv * noise_scale).xy, 0.0);
 
     vec3 tangent = normalize(random - normal * dot(random, normal));
     vec3 bitangent = cross(normal, tangent);

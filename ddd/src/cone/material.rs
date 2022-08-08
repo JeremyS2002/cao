@@ -909,7 +909,7 @@ impl Material {
                         clear_color,
                     ),
                     load,
-                    store: gpu::StoreOp::DontCare,
+                    store: gpu::StoreOp::Store,
                 });
             }
             (colors, resolves)
@@ -923,7 +923,7 @@ impl Material {
                         clear_color,
                     ),
                     load,
-                    store: gpu::StoreOp::DontCare,
+                    store: gpu::StoreOp::Store,
                 });
             }
             
