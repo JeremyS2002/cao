@@ -26,7 +26,6 @@ pub struct GeometryBuffer {
     pub depth: gfx::GTexture2D,
     pub ms_depth: Option<gfx::GTexture2D>,
     pub sampler: gpu::Sampler,
-    pub depth_sampler: gpu::Sampler,
 }
 
 impl GeometryBuffer {
@@ -184,11 +183,7 @@ impl GeometryBuffer {
             wrap_z: gpu::WrapMode::ClampToEdge,
             min_filter: gpu::FilterMode::Nearest,
             mag_filter: gpu::FilterMode::Nearest,
-            ..Default::default()
-        })?;
-
-        let depth_sampler = device.create_sampler(&gpu::SamplerDesc {
-            compare: Some(gpu::CompareOp::LessEqual),
+            name: name.as_ref().map(|n| format!("{}_sampler", n)),
             ..Default::default()
         })?;
 
@@ -201,7 +196,6 @@ impl GeometryBuffer {
             width,
             height,
             sampler,
-            depth_sampler,
         })
     }
 

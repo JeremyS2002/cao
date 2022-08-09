@@ -1,19 +1,19 @@
+use spv::prelude::*;
+
 fn main() {
     let src = "
         #version 450
 
-        layout(set = 0, binding = 0) uniform texture2D u_tex;
-        layout(set = 0, binding = 1) uniform sampler u_sam;
+        layout(location = 0) in vec2 in_pos;
 
         void main() {
-            vec2 coord = vec2(0.5, 0.5);
-            vec4 col = texture(sampler2D(u_tex, u_sam), coord);
+            gl_Position = vec4(in_pos, 0.0, 1.0);
         }
     ";
 
     let compiler = shaderc::Compiler::new().unwrap();
     let spv = compiler
-        .compile_into_spirv(src, shaderc::ShaderKind::Fragment, "", "main", None)
+        .compile_into_spirv(src, shaderc::ShaderKind::Vertex, "", "main", None)
         .unwrap();
 
     use rspirv::binary::Disassemble;
@@ -23,6 +23,9 @@ fn main() {
     let module = loader.module();
 
     println!("{}", module.disassemble());
+
+    println!("");
+    println!("");
 
     // ===================================================================
     // ===================================================================
@@ -74,29 +77,27 @@ fn main() {
     // ===================================================================
     // ===================================================================
 
-    // let vertex = {
-    //     let builder = spirv::VertexBuilder::new();
+    let vertex_spv = {
+        let builder = spv::VertexBuilder::new();
 
-    //     let position = builder.position();
+        let in_pos = builder.in_vec2(0, false, Some("in_pos"));
 
-    //     builder.main(|b| {
-    //         // b.spv_if(true, |b| {
-    //         //     b.store_out(position, glam::vec4(0.0, 0.0, 0.0, 0.0));
-    //         // }).spv_else_if(true, |b| {
-    //         //     b.store_out(position, glam::vec4(1.0, 1.0, 1.0, 0.0))
-    //         // });
+        let position = builder.position();
 
-    //         b.spv_while(true, |b| {
+        builder.main(|b| {
+            let pos = b.load_in(in_pos);
+            let x = pos.x(b);
+            let y = pos.y(b);
+            let pos = b.vec4(&x, &y, &0.0, &1.0);
+            b.store_out(position, pos);
+        });
 
-    //         });
-    //     });
+        builder.compile()
+    };
 
-    //     builder.compile()
-    // };
+    let mut loader = rspirv::dr::Loader::new();
+    rspirv::binary::parse_words(vertex_spv, &mut loader).unwrap();
+    let module = loader.module();
 
-    // let mut loader = rspirv::dr::Loader::new();
-    // rspirv::binary::parse_words(vertex, &mut loader).unwrap();
-    // let module = loader.module();
-
-    // println!("{}", module.disassemble());
+    println!("{}", module.disassemble());
 }

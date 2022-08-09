@@ -41,9 +41,7 @@ pub fn new_skybox<'a>(
 ) -> Result<SkyBox, gpu::Error> {
     let mut generator = SkyBoxGenerator::new(encoder, device)?;
 
-    let mip_levels = gfx::max_mip_levels(gfx::Cube(resolution, resolution));
-
-    generator.generate_from_image(encoder, device, &hdri, resolution, resolution, mip_levels)
+    generator.generate_from_hdri(encoder, device, &hdri, resolution, resolution)
 }
 
 /// Create a new [`EnvironmentMap`]
@@ -155,14 +153,13 @@ impl<'a> SkyBoxGenerator<'a> {
     }
 
     /// Create new skybox from an image
-    pub fn generate_from_image(
+    pub fn generate_from_hdri(
         &mut self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         hdri: &'a ImageBuffer<Rgb<f32>, Vec<f32>>,
         width: u32,
         height: u32,
-        mip_levels: u32,
     ) -> Result<SkyBox, gpu::Error> {
         // It is quite common that Rgb32Float is unsupported so if that is the case
         // a work around needs to be done
@@ -199,7 +196,7 @@ impl<'a> SkyBoxGenerator<'a> {
                 device,
                 hdri,
                 gpu::TextureUsage::SAMPLED,
-                mip_levels,
+                1,
                 None,
             )?;
 
@@ -211,7 +208,7 @@ impl<'a> SkyBoxGenerator<'a> {
                 hdri.height(),
                 gpu::Samples::S1,
                 gpu::TextureUsage::SAMPLED | gpu::TextureUsage::STORAGE,
-                mip_levels,
+                1,
                 gpu::Format::Rgba32Float,
                 None,
             )?;
@@ -245,7 +242,7 @@ impl<'a> SkyBoxGenerator<'a> {
 
             comp_pass.set_bundle_into(bundle);
             comp_pass.push_i32("cols", hdri.width() as _);
-            comp_pass.dispatch(hdri.width() / 8, hdri.height() / 8, 1);
+            comp_pass.dispatch(hdri.width(), hdri.height(), 1);
             comp_pass.finish();
 
             self.generate_from_texture(encoder, device, &texture, width, height)

@@ -467,7 +467,7 @@ impl PointLightRenderer {
                 .unwrap()
                 .set_combined_texture_sampler_ref(
                     "u_shadow_map",
-                    (&shadow.texture.view, &buffer.depth_sampler),
+                    (&shadow.texture.view, &buffer.sampler),
                 )
                 .unwrap()
                 .build(device) {
@@ -522,7 +522,7 @@ impl PointLightRenderer {
                 .unwrap()
                 .set_combined_texture_sampler_ref(
                     "u_shadow_map",
-                    (&shadow.texture.view, &buffer.depth_sampler),
+                    (&shadow.texture.view, &buffer.sampler),
                 )
                 .unwrap()
                 .build(device) {
@@ -581,13 +581,13 @@ impl PointLightRenderer {
                 .unwrap()
                 .set_resource("u_shadow_data", &shadow.uniform)
                 .unwrap()
-                .set_resource("u_shadow_map", &(&shadow.texture, &buffer.depth_sampler))
+                .set_resource("u_shadow_map", &(&shadow.texture, &buffer.sampler))
                 .unwrap()
                 .set_resource("u_subsurface_data", &subsurface.uniform)
                 .unwrap()
                 .set_combined_texture_sampler_ref(
                     "u_subsurface_map",
-                    (&subsurface.texture.view, &buffer.depth_sampler),
+                    (&subsurface.texture.view, &buffer.sampler),
                 )
                 .unwrap()
                 .set_resource("u_subsurface_lut", &subsurface.lut)
@@ -648,13 +648,13 @@ impl PointLightRenderer {
                 .unwrap()
                 .set_resource("u_shadow_data", &shadow.uniform)
                 .unwrap()
-                .set_resource("u_shadow_map", &(&shadow.texture, &buffer.depth_sampler))
+                .set_resource("u_shadow_map", &(&shadow.texture, &buffer.sampler))
                 .unwrap()
                 .set_resource("u_subsurface_data", &subsurface.uniform)
                 .unwrap()
                 .set_combined_texture_sampler_ref(
                     "u_subsurface_map",
-                    (&subsurface.texture.view, &buffer.depth_sampler),
+                    (&subsurface.texture.view, &buffer.sampler),
                 )
                 .unwrap()
                 .set_resource("u_subsurface_lut", &subsurface.lut)
