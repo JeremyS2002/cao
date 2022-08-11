@@ -11,14 +11,15 @@ layout(set = 0, binding = 0) uniform Camera {
     vec3 position;
 } u_camera;
 
-layout(set = 1, binding = 0) uniform Instance {
-    mat4 model;
-} u_instance;
+layout(set = 1, binding = 0) buffer Instances {
+    mat4 models[];
+} u_instances;
 
 void main() {
-    vec4 world_pos = u_instance.model * vec4(in_pos, 1.0);
+    mat4 model = u_instances.models[gl_InstanceIndex];
+    vec4 world_pos = model * vec4(in_pos, 1.0);
     gl_Position = u_camera.projection * u_camera.view * world_pos;
-    vec3 normal = normalize(mat3(u_instance.model) * in_normal);
+    vec3 normal = normalize(mat3(model) * in_normal);
     vec3 to_view = normalize(world_pos.xyz - u_camera.position);
     out_brightness = abs(dot(normal, to_view));
 }

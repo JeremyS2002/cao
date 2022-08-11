@@ -44,11 +44,12 @@ pub struct Cone {
     plane: gfx::IndexedMesh<cone::Vertex>,
     cube: gfx::BasicMesh<clay::Vertex>,
 
-    leather_instance: ddd::utils::Instance,
-    metal_instance: ddd::utils::Instance,
-    wax_instance: ddd::utils::Instance,
-    chrome_instance: ddd::utils::Instance,
-    light_instance: ddd::utils::Instance,
+    leather_instance: ddd::utils::Instances,
+    metal_instance: ddd::utils::Instances,
+    wax_instance: ddd::utils::Instances,
+    chrome_instance: ddd::utils::Instances,
+    light_instance: ddd::utils::Instances,
+    wood_instance: ddd::utils::Instances,
 
     metal_material: cone::Material,
     leather_material: cone::Material,
@@ -132,7 +133,7 @@ impl Cone {
             gpu::Samples::S1, 
             cone::GeometryBufferPrecision::High,
             cone::GeometryBuffer::ALL_MAPS,
-            Some("buffers"),
+            Some("buffers".to_string()),
         )?;
 
         let smaa_renderer = ddd::utils::SMAARenderer::new(
@@ -198,43 +199,48 @@ impl Cone {
 
         let scale = glam::Mat4::from_scale(glam::vec3(2.0, 2.0, 2.0));
 
-        let leather_instance = ddd::utils::Instance::new(
+        let leather_instance = [(glam::Mat4::from_translation(glam::vec3(-4.5, -1.0, 0.0)) * scale).into()];
+        let leather_instance = ddd::utils::Instances::new(
             &mut encoder,
             &device,
-            (glam::Mat4::from_translation(glam::vec3(-4.5, -1.0, 0.0)) * scale).into(),
+            &leather_instance,
             None,
         )?;
 
-        let metal_instance = ddd::utils::Instance::new(
+        let metal_instance = [(glam::Mat4::from_translation(glam::vec3(-1.5, -1.0, 0.0)) * scale).into()];
+        let metal_instance = ddd::utils::Instances::new(
             &mut encoder,
             &device,
-            (glam::Mat4::from_translation(glam::vec3(-1.5, -1.0, 0.0)) * scale).into(),
+            &metal_instance,
             None,
         )?;
 
-        let wax_instance = ddd::utils::Instance::new(
+        let wax_instance = [(glam::Mat4::from_translation(glam::vec3(1.5, -1.0, 0.0)) * scale).into()];
+        let wax_instance = ddd::utils::Instances::new(
             &mut encoder,
             &device,
-            (glam::Mat4::from_translation(glam::vec3(1.5, -1.0, 0.0)) * scale).into(),
+            &wax_instance,
             None,
         )?;
 
-        let chrome_instance = ddd::utils::Instance::new(
+        let chrome_instance = [(glam::Mat4::from_translation(glam::vec3(4.5, -1.0, 0.0)) * scale).into()];
+        let chrome_instance = ddd::utils::Instances::new(
             &mut encoder,
             &device,
-            (glam::Mat4::from_translation(glam::vec3(4.5, -1.0, 0.0)) * scale).into(),
+            &chrome_instance,
             None,
         )?;
 
-        let wood_instance = ddd::utils::Instance::new(
+        let wood_instance = [glam::Mat4::from_scale_rotation_translation(
+            glam::vec3(7.0, 1.0, 7.0),
+            glam::Quat::IDENTITY,
+            glam::vec3(0.0, -1.0, 0.0),
+        )
+        .into()];
+        let wood_instance = ddd::utils::Instances::new(
             &mut encoder,
             &device,
-            glam::Mat4::from_scale_rotation_translation(
-                glam::vec3(7.0, 1.0, 7.0),
-                glam::Quat::IDENTITY,
-                glam::vec3(0.0, -1.0, 0.0),
-            )
-            .into(),
+            &wood_instance,
             None,
         )?;
 
@@ -279,7 +285,6 @@ impl Cone {
         let leather_material = cone::Material::textured(
             &device,
             &camera,
-            &leather_instance,
             &leather_albedo,
             &leather_roughness,
             None,
@@ -327,7 +332,6 @@ impl Cone {
         let metal_material = cone::Material::textured(
             &device,
             &camera,
-            &metal_instance,
             &metal_albedo,
             &metal_roughness,
             Some(&metal_metallic),
@@ -339,7 +343,6 @@ impl Cone {
         let wax_material = cone::Material::constant(
             &device,
             &camera,
-            &wax_instance,
             &cone::MaterialData {
                 albedo: glam::vec4(0.5, 0.1, 0.0, 1.0),
                 roughness: 0.8,
@@ -351,7 +354,6 @@ impl Cone {
         let chrome_material = cone::Material::constant(
             &device,
             &camera,
-            &chrome_instance,
             &cone::MaterialData {
                 albedo: glam::vec4(0.9, 0.9, 1.0, 1.0),
                 roughness: 0.1,
@@ -399,7 +401,6 @@ impl Cone {
         let wood_material = cone::Material::textured(
             &device,
             &camera,
-            &wood_instance,
             &wood_albedo,
             &wood_roughness,
             None,
@@ -449,10 +450,11 @@ impl Cone {
             None,
         )?;
 
-        let light_instance = ddd::utils::Instance::new(
+        let light_instance = [(glam::Mat4::from_translation(light_pos) * glam::Mat4::from_scale(glam::vec3(0.1, 0.1, 0.1))).into()];
+        let light_instance = ddd::utils::Instances::new(
             &mut encoder,
             &device,
-            (glam::Mat4::from_translation(light_pos) * glam::Mat4::from_scale(glam::vec3(0.1, 0.1, 0.1))).into(),
+            &light_instance,
             None,
         )?;
 
@@ -521,6 +523,7 @@ impl Cone {
             wax_instance,
             chrome_instance,
             light_instance,
+            wood_instance,
 
             light,
             shadow,
@@ -546,7 +549,7 @@ impl Cone {
     fn render_offscreen(&mut self) -> Result<(), anyhow::Error> {
         let mut encoder = gfx::CommandEncoder::new();
 
-        self.shadow_renderer.single_pass(
+        self.shadow_renderer.pass(
             &mut encoder,
             &self.device,
             &self.shadow,
@@ -560,7 +563,7 @@ impl Cone {
             true,
         )?;
 
-        self.shadow_renderer.single_pass(
+        self.shadow_renderer.pass(
             &mut encoder,
             &self.device,
             &self.subsurface,
@@ -572,7 +575,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.buffer,
-            Some(&self.mesh as _),
+            Some((&self.mesh as _, &self.metal_instance)),
             true,
         )?;
 
@@ -580,7 +583,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.buffer,
-            Some(&self.mesh as _),
+            Some((&self.mesh as _, &self.leather_instance)),
             false,
         )?;
 
@@ -588,7 +591,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.buffer,
-            Some(&self.mesh as _),
+            Some((&self.mesh as _, &self.chrome_instance)),
             false,
         )?;
 
@@ -596,7 +599,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.buffer,
-            Some(&self.mesh as _),
+            Some((&self.mesh as _, &self.wax_instance)),
             false,
         )?;
 
@@ -604,7 +607,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.buffer,
-            Some(&self.plane as _),
+            Some((&self.plane as _, &self.wood_instance)),
             false,
         )?;
 
@@ -795,12 +798,12 @@ impl Cone {
             self.subsurface.data.strength,
             self.subsurface.data.bias,
         );
-        self.light_instance.data.model = glam::Mat4::from_translation(self.light.data.position) * glam::Mat4::from_scale(glam::vec3(0.1, 0.1, 0.1));
+        let light_instances = [(glam::Mat4::from_translation(self.light.data.position) * glam::Mat4::from_scale(glam::vec3(0.1, 0.1, 0.1))).into()];
 
         self.light.update_gpu_ref(&mut encoder);
         self.shadow.update_gpu_ref(&mut encoder);
         self.subsurface.update_gpu_ref(&mut encoder);
-        self.light_instance.update_gpu_ref(&mut encoder);
+        self.light_instance.update_gpu(&mut encoder, &light_instances)?;
 
         self.controller
             .update_cam_owned(&mut encoder, &mut self.camera);

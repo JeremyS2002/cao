@@ -31,5 +31,4 @@ unsafe impl spv::AsSpvStruct for InstanceData {
     }
 }
 
-pub type Instance = gfx::Uniform<InstanceData>;
 pub type Instances = gfx::Storage<InstanceData>;

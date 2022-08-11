@@ -370,7 +370,7 @@ impl SMAARenderer {
         format: gpu::Format,
         state: SMAAState,
         flags: DisplayFlags,
-        name: Option<&str>,
+        name: Option<String>,
     ) -> Result<Self, gpu::Error> {
         let target = gfx::GTexture2D::new(
             device,
@@ -392,7 +392,7 @@ impl SMAARenderer {
         src: &gpu::TextureView,
         state: SMAAState,
         flags: DisplayFlags,
-        name: Option<&str>,
+        name: Option<String>,
     ) -> Result<Self, gpu::Error> {
         let width = src.extent().width;
         let height = src.extent().height;
@@ -406,7 +406,7 @@ impl SMAARenderer {
                 width as f32,
                 height as f32,
             ),
-            None,
+            name.as_ref().map(|n| format!("{}_uniform", n)),
         )?;
 
         let (edges_target, blend_target) = Self::create_targets(device, width, height)?;
@@ -419,7 +419,7 @@ impl SMAARenderer {
             smaa_area::HEIGHT as u32,
             gpu::TextureUsage::SAMPLED,
             1,
-            name.map(|n| format!("{}_area_texture", n)),
+            name.as_ref().map(|n| format!("{}_area_texture", n)),
         )?;
 
         let search = gfx::GTexture2D::from_raw_image(
@@ -430,7 +430,7 @@ impl SMAARenderer {
             smaa_search::HEIGHT as u32,
             gpu::TextureUsage::SAMPLED,
             1,
-            name.map(|n| format!("{}_search_texture", n)),
+            name.as_ref().map(|n| format!("{}_search_texture", n)),
         )?;
 
         let sampler = device.create_sampler(&gpu::SamplerDesc {
@@ -439,7 +439,7 @@ impl SMAARenderer {
             wrap_z: gpu::WrapMode::ClampToEdge,
             min_filter: gpu::FilterMode::Linear,
             mag_filter: gpu::FilterMode::Linear,
-            name: name.map(|n| format!("{}_sampler", n)),
+            name: name.as_ref().map(|n| format!("{}_sampler", n)),
             ..Default::default()
         })?;
 
@@ -451,7 +451,7 @@ impl SMAARenderer {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
-            name.map(|n| format!("{}_edge_detect", n)),
+            name.as_ref().map(|n| format!("{}_edge_detect", n)),
         ) {
             Ok(g) => g,
             Err(e) => match e {
@@ -468,7 +468,7 @@ impl SMAARenderer {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
-            name.map(|n| format!("{}_blend_weight", n)),
+            name.as_ref().map(|n| format!("{}_blend_weight", n)),
         ) {
             Ok(g) => g,
             Err(e) => match e {
@@ -479,7 +479,7 @@ impl SMAARenderer {
 
         let (neighborhood_blend_clip, neighborhood_blend_clip_bundle) =
             if flags.contains(DisplayFlags::CLIP) {
-                let g = Self::crate_clip(device, &state, name)?;
+                let g = Self::crate_clip(device, &state, name.as_ref())?;
                 let b = match g
                     .bundle()
                     .unwrap()
@@ -504,7 +504,7 @@ impl SMAARenderer {
 
         let (neighborhood_blend_reinhard, neighborhood_blend_reinhard_bundle) =
             if flags.contains(DisplayFlags::REINHARD) {
-                let g = Self::crate_reinhard(device, &state, name)?;
+                let g = Self::crate_reinhard(device, &state, name.as_ref())?;
                 let b = match g
                     .bundle()
                     .unwrap()
@@ -529,7 +529,7 @@ impl SMAARenderer {
 
         let (neighborhood_blend_aces, neighborhood_blend_aces_bundle) =
             if flags.contains(DisplayFlags::ACES) {
-                let g = Self::crate_clip(device, &state, name)?;
+                let g = Self::crate_clip(device, &state, name.as_ref())?;
                 let b = match g
                     .bundle()
                     .unwrap()
@@ -623,7 +623,7 @@ impl SMAARenderer {
     pub fn crate_clip(
         device: &gpu::Device,
         state: &SMAAState,
-        name: Option<&str>,
+        name: Option<&String>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = state.neighborhood_blend_vert();
         let frag = state.neighborhood_blend_clip_frag();
@@ -638,7 +638,7 @@ impl SMAARenderer {
     pub fn crate_reinhard(
         device: &gpu::Device,
         state: &SMAAState,
-        name: Option<&str>,
+        name: Option<&String>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = state.neighborhood_blend_vert();
         let frag = state.neighborhood_blend_reinhard_frag();
@@ -653,7 +653,7 @@ impl SMAARenderer {
     pub fn crate_aces(
         device: &gpu::Device,
         state: &SMAAState,
-        name: Option<&str>,
+        name: Option<&String>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = state.neighborhood_blend_vert();
         let frag = state.neighborhood_blend_aces_frag();

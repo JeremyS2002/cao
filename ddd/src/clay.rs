@@ -66,7 +66,7 @@ impl mesh::Vertex for Vertex {
 
 use std::collections::HashMap;
 
-use crate::utils::{Camera, Instance};   
+use crate::utils::{Camera, Instances};   
 
 #[macro_export]
 macro_rules! impl_renderer {
@@ -122,7 +122,7 @@ macro_rules! impl_renderer {
                 &mut self,
                 device: &gpu::Device,
                 camera: &Camera,
-                instance: &Instance,
+                instance: &Instances,
             ) -> Result<gfx::Bundle, gpu::Error> {
                 if let Some(b) = self.bundles.get(&(camera.buffer.id(), instance.buffer.id())) {
                     Ok(b.clone())
@@ -130,7 +130,7 @@ macro_rules! impl_renderer {
                     let b = match self.pipeline.bundle().unwrap()
                         .set_resource("u_camera", camera)
                         .unwrap()
-                        .set_resource("u_instance", instance)
+                        .set_resource("u_instances", instance)
                         .unwrap()
                         .build(device) {
                         Ok(b) => b,
@@ -151,7 +151,7 @@ macro_rules! impl_renderer {
                 device: &gpu::Device,
                 target: gfx::Attachment<'a>,
                 depth: gfx::Attachment<'a>,
-                meshes: impl IntoIterator<Item=(&'a dyn gfx::Mesh<V>, &'b Instance, [f32; 4])>,
+                meshes: impl IntoIterator<Item=(&'a dyn gfx::Mesh<V>, &'b Instances, [f32; 4])>,
                 camera: &Camera,
             ) -> Result<(), gpu::Error> {
                 let mut pass = encoder.graphics_pass_reflected(
@@ -162,13 +162,13 @@ macro_rules! impl_renderer {
                     &self.pipeline
                 )?;
         
-        
                 for (mesh, instance, color) in meshes.into_iter() {
                     let bundle = self.bundle(device, camera, instance)?;
         
                     pass.set_bundle_into(bundle);
                     pass.push_vec4("u_color", color);
-                    pass.draw_mesh_ref(mesh);
+                    //pass.draw_mesh_ref(mesh);
+                    pass.draw_instanced_mesh_owned(mesh, 0, instance.length as _);
                 }
                 
                 pass.finish();

@@ -31,7 +31,7 @@ pub struct Clay {
     camera: ddd::utils::Camera,
 
     mesh: gfx::IndexedMesh<clay::Vertex>,
-    mesh_instance: ddd::utils::Instance,
+    mesh_instance: ddd::utils::Instances,
 
     update_mouse: bool,
     prev_time: std::time::Instant,
@@ -135,10 +135,11 @@ impl Clay {
         let model = glam::Mat4::from_translation(glam::vec3(0.0, -0.5, 0.0)) 
             * glam::Mat4::from_scale(glam::vec3(0.5, 0.5, 0.5));
 
-        let mesh_instance = ddd::utils::Instance::new(
+        let instances = vec![model.into()];
+        let mesh_instance = ddd::utils::Instances::new(
             &mut encoder,
             &device,
-            model.into(),
+            &instances,
             None,
         )?;
 

@@ -8,11 +8,12 @@ layout(set = 0, binding = 0) uniform Camera {
     vec3 position;
 } u_camera;
 
-layout(set = 1, binding = 0) uniform Instance {
-    mat4 model;
-} u_instance;
+layout(set = 1, binding = 0) buffer Instance {
+    mat4 models[];
+} u_instances;
 
 void main() {
-    gl_Position = u_camera.projection * u_camera.view * u_instance.model * vec4(in_pos, 1.0);
+    mat4 model = u_instances.models[gl_InstanceIndex];
+    gl_Position = u_camera.projection * u_camera.view * model * vec4(in_pos, 1.0);
 }
 

@@ -82,7 +82,7 @@ impl GeometryBuffer {
         ms: gpu::Samples,
         quality: GeometryBufferPrecision,
         maps: impl IntoIterator<Item=&'a (&'a str, u8)>,
-        name: Option<&str>,
+        name: Option<String>,
     ) -> Result<Self, gpu::Error> {
         let maps_iter = maps.into_iter();
 
@@ -118,7 +118,7 @@ impl GeometryBuffer {
                     | gpu::TextureUsage::COPY_DST,
                 1,
                 gfx::alt_formats(format),
-                name.map(|n0| format!("{}_{}", n0, n)),
+                name.as_ref().map(|n0| format!("{}_{}", n0, n)),
             )?
             .unwrap();
             maps.insert(n.to_string(), t);
@@ -137,7 +137,7 @@ impl GeometryBuffer {
                             | gpu::TextureUsage::COPY_DST,
                         1,
                         gfx::alt_formats(format),
-                        name.map(|n0| format!("{}_{}_ms", n0, n)),
+                        name.as_ref().map(|n0| format!("{}_{}_ms", n0, n)),
                     )?
                     .unwrap();
                     ms_maps.insert(n.to_string(), t);
@@ -156,7 +156,7 @@ impl GeometryBuffer {
                 | gpu::TextureUsage::COPY_DST,
             1,
             gpu::Format::Depth32Float,
-            name.map(|n| format!("{}_depth", n)),
+            name.as_ref().map(|n| format!("{}_depth", n)),
         )?;
 
         let ms_depth = if ms != gpu::Samples::S1 {
@@ -171,7 +171,7 @@ impl GeometryBuffer {
                     | gpu::TextureUsage::COPY_DST,
                 1,
                 gpu::Format::Depth32Float,
-                name.map(|n| format!("{}_depth_ms", n)),
+                name.as_ref().map(|n| format!("{}_depth_ms", n)),
             )?)
         } else {
             None
