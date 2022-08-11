@@ -122,7 +122,7 @@ macro_rules! impl_specialisation {
 impl_specialisation!(
     VertexBuilder : [
         vertex_id, Int, VertexId,
-        instance_id, Int, InstanceId,
+        instance_index, Int, InstanceIndex,
         draw_index, Int, DrawIndex,
         base_vertex, Int, BaseVertex,
 

@@ -292,6 +292,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         binding: u32,
         name: Option<&'static str>,
     ) -> Storage<D> {
+        let index = self.raw.storages.borrow().len();
         self.raw
             .storages
             .borrow_mut()
@@ -310,12 +311,20 @@ impl<T: specialisation::ShaderTY> Builder<T> {
                 name,
             ),
         );
-        // Storage {
-        //     set: todo!(),
-        //     binding: todo!(),
-        //     _marker: PhantomData,
-        // }
-        todo!();
+        Storage {
+            _marker: PhantomData,
+            index,
+        }
+    }
+
+    pub fn storage_struct<S: AsSpvStruct>(
+        &self,
+        desc: StorageAccessDesc,
+        set: u32,
+        binding: u32,
+        name: Option<&'static str>,
+    ) -> Storage<Struct<S>> {
+        self.storage(desc, set, binding, name)
     }
 
     pub fn sampler(&self, set: u32, binding: u32, name: Option<&'static str>) -> Sampler {
@@ -354,6 +363,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         //let _ext = builder.ext_inst_import("GLSL.std.450");
         builder.set_version(1, 0);
         builder.capability(rspirv::spirv::Capability::Shader);
+        // builder.capability(rspirv::spirv::Capability::Kernel);
         builder.memory_model(
             rspirv::spirv::AddressingModel::Logical,
             rspirv::spirv::MemoryModel::GLSL450,

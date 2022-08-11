@@ -4,10 +4,14 @@ fn main() {
     let src = "
         #version 450
 
-        layout(location = 0) in vec2 in_pos;
+        layout(set = 0, binding = 0) buffer Storage {
+            float xs[];
+        } u_storage;
 
         void main() {
-            gl_Position = vec4(in_pos, 0.0, 1.0);
+            int i = gl_InstanceIndex;
+            uint j = uint(i);
+            //gl_Position = vec4(in_pos, 0.0, 1.0);
         }
     ";
 

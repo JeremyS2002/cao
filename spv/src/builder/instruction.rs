@@ -782,12 +782,12 @@ impl Instruction {
                 store,
             } => {
                 let var = *s.storages.get(*index).unwrap();
-                let res_spv_ptr_ty = ty.pointer_type(builder, s.struct_map);
                 let res_spv_obj_ty = ty.base_type(builder, s.struct_map);
+                let res_spv_ptr_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, res_spv_obj_ty);
                 let obj_idx = PrimitiveVal::Int(0).set_constant(builder).0;
                 //let element_idx = PrimitiveVal::UInt(*element).set_constant(builder).0;
                 let element_var = *s.var_map.get(element).unwrap();
-                let element_ty = PrimitiveType::Int.base_type(builder);
+                let element_ty = PrimitiveType::UInt.base_type(builder);
                 let element_obj = builder
                     .load(element_ty, None, element_var, None, None)
                     .unwrap();
@@ -811,8 +811,8 @@ impl Instruction {
                 store,
             } => {
                 let var = *s.storages.get(*index).unwrap();
-                let res_spv_ptr_ty = f_type.pointer_type(builder, s.struct_map);
                 let res_spv_obj_ty = f_type.base_type(builder, s.struct_map);
+                let res_spv_ptr_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, res_spv_obj_ty);
                 let obj_idx = PrimitiveVal::UInt(0).set_constant(builder).0;
                 //let element_idx = PrimitiveVal::UInt(*element).set_constant(builder).0;
                 let element_var = *s.var_map.get(element).unwrap();
@@ -842,13 +842,13 @@ impl Instruction {
                 let f_p = match src_ty {
                     PrimitiveType::Bool => todo!(),
                     PrimitiveType::Int => match dst_ty {
-                        PrimitiveType::UInt => rspirv::dr::Builder::sat_convert_s_to_u,
+                        PrimitiveType::UInt => rspirv::dr::Builder::bitcast,
                         PrimitiveType::Float => rspirv::dr::Builder::convert_s_to_f,
                         PrimitiveType::Double => rspirv::dr::Builder::convert_s_to_f,
                         _ => unimplemented!(),
                     },
                     PrimitiveType::UInt => match dst_ty {
-                        PrimitiveType::Int => rspirv::dr::Builder::sat_convert_s_to_u,
+                        PrimitiveType::Int => rspirv::dr::Builder::bitcast,
                         PrimitiveType::Float => rspirv::dr::Builder::convert_u_to_f,
                         PrimitiveType::Double => rspirv::dr::Builder::convert_u_to_f,
                         _ => unimplemented!(),

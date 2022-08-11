@@ -26,6 +26,9 @@ name = "basic"
 name = "uniform"
 
 [[example]]
+name = "storage"
+
+[[example]]
 name = "push_constant"
 
 [[example]]

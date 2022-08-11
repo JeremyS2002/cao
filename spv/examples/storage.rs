@@ -15,33 +15,6 @@ pub struct Vertex {
 unsafe impl bytemuck::Pod for Vertex {}
 unsafe impl bytemuck::Zeroable for Vertex {}
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct Uniform {
-    pub r: f32,
-    pub g: f32,
-    pub b: f32,
-}
-
-unsafe impl bytemuck::Pod for Uniform {}
-unsafe impl bytemuck::Zeroable for Uniform {}
-
-unsafe impl spv::AsSpvStruct for Uniform {
-    const DESC: spv::StructDesc = spv::StructDesc {
-        name: "Uniform",
-        names: &["r", "g", "b"],
-        fields: &[
-            spv::DataType::Primitive(spv::PrimitiveType::Float),
-            spv::DataType::Primitive(spv::PrimitiveType::Float),
-            spv::DataType::Primitive(spv::PrimitiveType::Float),
-        ],
-    };
-
-    fn fields<'a>(&'a self) -> Vec<&'a dyn spv::AsData> {
-        vec![&self.r, &self.g, &self.b]
-    }
-}
-
 fn main() {
     let instance = gpu::Instance::new(&gpu::InstanceDesc::default()).unwrap();
 
@@ -85,24 +58,20 @@ fn main() {
         .write(bytemuck::cast_slice(&vertices))
         .unwrap();
 
-    let mut uniform = Uniform {
-        r: 1.0,
-        g: 1.0,
-        b: 1.0,
-    };
 
-    let uniform_buffer = device
+    let data = [1.0, 0.0, 1.0];
+    let storage_buffer = device
         .create_buffer(&gpu::BufferDesc {
             name: None,
-            size: std::mem::size_of::<Uniform>() as _,
-            usage: gpu::BufferUsage::UNIFORM | gpu::BufferUsage::COPY_DST,
+            size: (std::mem::size_of::<f32>() * data.len()) as _,
+            usage: gpu::BufferUsage::STORAGE | gpu::BufferUsage::COPY_DST,
             memory: gpu::MemoryType::Host,
         })
         .unwrap();
 
-    uniform_buffer
+    storage_buffer
         .slice_ref(..)
-        .write(bytemuck::bytes_of(&uniform))
+        .write(bytemuck::bytes_of(&data))
         .unwrap();
 
     let vertex_spv = {
@@ -134,23 +103,22 @@ fn main() {
     let fragment_spv = {
         let builder = spv::FragmentBuilder::new();
 
-        let u = builder.uniform_struct::<Uniform>(0, 0, Some("u_data"));
+        //let u = builder.uniform_struct::<Uniform>(0, 0, Some("u_data"));
+
+        let s = builder.storage::<spv::Float>(
+            spv::StorageAccessDesc { read: true, write: false, atomic: false }, 
+            0, 
+            0, 
+            Some("s_data"),
+        );
 
         let out_col = builder.out_vec3(0, false, Some("out_color"));
 
         builder.main(|b| {
-            // First load the whole struct the fields
-            // let u = b.load_uniform(u);
-            // let red = b.struct_load::<_, spv::Float>(u, "r");
-            // let green = b.struct_load::<_, spv::Float>(u, "g");
-            // let blue = b.struct_load::<_, spv::Float>(u, "b");
-
-            // Just load fields
-            let red = b.load_uniform_field::<_, spv::Float>(u, "r");
-            let green = b.load_uniform_field::<_, spv::Float>(u, "g");
-            let blue = b.load_uniform_field::<_, spv::Float>(u, "b");
+            let red = b.load_storage_element(s, &0);
+            let green = b.load_storage_element(s, &1);
+            let blue = b.load_storage_element(s, &2);
             let col = b.vec3(&red, &green, &blue);
-
             // store composite into output
             b.store_out(out_col, col);
         });
@@ -186,7 +154,7 @@ fn main() {
         .create_descriptor_layout(&gpu::DescriptorLayoutDesc {
             name: None,
             entries: &[gpu::DescriptorLayoutEntry {
-                ty: gpu::DescriptorLayoutEntryType::UniformBuffer,
+                ty: gpu::DescriptorLayoutEntryType::StorageBuffer { read_only: true },
                 stage: gpu::ShaderStages::FRAGMENT,
                 count: std::num::NonZeroU32::new(1).unwrap(),
             }],
@@ -198,7 +166,7 @@ fn main() {
             name: None,
             layout: &descriptor_set_layout,
             entries: &[gpu::DescriptorSetEntry::Buffer(
-                uniform_buffer.slice_ref(..),
+                storage_buffer.slice_ref(..),
             )],
         })
         .unwrap();
@@ -312,14 +280,15 @@ fn main() {
                 };
 
                 let elapsed = start_time.elapsed().as_secs_f32() / 5.0;
-                uniform.r = elapsed.cos().abs();
-                uniform.g = elapsed.sin().abs();
-                uniform.b = (elapsed.cos() * elapsed.sin()).abs();
+                let r = elapsed.cos().abs();
+                let g = elapsed.sin().abs();
+                let b = (elapsed.cos() * elapsed.sin()).abs();
+                let col = [r, g, b];
 
                 command_buffer.begin(true).unwrap();
 
                 command_buffer
-                    .update_buffer(&uniform_buffer, 0, bytemuck::bytes_of(&uniform))
+                    .update_buffer(&storage_buffer, 0, bytemuck::cast_slice(&col))
                     .unwrap();
 
                 command_buffer
