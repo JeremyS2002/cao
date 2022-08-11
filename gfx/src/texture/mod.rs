@@ -654,6 +654,10 @@ impl GTexture1D {
 
         Ok(())
     }
+
+    pub fn len(&self) -> gpu::Size {
+        self.dimension.0
+    }
 }
 
 impl GTexture1DArray {
@@ -755,6 +759,14 @@ impl GTexture1DArray {
             array_layer,
             1,
         )
+    }
+
+    pub fn len(&self) -> gpu::Size {
+        self.dimension.0
+    }
+
+    pub fn layers(&self) -> gpu::Layer {
+        self.dimension.1
     }
 }
 
@@ -859,6 +871,18 @@ impl GTexture2D {
             0,
             1,
         )
+    }
+
+    pub fn width(&self) -> gpu::Size {
+        self.dimension.0
+    }
+
+    pub fn height(&self) -> gpu::Size {
+        self.dimension.1
+    }
+
+    pub fn samples(&self) -> gpu::Samples {
+        self.dimension.2
     }
 }
 
@@ -1034,6 +1058,22 @@ impl GTexture2DArray {
             array_layer,
             1,
         )
+    }
+
+    pub fn width(&self) -> gpu::Size {
+        self.dimension.0
+    }
+
+    pub fn height(&self) -> gpu::Size {
+        self.dimension.1
+    }
+
+    pub fn samples(&self) -> gpu::Samples {
+        self.dimension.2
+    }
+
+    pub fn layers(&self) -> gpu::Layer {
+        self.dimension.3
     }
 }
 
@@ -1272,6 +1312,14 @@ impl GTextureCube {
             format_change: None,
         })
     }
+
+    pub fn width(&self) -> gpu::Size {
+        self.dimension.0
+    }
+
+    pub fn height(&self) -> gpu::Size {
+        self.dimension.1
+    }
 }
 
 #[cfg(feature = "image")]
@@ -1446,6 +1494,18 @@ impl GTextureCubeArray {
             1,
         )
     }
+
+    pub fn width(&self) -> gpu::Size {
+        self.dimension.0
+    }
+
+    pub fn height(&self) -> gpu::Size {
+        self.dimension.1
+    }
+
+    pub fn layers(&self) -> gpu::Layer {
+        self.dimension.2
+    }
 }
 
 #[cfg(feature = "image")]
@@ -1554,5 +1614,17 @@ impl GTexture3D {
         } else {
             Ok(None)
         }
+    }
+
+    pub fn width(&self) -> gpu::Size {
+        self.dimension.0
+    }
+
+    pub fn height(&self) -> gpu::Size {
+        self.dimension.1
+    }
+
+    pub fn depth(&self) -> gpu::Size {
+        self.dimension.2
     }
 }
