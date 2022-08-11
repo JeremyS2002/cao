@@ -19,28 +19,31 @@ pub trait Mesh<V: Vertex> {
     fn draw_into(self, pass: &mut dyn crate::GraphicsPass<'_>);
 
     /// Draw self by reference
+    /// 
+    /// If using an instance buffer then that needs to be set first
     fn draw_instanced_ref<'a>(
         &'a self,
         pass: &mut dyn crate::GraphicsPass<'a>,
-        instance_buffer: &'a gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     );
 
     /// Draw self by clone
+    /// 
+    /// If using an instance buffer then that needs to be set first
     fn draw_instanced_owned<'a>(
         &self,
         pass: &mut dyn crate::GraphicsPass<'a>,
-        instance_buffer: gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     );
 
     /// Draw self by consuming
+    /// 
+    /// If using an instance buffer then that needs to be set first
     fn draw_instanced_into(
         self,
         pass: &mut dyn crate::GraphicsPass<'_>,
-        instance_buffer: gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     );
@@ -199,7 +202,6 @@ impl<V: Vertex> Mesh<V> for IndexedMesh<V> {
     fn draw_instanced_ref<'a>(
         &'a self,
         pass: &mut dyn crate::GraphicsPass<'a>,
-        instance_buffer: &'a gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     ) {
@@ -207,15 +209,12 @@ impl<V: Vertex> Mesh<V> for IndexedMesh<V> {
 
         pass.bind_vertex_buffer(self.vertex_buffer.slice_ref(..), 0);
 
-        pass.bind_vertex_buffer(instance_buffer.slice_ref(..), 1);
-
         pass.draw_indexed(0, self.index_count, first_instance, instance_count, 0);
     }
 
     fn draw_instanced_owned<'a>(
         &self,
         pass: &mut dyn crate::GraphicsPass<'a>,
-        instance_buffer: gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     ) {
@@ -223,23 +222,18 @@ impl<V: Vertex> Mesh<V> for IndexedMesh<V> {
 
         pass.bind_vertex_buffer(self.vertex_buffer.slice_owned(..), 0);
 
-        pass.bind_vertex_buffer(instance_buffer.into_slice(..), 1);
-
         pass.draw_indexed(0, self.index_count, first_instance, instance_count, 0);
     }
 
     fn draw_instanced_into(
         self,
         pass: &mut dyn crate::GraphicsPass<'_>,
-        instance_buffer: gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     ) {
         pass.bind_index_buffer(self.index_buffer.into_slice(..), gpu::IndexType::U32);
 
         pass.bind_vertex_buffer(self.vertex_buffer.into_slice(..), 0);
-
-        pass.bind_vertex_buffer(instance_buffer.into_slice(..), 1);
 
         pass.draw_indexed(0, self.index_count, first_instance, instance_count, 0);
     }
@@ -346,13 +340,10 @@ impl<V: Vertex> Mesh<V> for BasicMesh<V> {
     fn draw_instanced_ref<'a>(
         &'a self,
         pass: &mut dyn crate::GraphicsPass<'a>,
-        instance_buffer: &'a gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     ) {
         pass.bind_vertex_buffer(self.vertex_buffer.slice_ref(..), 0);
-
-        pass.bind_vertex_buffer(instance_buffer.slice_ref(..), 1);
 
         pass.draw(0, self.vertex_count, first_instance, instance_count);
     }
@@ -360,13 +351,10 @@ impl<V: Vertex> Mesh<V> for BasicMesh<V> {
     fn draw_instanced_owned<'a>(
         &self,
         pass: &mut dyn crate::GraphicsPass<'a>,
-        instance_buffer: gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     ) {
         pass.bind_vertex_buffer(self.vertex_buffer.slice_owned(..), 0);
-
-        pass.bind_vertex_buffer(instance_buffer.into_slice(..), 1);
 
         pass.draw(0, self.vertex_count, first_instance, instance_count);
     }
@@ -374,13 +362,10 @@ impl<V: Vertex> Mesh<V> for BasicMesh<V> {
     fn draw_instanced_into(
         self,
         pass: &mut dyn crate::GraphicsPass<'_>,
-        instance_buffer: gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     ) {
         pass.bind_vertex_buffer(self.vertex_buffer.into_slice(..), 0);
-
-        pass.bind_vertex_buffer(instance_buffer.into_slice(..), 1);
 
         pass.draw(0, self.vertex_count, first_instance, instance_count);
     }

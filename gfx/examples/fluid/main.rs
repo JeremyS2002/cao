@@ -493,7 +493,7 @@ impl Fluid {
             .bundle()
             .unwrap()
             .set_resource("u_vertex_params", &vertex_params)?
-            .set_resource("u_params", &advect_vel_params)?
+            .set_resource("u_params", &advect_ink_params)?
             .set_resource("u_velocity", &vel_a)?
             .set_resource("u_source", &ink_a)?
             .set_sampler_ref("u_sampler", &sampler)?
@@ -503,7 +503,7 @@ impl Fluid {
             .bundle()
             .unwrap()
             .set_resource("u_vertex_params", &vertex_params)?
-            .set_resource("u_params", &advect_vel_params)?
+            .set_resource("u_params", &advect_ink_params)?
             .set_resource("u_velocity", &vel_b)?
             .set_resource("u_source", &ink_b)?
             .set_sampler_ref("u_sampler", &sampler)?
@@ -1163,13 +1163,13 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let mut fractal = Fluid::new(&window).unwrap();
+    let mut sim = Fluid::new(&window).unwrap();
 
     let mut input_helper = WinitInputHelper::new();
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         if input_helper.update(&event) {
-            match fractal.redraw(&input_helper) {
+            match sim.redraw(&input_helper) {
                 Ok(_) => (),
                 Err(e) => {
                     if let Some(e) = e.downcast_ref::<gpu::Error>() {

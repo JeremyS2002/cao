@@ -506,33 +506,30 @@ impl<'a, 'b, V: crate::Vertex> ReflectedGraphicsPass<'a, 'b, V> {
     pub fn draw_instanced_mesh_ref(
         &mut self,
         mesh: &'a (impl crate::Mesh<V> + ?Sized),
-        instance_buffer: &'a gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     ) {
-        mesh.draw_instanced_ref(self, instance_buffer, first_instance, instance_count);
+        mesh.draw_instanced_ref(self, first_instance, instance_count);
     }
 
     /// Draw a mesh cloning the mesh's buffers
     pub fn draw_instanced_mesh_owned(
         &mut self,
         mesh: &(impl crate::Mesh<V> + ?Sized),
-        instance_buffer: gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     ) {
-        mesh.draw_instanced_owned(self, instance_buffer, first_instance, instance_count);
+        mesh.draw_instanced_owned(self, first_instance, instance_count);
     }
 
     /// Draw a mesh consuming the mesh
     pub fn draw_instanced_mesh_into(
         &mut self,
         mesh: impl crate::Mesh<V>,
-        instance_buffer: gpu::Buffer,
         first_instance: u32,
         instance_count: u32,
     ) {
-        mesh.draw_instanced_into(self, instance_buffer, first_instance, instance_count);
+        mesh.draw_instanced_into(self, first_instance, instance_count);
     }
 
     /// Set a bundle referencing the bundle
