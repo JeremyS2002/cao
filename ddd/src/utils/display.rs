@@ -1,35 +1,26 @@
 
 use gfx::prelude::*;
 
+use std::collections::HashMap;
+
 use crate::utils::DisplayFlags;
 
 pub struct DisplayRenderer {
-    target: gpu::TextureView,
-
     clip: Option<gfx::ReflectedGraphics>,
-    clip_bundle: Option<gfx::Bundle>,
+    clip_bundles: HashMap<u64, gfx::Bundle>,
 
     reinhard: Option<gfx::ReflectedGraphics>,
-    reinhard_bundle: Option<gfx::Bundle>,
+    reinhard_bundles: HashMap<u64, gfx::Bundle>,
 
     aces: Option<gfx::ReflectedGraphics>,
-    aces_bundle: Option<gfx::Bundle>,
+    aces_bundles: HashMap<u64, gfx::Bundle>,
 
     sampler: gpu::Sampler,
-}
-
-impl std::ops::Deref for DisplayRenderer {
-    type Target = gpu::TextureView;
-
-    fn deref(&self) -> &Self::Target {
-        &self.target
-    }
 }
 
 impl DisplayRenderer {
     pub fn new(
         device: &gpu::Device,
-        src: &gpu::TextureView,
         flags: DisplayFlags,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
@@ -37,77 +28,33 @@ impl DisplayRenderer {
             name: name.map(|n| format!("{}_sampler", n)),
             ..gpu::SamplerDesc::LINEAR
         })?;
-        let (clip, clip_bundle) = if flags.contains(DisplayFlags::CLIP) {
+        let clip = if flags.contains(DisplayFlags::CLIP) {
             let c = Self::create_clip(device, None)?;
-            let b = match c
-                .bundle()
-                .unwrap()
-                .set_resource("u_texture", src)
-                .unwrap()
-                .set_resource("u_sampler", &sampler)
-                .unwrap()
-                .build(device) {
-                Ok(b) => b,
-                Err(e) => match e {
-                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
-                }
-            };
-            (Some(c), Some(b))
+            Some(c)
         } else {
-            (None, None)
+            None
         };
-        let (reinhard, reinhard_bundle) = if flags.contains(DisplayFlags::REINHARD) {
+        let reinhard = if flags.contains(DisplayFlags::REINHARD) {
             let c = Self::create_reinhard(device, None)?;
-            let b = match c
-                .bundle()
-                .unwrap()
-                .set_resource("u_texture", src)
-                .unwrap()
-                .set_resource("u_sampler", &sampler)
-                .unwrap()
-                .build(device) {
-                Ok(b) => b,
-                Err(e) => match e {
-                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
-                }
-            };
-            (Some(c), Some(b))
+            Some(c)
         } else {
-            (None, None)
+            None
         };
-        let (aces, aces_bundle) = if flags.contains(DisplayFlags::ACES) {
+        let aces = if flags.contains(DisplayFlags::ACES) {
             let c = Self::create_aces(device, None)?;
-            let b = match c
-                .bundle()
-                .unwrap()
-                .set_resource("u_texture", src)
-                .unwrap()
-                .set_resource("u_sampler", &sampler)
-                .unwrap()
-                .build(device) {
-                Ok(b) => b,
-                Err(e) => match e {
-                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
-                }
-            };
-            (Some(c), Some(b))
+            Some(c)
         } else {
-            (None, None)
+            None
         };
         Ok(Self {
-            target: src.clone(),
-
             clip,
-            clip_bundle,
+            clip_bundles: HashMap::new(),
 
             reinhard,
-            reinhard_bundle,
+            reinhard_bundles: HashMap::new(),
 
             aces,
-            aces_bundle,
+            aces_bundles: HashMap::new(),
 
             sampler,
         })
@@ -170,80 +117,130 @@ impl DisplayRenderer {
     pub fn clip_renderer(&self) -> &Option<gfx::ReflectedGraphics> {
         &self.clip
     }
-
-    /// Get a reference to the display renderer's target.
-    pub fn target(&self) -> &gpu::TextureView {
-        &self.target
-    }
-
-    /// Get a reference to the display renderer's clip bundle.
-    pub fn clip_bundle(&self) -> &Option<gfx::Bundle> {
-        &self.clip_bundle
-    }
 }
 
 impl DisplayRenderer {
     pub fn clip<'a>(
-        &self,
+        &mut self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
+        src: &gpu::TextureView,
         target: gfx::Attachment<'a>,
     ) -> Result<(), gpu::Error> {
+        let c = self.clip
+            .as_ref()
+            .expect("ERROR: DisplayRenderer missing flags");
         let mut pass = encoder.graphics_pass_reflected::<()>(
             device,
             &[target],
             &[],
             None,
-            self.clip
-                .as_ref()
-                .expect("ERROR: DisplayRenderer missing flags"),
+            c,
         )?;
 
-        pass.set_bundle_owned(self.clip_bundle.as_ref().unwrap());
+        if self.clip_bundles.get(&src.id()).is_none() {
+            let b = match c
+                .bundle()
+                .unwrap()
+                .set_resource("u_texture", src)
+                .unwrap()
+                .set_resource("u_sampler", &self.sampler)
+                .unwrap()
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
+            self.clip_bundles.insert(src.id(), b);
+        }
+        let bundle = self.clip_bundles.get(&src.id()).unwrap();
+        pass.set_bundle_owned(bundle);
         pass.draw(0, 3, 0, 1);
 
         Ok(())
     }
 
     pub fn reinhard<'a>(
-        &self,
+        &mut self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
+        src: &gpu::TextureView,
         target: gfx::Attachment<'a>,
     ) -> Result<(), gpu::Error> {
+        let c = self.reinhard
+            .as_ref()
+            .expect("ERROR: DisplayRenderer missing flags");
         let mut pass = encoder.graphics_pass_reflected::<()>(
             device,
             &[target],
             &[],
             None,
-            self.reinhard
-                .as_ref()
-                .expect("ERROR: DisplayRenderer missing flags"),
+            c,
         )?;
 
-        pass.set_bundle_owned(self.reinhard_bundle.as_ref().unwrap());
+        if self.reinhard_bundles.get(&src.id()).is_none() {
+            let b = match c
+                .bundle()
+                .unwrap()
+                .set_resource("u_texture", src)
+                .unwrap()
+                .set_resource("u_sampler", &self.sampler)
+                .unwrap()
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
+            self.reinhard_bundles.insert(src.id(), b);
+        }
+        let bundle = self.reinhard_bundles.get(&src.id()).unwrap();
+        pass.set_bundle_owned(bundle);
         pass.draw(0, 3, 0, 1);
 
         Ok(())
     }
 
     pub fn aces<'a>(
-        &self,
+        &mut self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
+        src: &gpu::TextureView,
         target: gfx::Attachment<'a>,
     ) -> Result<(), gpu::Error> {
+        let c = self.aces
+            .as_ref()
+            .expect("ERROR: DisplayRenderer missing flags");
         let mut pass = encoder.graphics_pass_reflected::<()>(
             device,
             &[target],
             &[],
             None,
-            self.aces
-                .as_ref()
-                .expect("ERROR: DisplayRenderer missing flags"),
+            c,
         )?;
 
-        pass.set_bundle_owned(self.aces_bundle.as_ref().unwrap());
+        if self.aces_bundles.get(&src.id()).is_none() {
+            let b = match c
+                .bundle()
+                .unwrap()
+                .set_resource("u_texture", src)
+                .unwrap()
+                .set_resource("u_sampler", &self.sampler)
+                .unwrap()
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
+            self.aces_bundles.insert(src.id(), b);
+        }
+        let bundle = self.aces_bundles.get(&src.id()).unwrap();
+        pass.set_bundle_owned(bundle);
         pass.draw(0, 3, 0, 1);
 
         Ok(())

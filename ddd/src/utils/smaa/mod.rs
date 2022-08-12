@@ -9,6 +9,7 @@ use gfx::prelude::*;
 
 use super::DisplayFlags;
 
+use std::collections::HashMap;
 use std::borrow::Cow;
 
 /// Describes how SMAA (Subpixel morphological antialiasing) should be performed
@@ -247,170 +248,37 @@ pub enum SMAAQuality {
 /// - Ultra
 /// see [`SMAAQuality`] for more infomation on what these do
 pub struct SMAARenderer {
-    uniform: gfx::Uniform<glam::Vec4>,
+    pub edges_targets: HashMap<(u32, u32), gfx::GTexture2D>,
+    pub blend_targets: HashMap<(u32, u32), gfx::GTexture2D>,
 
-    color_target: gpu::TextureView,
-    edges_target: gfx::GTexture2D,
-    blend_target: gfx::GTexture2D,
+    pub area: gfx::GTexture2D,
+    pub search: gfx::GTexture2D,
+    pub sampler: gpu::Sampler,
 
-    area: gfx::GTexture2D,
-    search: gfx::GTexture2D,
-    sampler: gpu::Sampler,
+    pub edge_detect: gfx::ReflectedGraphics,
+    pub edge_detect_bundles: HashMap<u64, gfx::Bundle>,
 
-    edge_detect: gfx::ReflectedGraphics,
-    edge_detect_bundle: gfx::Bundle,
+    pub blend_weight: gfx::ReflectedGraphics,
+    pub blend_weight_bundles: HashMap<u64, gfx::Bundle>,
 
-    blend_weight: gfx::ReflectedGraphics,
-    blend_weight_bundle: gfx::Bundle,
+    pub neighborhood_blend_clip: Option<gfx::ReflectedGraphics>,
+    pub neighborhood_blend_clip_bundles: HashMap<u64, gfx::Bundle>,
 
-    neighborhood_blend_clip: Option<gfx::ReflectedGraphics>,
-    neighborhood_blend_clip_bundle: Option<gfx::Bundle>,
+    pub neighborhood_blend_reinhard: Option<gfx::ReflectedGraphics>,
+    pub neighborhood_blend_reinhard_bundles: HashMap<u64, gfx::Bundle>,
 
-    neighborhood_blend_reinhard: Option<gfx::ReflectedGraphics>,
-    neighborhood_blend_reinhard_bundle: Option<gfx::Bundle>,
-
-    neighborhood_blend_aces: Option<gfx::ReflectedGraphics>,
-    neighborhood_blend_aces_bundle: Option<gfx::Bundle>,
+    pub neighborhood_blend_aces: Option<gfx::ReflectedGraphics>,
+    pub neighborhood_blend_aces_bundles: HashMap<u64, gfx::Bundle>,
 }
 
 impl SMAARenderer {
-    fn create_targets(
-        device: &gpu::Device,
-        width: u32,
-        height: u32,
-    ) -> Result<(gfx::GTexture2D, gfx::GTexture2D), gpu::Error> {
-        let edges_target = gfx::GTexture2D::from_formats(
-            device,
-            width,
-            height,
-            gpu::Samples::S1,
-            gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
-            1,
-            [
-                gpu::Format::Rg8Unorm,
-                gpu::Format::Rg16Unorm,
-                gpu::Format::Rg16Float,
-                gpu::Format::Rg32Float,
-            ]
-            .into_iter(),
-            None,
-        )?
-        .unwrap();
-        let blend_target = gfx::GTexture2D::from_formats(
-            device,
-            width,
-            height,
-            gpu::Samples::S1,
-            gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
-            1,
-            [
-                gpu::Format::Rgba8Unorm,
-                gpu::Format::Rgba16Unorm,
-                gpu::Format::Rgba16Float,
-                gpu::Format::Rgba32Float,
-            ]
-            .into_iter(),
-            None,
-        )?
-        .unwrap();
-        Ok((edges_target, blend_target))
-    }
-
-    fn create_bundles(
-        device: &gpu::Device,
-        edge_detect: &gfx::ReflectedGraphics,
-        uniform: &gfx::Uniform<glam::Vec4>,
-        target: &gpu::TextureView,
-        sampler: &gpu::Sampler,
-        blend_weight: &gfx::ReflectedGraphics,
-        edges_target: &gfx::GTexture2D,
-        area: &gfx::GTexture2D,
-        search: &gfx::GTexture2D,
-    ) -> Result<(gfx::Bundle, gfx::Bundle), gpu::Error> {
-        let edge_detect_bundle = match edge_detect
-            .bundle()
-            .unwrap()
-            .set_resource("u_data", uniform)
-            .unwrap()
-            .set_combined_texture_sampler_ref("u_tex", (target, sampler))
-            .unwrap()
-            .build(device) {
-                Ok(b) => b,
-                Err(e) => match e {
-                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
-                }
-            };
-        let blend_weight_bundle = match blend_weight
-            .bundle()
-            .unwrap()
-            .set_resource("u_data", uniform)
-            .unwrap()
-            .set_resource("u_edges", &(edges_target, sampler))
-            .unwrap()
-            .set_resource("u_area", &(area, sampler))
-            .unwrap()
-            .set_resource("u_search", &(search, sampler))
-            .unwrap()
-            .build(device) {
-                Ok(b) => b,
-                Err(e) => match e {
-                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
-                }
-            };
-        Ok((edge_detect_bundle, blend_weight_bundle))
-    }
-
-    pub fn new_target(
-        encoder: &mut gfx::CommandEncoder<'_>,
-        device: &gpu::Device,
-        width: u32,
-        height: u32,
-        format: gpu::Format,
-        state: SMAAState,
-        flags: DisplayFlags,
-        name: Option<String>,
-    ) -> Result<Self, gpu::Error> {
-        let target = gfx::GTexture2D::new(
-            device,
-            width,
-            height,
-            gpu::Samples::S1,
-            gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
-            1,
-            format,
-            None,
-        )?
-        .view;
-        Self::new(encoder, device, &target, state, flags, name)
-    }
-
     pub fn new(
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
-        src: &gpu::TextureView,
         state: SMAAState,
         flags: DisplayFlags,
         name: Option<String>,
     ) -> Result<Self, gpu::Error> {
-        let width = src.extent().width;
-        let height = src.extent().height;
-
-        let uniform = gfx::Uniform::new(
-            encoder,
-            device,
-            glam::vec4(
-                1.0 / width as f32,
-                1.0 / height as f32,
-                width as f32,
-                height as f32,
-            ),
-            name.as_ref().map(|n| format!("{}_uniform", n)),
-        )?;
-
-        let (edges_target, blend_target) = Self::create_targets(device, width, height)?;
-
         let area = gfx::GTexture2D::from_raw_image(
             encoder,
             device,
@@ -477,122 +345,46 @@ impl SMAARenderer {
             },
         };
 
-        let (neighborhood_blend_clip, neighborhood_blend_clip_bundle) =
-            if flags.contains(DisplayFlags::CLIP) {
-                let g = Self::crate_clip(device, &state, name.as_ref())?;
-                let b = match g
-                    .bundle()
-                    .unwrap()
-                    .set_resource("u_data", &uniform)
-                    .unwrap()
-                    .set_combined_texture_sampler_ref("u_color", (&src, &sampler))
-                    .unwrap()
-                    .set_resource("u_blend", &(&blend_target, &sampler))
-                    .unwrap()
-                    .build(device) {
-                Ok(b) => b,
-                Err(e) => match e {
-                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
-                }
-            };
+        let neighborhood_blend_clip = if flags.contains(DisplayFlags::CLIP) {
+            Some(Self::create_clip(device, &state, name.as_ref())?)
+        } else {
+            None
+        };
 
-                (Some(g), Some(b))
-            } else {
-                (None, None)
-            };
+        let neighborhood_blend_reinhard = if flags.contains(DisplayFlags::REINHARD) {
+            Some(Self::create_reinhard(device, &state, name.as_ref())?)
+        } else {
+            None
+        };
 
-        let (neighborhood_blend_reinhard, neighborhood_blend_reinhard_bundle) =
-            if flags.contains(DisplayFlags::REINHARD) {
-                let g = Self::crate_reinhard(device, &state, name.as_ref())?;
-                let b = match g
-                    .bundle()
-                    .unwrap()
-                    .set_resource("u_data", &uniform)
-                    .unwrap()
-                    .set_combined_texture_sampler_ref("u_color", (&src, &sampler))
-                    .unwrap()
-                    .set_resource("u_blend", &(&blend_target, &sampler))
-                    .unwrap()
-                    .build(device) {
-                Ok(b) => b,
-                Err(e) => match e {
-                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
-                }
-            };
-
-                (Some(g), Some(b))
-            } else {
-                (None, None)
-            };
-
-        let (neighborhood_blend_aces, neighborhood_blend_aces_bundle) =
-            if flags.contains(DisplayFlags::ACES) {
-                let g = Self::crate_clip(device, &state, name.as_ref())?;
-                let b = match g
-                    .bundle()
-                    .unwrap()
-                    .set_resource("u_data", &uniform)
-                    .unwrap()
-                    .set_combined_texture_sampler_ref("u_color", (&src, &sampler))
-                    .unwrap()
-                    .set_resource("u_blend", &(&blend_target, &sampler))
-                    .unwrap()
-                    .build(device) {
-                Ok(b) => b,
-                Err(e) => match e {
-                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
-                }
-            };
-
-                (Some(g), Some(b))
-            } else {
-                (None, None)
-            };
-
-        let (edge_detect_bundle, blend_weight_bundle) = Self::create_bundles(
-            device,
-            &edge_detect,
-            &uniform,
-            if let SMAAEdgeMethod::Depth(d) = &state.edge {
-                d
-            } else {
-                src
-            },
-            &sampler,
-            &blend_weight,
-            &edges_target,
-            &area,
-            &search,
-        )?;
+        let neighborhood_blend_aces = if flags.contains(DisplayFlags::ACES) {
+            Some(Self::create_aces(device, &state, name.as_ref())?)
+        } else {
+            None
+        };
 
         Ok(Self {
-            uniform,
-
-            color_target: src.clone(),
-            edges_target,
-            blend_target,
+            edges_targets: HashMap::new(),
+            blend_targets: HashMap::new(),
 
             area,
             search,
             sampler,
 
             edge_detect,
-            edge_detect_bundle,
+            edge_detect_bundles: HashMap::new(),
 
             blend_weight,
-            blend_weight_bundle,
+            blend_weight_bundles: HashMap::new(),
 
             neighborhood_blend_clip,
-            neighborhood_blend_clip_bundle,
+            neighborhood_blend_clip_bundles: HashMap::new(),
 
             neighborhood_blend_reinhard,
-            neighborhood_blend_reinhard_bundle,
+            neighborhood_blend_reinhard_bundles: HashMap::new(),
 
             neighborhood_blend_aces,
-            neighborhood_blend_aces_bundle,
+            neighborhood_blend_aces_bundles: HashMap::new(),
         })
     }
 
@@ -620,7 +412,7 @@ impl SMAARenderer {
         }
     }
 
-    pub fn crate_clip(
+    pub fn create_clip(
         device: &gpu::Device,
         state: &SMAAState,
         name: Option<&String>,
@@ -635,7 +427,7 @@ impl SMAARenderer {
         )
     }
 
-    pub fn crate_reinhard(
+    pub fn create_reinhard(
         device: &gpu::Device,
         state: &SMAAState,
         name: Option<&String>,
@@ -650,7 +442,7 @@ impl SMAARenderer {
         )
     }
 
-    pub fn crate_aces(
+    pub fn create_aces(
         device: &gpu::Device,
         state: &SMAAState,
         name: Option<&String>,
@@ -667,17 +459,69 @@ impl SMAARenderer {
 }
 
 impl SMAARenderer {
+    pub fn edges_target(&mut self, device: &gpu::Device, width: u32, height: u32) -> Result<gpu::TextureView, gpu::Error> {
+        if self.edges_targets.get(&(width, height)).is_none() {
+            let t = gfx::GTexture2D::from_formats(
+                device,
+                width,
+                height,
+                gpu::Samples::S1,
+                gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
+                1,
+                [
+                    gpu::Format::Rg8Unorm,
+                    gpu::Format::Rg16Unorm,
+                    gpu::Format::Rg16Float,
+                    gpu::Format::Rg32Float,
+                ]
+                .into_iter(),
+                None,
+            )?
+            .unwrap();
+            self.edges_targets.insert((width, height), t);
+        }
+        Ok(self.edges_targets.get(&(width, height)).unwrap().view.clone())
+    }
+
+    fn blend_weight_target(&mut self, device: &gpu::Device, width: u32, height: u32) -> Result<gpu::TextureView, gpu::Error> {
+        if self.blend_targets.get(&(width, height)).is_none() {
+            let t = gfx::GTexture2D::from_formats(
+                device,
+                width,
+                height,
+                gpu::Samples::S1,
+                gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
+                1,
+                [
+                    gpu::Format::Rgba8Unorm,
+                    gpu::Format::Rgba16Unorm,
+                    gpu::Format::Rgba16Float,
+                    gpu::Format::Rgba32Float,
+                ]
+                .into_iter(),
+                None,
+            )?
+            .unwrap();
+            self.blend_targets.insert((width, height), t);
+        }
+        Ok(self.blend_targets.get(&(width, height)).unwrap().view.clone())
+    }
+
     #[inline]
     pub fn edge_detect_pass(
-        &self,
+        &mut self,
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
+        src: &gpu::TextureView,
     ) -> Result<(), gpu::Error> {
+        let width = src.extent().width;
+        let height = src.extent().height;
+        let target = self.edges_target(device, width, height)?;
         let mut pass = encoder.graphics_pass_reflected::<()>(
             device,
             &[gfx::Attachment {
                 raw: gpu::Attachment::View(
-                    Cow::Owned(self.edges_target.view.clone()),
+                    Cow::Owned(target),
                     gpu::ClearValue::ColorFloat([0.0; 4]),
                 ),
                 load: gpu::LoadOp::Clear,
@@ -687,22 +531,44 @@ impl SMAARenderer {
             None,
             &self.edge_detect,
         )?;
-        pass.set_bundle_owned(&self.edge_detect_bundle);
+        if self.edge_detect_bundles.get(&src.id()).is_none() {
+            let b = match self.edge_detect
+                .bundle()
+                .unwrap()
+                .set_combined_texture_sampler_ref("u_tex", (src, &self.sampler))
+                .unwrap()
+                .build(device) {
+                    Ok(b) => b,
+                    Err(e) => match e {
+                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    }
+                };
+            self.edge_detect_bundles.insert(src.id(), b);
+        }
+        let bundle = self.edge_detect_bundles.get(&src.id()).unwrap().clone();
+        pass.set_bundle_into(bundle);
+        let rt = glam::vec4(1.0 / width as f32, 1.0 / height as f32, width as f32, height as f32);
+        pass.push_vec4("rt", rt.into());
         pass.draw(0, 3, 0, 1);
         Ok(())
     }
 
     #[inline]
     pub fn blend_weight_pass(
-        &self,
+        &mut self,
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
+        src: &gpu::TextureView,
     ) -> Result<(), gpu::Error> {
+        let width = src.extent().width;
+        let height = src.extent().height;
+        let target = self.blend_weight_target(device, width, height)?;
         let mut pass = encoder.graphics_pass_reflected::<()>(
             device,
             &[gfx::Attachment {
                 raw: gpu::Attachment::View(
-                    Cow::Owned(self.blend_target.view.clone()),
+                    Cow::Owned(target),
                     gpu::ClearValue::ColorFloat([0.0; 4]),
                 ),
                 load: gpu::LoadOp::Clear,
@@ -712,222 +578,284 @@ impl SMAARenderer {
             None,
             &self.blend_weight,
         )?;
-        pass.set_bundle_owned(&self.blend_weight_bundle);
+        if self.blend_weight_bundles.get(&src.id()).is_none() {
+            let edges_target = self.edges_target(device, width, height)?;
+            let b = match self.blend_weight
+                .bundle()
+                .unwrap()
+                .set_combined_texture_sampler_ref("u_edges", (&edges_target, &self.sampler))
+                .unwrap()
+                .set_resource("u_area", &(&self.area, &self.sampler))
+                .unwrap()
+                .set_resource("u_search", &(&self.search, &self.sampler))
+                .unwrap()
+                .build(device) {
+                    Ok(b) => b,
+                    Err(e) => match e {
+                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    }
+                };
+            self.blend_weight_bundles.insert(src.id(), b);
+        }
+        let bundle = self.blend_weight_bundles.get(&src.id()).unwrap().clone();
+        pass.set_bundle_into(bundle);
+        let rt = glam::vec4(1.0 / width as f32, 1.0 / height as f32, width as f32, height as f32);
+        pass.push_vec4("rt", rt.into());
         pass.draw(0, 3, 0, 1);
         Ok(())
     }
 
     #[inline]
     pub fn neighborhood_blend_clip_pass<'a>(
-        &self,
+        &mut self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
+        src: &gpu::TextureView,
         target: gfx::Attachment<'a>,
     ) -> Result<(), gpu::Error> {
+        let g = self.neighborhood_blend_clip
+            .as_ref()
+            .expect("SMAARenderer missing flags");
         let mut pass = encoder.graphics_pass_reflected::<()>(
             device,
             &[target],
             &[],
             None,
-            self.neighborhood_blend_clip
-                .as_ref()
-                .expect("SMAARenderer missing flags"),
+            g
         )?;
-        pass.set_bundle_owned(&self.neighborhood_blend_clip_bundle.clone().unwrap());
+
+        if self.neighborhood_blend_clip_bundles.get(&src.id()).is_none() {
+            let width = src.extent().width;
+            let height = src.extent().height;
+            let blend_target = {
+                if self.blend_targets.get(&(width, height)).is_none() {
+                    let t = gfx::GTexture2D::from_formats(
+                        device,
+                        width,
+                        height,
+                        gpu::Samples::S1,
+                        gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
+                        1,
+                        [
+                            gpu::Format::Rgba8Unorm,
+                            gpu::Format::Rgba16Unorm,
+                            gpu::Format::Rgba16Float,
+                            gpu::Format::Rgba32Float,
+                        ]
+                        .into_iter(),
+                        None,
+                    )?
+                    .unwrap();
+                    self.blend_targets.insert((width, height), t);
+                }
+                self.blend_targets.get(&(width, height)).unwrap().view.clone()
+            };
+            let b = match g
+                .bundle()
+                .unwrap()
+                .set_combined_texture_sampler_ref("u_color", (&src, &self.sampler))
+                .unwrap()
+                .set_combined_texture_sampler_ref("u_blend", (&blend_target, &self.sampler))
+                .unwrap()
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
+            self.neighborhood_blend_clip_bundles.insert(src.id(), b);
+        }
+        let bundle = self.neighborhood_blend_clip_bundles.get(&src.id()).unwrap();
+        pass.set_bundle_owned(bundle);
+
+        let width = src.extent().width;
+        let height = src.extent().height;
+        let rt = glam::vec4(1.0 / width as f32, 1.0 / height as f32, width as f32, height as f32);
+        pass.push_vec4("rt", rt.into());
         pass.draw(0, 3, 0, 1);
         Ok(())
     }
 
     #[inline]
     pub fn neighborhood_blend_reinhard_pass<'a>(
-        &self,
+        &mut self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
+        src: &gpu::TextureView,
         target: gfx::Attachment<'a>,
     ) -> Result<(), gpu::Error> {
+        let g = self.neighborhood_blend_reinhard
+            .as_ref()
+            .expect("SMAARenderer missing flags");
         let mut pass = encoder.graphics_pass_reflected::<()>(
             device,
             &[target],
             &[],
             None,
-            self.neighborhood_blend_reinhard
-                .as_ref()
-                .expect("SMAARenderer missing flags"),
+            g
         )?;
-        pass.set_bundle_owned(&self.neighborhood_blend_reinhard_bundle.clone().unwrap());
+
+        if self.neighborhood_blend_reinhard_bundles.get(&src.id()).is_none() {
+            let width = src.extent().width;
+            let height = src.extent().height;
+            let blend_target = {
+                if self.blend_targets.get(&(width, height)).is_none() {
+                    let t = gfx::GTexture2D::from_formats(
+                        device,
+                        width,
+                        height,
+                        gpu::Samples::S1,
+                        gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
+                        1,
+                        [
+                            gpu::Format::Rgba8Unorm,
+                            gpu::Format::Rgba16Unorm,
+                            gpu::Format::Rgba16Float,
+                            gpu::Format::Rgba32Float,
+                        ]
+                        .into_iter(),
+                        None,
+                    )?
+                    .unwrap();
+                    self.blend_targets.insert((width, height), t);
+                }
+                self.blend_targets.get(&(width, height)).unwrap().view.clone()
+            };
+            let b = match g
+                .bundle()
+                .unwrap()
+                .set_combined_texture_sampler_ref("u_color", (&src, &self.sampler))
+                .unwrap()
+                .set_combined_texture_sampler_ref("u_blend", (&blend_target, &self.sampler))
+                .unwrap()
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
+            self.neighborhood_blend_reinhard_bundles.insert(src.id(), b);
+        }
+        let bundle = self.neighborhood_blend_reinhard_bundles.get(&src.id()).unwrap();
+        pass.set_bundle_owned(bundle);
+        let width = src.extent().width;
+        let height = src.extent().height;
+        let rt = glam::vec4(1.0 / width as f32, 1.0 / height as f32, width as f32, height as f32);
+        pass.push_vec4("rt", rt.into());
         pass.draw(0, 3, 0, 1);
         Ok(())
     }
 
     #[inline]
     pub fn neighborhood_blend_aces_pass<'a>(
-        &self,
+        &mut self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
+        src: &gpu::TextureView,
         target: gfx::Attachment<'a>,
     ) -> Result<(), gpu::Error> {
+        let g = self.neighborhood_blend_aces
+            .as_ref()
+            .expect("SMAARenderer missing flags");
         let mut pass = encoder.graphics_pass_reflected::<()>(
             device,
             &[target],
             &[],
             None,
-            self.neighborhood_blend_aces
-                .as_ref()
-                .expect("SMAARenderer missing flags"),
+            g
         )?;
-        pass.set_bundle_owned(&self.neighborhood_blend_aces_bundle.clone().unwrap());
+
+        if self.neighborhood_blend_aces_bundles.get(&src.id()).is_none() {
+            let width = src.extent().width;
+            let height = src.extent().height;
+            let blend_target = {
+                if self.blend_targets.get(&(width, height)).is_none() {
+                    let t = gfx::GTexture2D::from_formats(
+                        device,
+                        width,
+                        height,
+                        gpu::Samples::S1,
+                        gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
+                        1,
+                        [
+                            gpu::Format::Rgba8Unorm,
+                            gpu::Format::Rgba16Unorm,
+                            gpu::Format::Rgba16Float,
+                            gpu::Format::Rgba32Float,
+                        ]
+                        .into_iter(),
+                        None,
+                    )?
+                    .unwrap();
+                    self.blend_targets.insert((width, height), t);
+                }
+                self.blend_targets.get(&(width, height)).unwrap().view.clone()
+            };
+            let b = match g
+                .bundle()
+                .unwrap()
+                .set_combined_texture_sampler_ref("u_color", (&src, &self.sampler))
+                .unwrap()
+                .set_combined_texture_sampler_ref("u_blend", (&blend_target, &self.sampler))
+                .unwrap()
+                .build(device) {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                }
+            };
+            self.neighborhood_blend_aces_bundles.insert(src.id(), b);
+        }
+        let bundle = self.neighborhood_blend_aces_bundles.get(&src.id()).unwrap();
+        pass.set_bundle_owned(bundle);
+        let width = src.extent().width;
+        let height = src.extent().height;
+        let rt = glam::vec4(1.0 / width as f32, 1.0 / height as f32, width as f32, height as f32);
+        pass.push_vec4("rt", rt.into());
         pass.draw(0, 3, 0, 1);
         Ok(())
     }
 
     pub fn clip<'a>(
-        &self,
+        &mut self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
+        src: &gpu::TextureView,
         target: gfx::Attachment<'a>,
     ) -> Result<(), gpu::Error> {
-        self.edge_detect_pass(encoder, device)?;
-        self.blend_weight_pass(encoder, device)?;
-        self.neighborhood_blend_clip_pass(encoder, device, target)?;
+        self.edge_detect_pass(encoder, device, src)?;
+        self.blend_weight_pass(encoder, device, src)?;
+        self.neighborhood_blend_clip_pass(encoder, device, src, target)?;
         Ok(())
     }
 
     pub fn reinhard<'a>(
-        &self,
+        &mut self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
+        src: &gpu::TextureView,
         target: gfx::Attachment<'a>,
     ) -> Result<(), gpu::Error> {
-        self.edge_detect_pass(encoder, device)?;
-        self.blend_weight_pass(encoder, device)?;
-        self.neighborhood_blend_reinhard_pass(encoder, device, target)?;
+        self.edge_detect_pass(encoder, device, src)?;
+        self.blend_weight_pass(encoder, device, src)?;
+        self.neighborhood_blend_reinhard_pass(encoder, device, src, target)?;
         Ok(())
     }
 
     pub fn aces<'a>(
-        &self,
+        &mut self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
+        src: &gpu::TextureView,
         target: gfx::Attachment<'a>,
     ) -> Result<(), gpu::Error> {
-        self.edge_detect_pass(encoder, device)?;
-        self.blend_weight_pass(encoder, device)?;
-        self.neighborhood_blend_aces_pass(encoder, device, target)?;
+        self.edge_detect_pass(encoder, device, src)?;
+        self.blend_weight_pass(encoder, device, src)?;
+        self.neighborhood_blend_aces_pass(encoder, device, src, target)?;
         Ok(())
-    }
-
-    /// Get a reference to the smaa's area.
-    #[inline]
-    pub fn area(&self) -> &gfx::GTexture2D {
-        &self.area
-    }
-
-    /// Get a reference to the smaa's search.
-    #[inline]
-    pub fn search(&self) -> &gfx::GTexture2D {
-        &self.search
-    }
-
-    /// Get a reference to the smaa's sampler.
-    #[inline]
-    pub fn sampler(&self) -> &gpu::Sampler {
-        &self.sampler
-    }
-
-    /// Get a reference to the smaa's uniform.
-    #[inline]
-    pub fn uniform(&self) -> &gfx::Uniform<glam::Vec4> {
-        &self.uniform
-    }
-
-    /// Get a reference to the smaa's output target.
-    #[inline]
-    pub fn color_target(&self) -> &gpu::TextureView {
-        &self.color_target
-    }
-
-    /// Get a reference to the smaa's edges target.
-    #[inline]
-    pub fn edges_target(&self) -> &gfx::GTexture2D {
-        &self.edges_target
-    }
-
-    /// Get a reference to the smaa's blend target.
-    #[inline]
-    pub fn blend_target(&self) -> &gfx::GTexture2D {
-        &self.blend_target
-    }
-
-    /// Get a reference to the smaa's edge detect.
-    #[inline]
-    pub fn edge_detect(&self) -> &gfx::ReflectedGraphics {
-        &self.edge_detect
-    }
-
-    /// Get a reference to the smaa's edge detect bundle.
-    #[inline]
-    pub fn edge_detect_bundle(&self) -> &gfx::Bundle {
-        &self.edge_detect_bundle
-    }
-
-    /// Get a reference to the smaa's blend weight.
-    #[inline]
-    pub fn blend_weight(&self) -> &gfx::ReflectedGraphics {
-        &self.blend_weight
-    }
-
-    /// Get a reference to the smaa's neighborhood blend.
-    #[inline]
-    pub fn neighborhood_blend_clip(&self) -> Option<&gfx::ReflectedGraphics> {
-        self.neighborhood_blend_clip.as_ref()
-    }
-
-    /// Get a reference to the smaa's neighborhood blend bundle.
-    #[inline]
-    pub fn neighborhood_blend_clip_bundle(&self) -> Option<&gfx::Bundle> {
-        self.neighborhood_blend_clip_bundle.as_ref()
-    }
-
-    /// Get a reference to the smaa's blend weight bundle.
-    #[inline]
-    pub fn blend_weight_bundle(&self) -> &gfx::Bundle {
-        &self.blend_weight_bundle
-    }
-
-    /// Get a mutable reference to the s m a a's uniform.
-    pub fn uniform_mut(&mut self) -> &mut gfx::Uniform<glam::Vec4> {
-        &mut self.uniform
-    }
-
-    /// Get a reference to the s m a a renderer's neighborhood blend reinhard.
-    #[inline]
-    pub fn neighborhood_blend_reinhard(&self) -> &Option<gfx::ReflectedGraphics> {
-        &self.neighborhood_blend_reinhard
-    }
-
-    /// Get a reference to the s m a a renderer's neighborhood blend reinhard bundle.
-    #[inline]
-    pub fn neighborhood_blend_reinhard_bundle(&self) -> &Option<gfx::Bundle> {
-        &self.neighborhood_blend_reinhard_bundle
-    }
-
-    /// Get a reference to the s m a a renderer's neighborhood blend aces.
-    #[inline]
-    pub fn neighborhood_blend_aces(&self) -> &Option<gfx::ReflectedGraphics> {
-        &self.neighborhood_blend_aces
-    }
-
-    /// Get a reference to the s m a a renderer's neighborhood blend aces bundle.
-    #[inline]
-    pub fn neighborhood_blend_aces_bundle(&self) -> &Option<gfx::Bundle> {
-        &self.neighborhood_blend_aces_bundle
-    }
-}
-
-impl std::ops::Deref for SMAARenderer {
-    type Target = gpu::TextureView;
-
-    fn deref(&self) -> &Self::Target {
-        &self.color_target
     }
 }

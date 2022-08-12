@@ -1,10 +1,14 @@
 #version 450
 
-layout(set = 0, binding = 0) uniform PushData {
-    vec4 rt;
-} u_data;
+// layout(set = 0, binding = 0) uniform PushData {
+//     vec4 rt;
+// } u_data;
 
-#define SMAA_RT_METRICS u_data.rt
+layout(push_constant) uniform PushData {
+    vec4 rt;
+};
+
+#define SMAA_RT_METRICS rt
 #define SMAA_GLSL_4
 #define SMAA_INCLUDE_PS 0
 #include "SMAA.hlsl"

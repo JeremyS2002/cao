@@ -26,9 +26,6 @@ pub struct GeometryBuffer {
     /// HashMap from name to texture 
     /// If created with [`gpu::Samples::S1`] then this will be empty
     pub ms_maps: HashMap<String, gfx::GTexture2D>,
-    /// Contains the targets used to blur images in the bloom pipeline
-    /// If not created with bloom true then will be empty
-    pub bloom_maps: Vec<gfx::GTexture2D>,
     /// Depth texture
     pub depth: gfx::GTexture2D,
     /// Multisampled depth texture
@@ -98,7 +95,6 @@ impl GeometryBuffer {
         ms: gpu::Samples,
         quality: GeometryBufferPrecision,
         maps: impl IntoIterator<Item=&'a (&'a str, u8)>,
-        bloom: bool,
         name: Option<String>,
     ) -> Result<Self, gpu::Error> {
         let maps_iter = maps.into_iter();
@@ -204,29 +200,6 @@ impl GeometryBuffer {
             ..Default::default()
         })?;
 
-        let mut bloom_maps = Vec::new();
-        if bloom {
-            for i in 0.. {
-                let w = width >> (i + 1);
-                let h = height >> (i + 1);
-                if w < 2 || h < 2 { break }
-
-                let t = gfx::GTexture2D::from_formats(
-                    device, 
-                    w, 
-                    h, 
-                    gpu::Samples::S1, 
-                    gpu::TextureUsage::SAMPLED
-                        | gpu::TextureUsage::COLOR_OUTPUT, 
-                    1, 
-                    gfx::alt_formats(rgba), 
-                    name.as_ref().map(|n| format!("{}_bloom_target_{}", n, i))
-                )?.unwrap();
-
-                bloom_maps.push(t);
-            }
-        }
-
         Ok(Self {
             id: sampler.id(),
             maps,
@@ -235,7 +208,6 @@ impl GeometryBuffer {
             ms_depth,
             width,
             height,
-            bloom_maps,
             sampler,
         })
     }

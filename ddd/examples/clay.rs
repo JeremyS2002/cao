@@ -117,7 +117,6 @@ impl Clay {
         let smaa_renderer = ddd::utils::SMAARenderer::new(
             &mut encoder,
             &device,
-            &target.view,
             ddd::utils::SMAAState::MEDIUM,
             ddd::utils::DisplayFlags::all(),
             None,
@@ -125,7 +124,6 @@ impl Clay {
 
         let display_renderer = ddd::utils::DisplayRenderer::new(
             &device, 
-            &target.view, 
             ddd::utils::DisplayFlags::all(),
             None,
         )?;
@@ -292,6 +290,7 @@ impl Clay {
         self.display_renderer.aces(
             &mut encoder,
             &self.device,
+            &self.target.view, 
             gfx::Attachment {
                 raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
                 load: gpu::LoadOp::Clear,

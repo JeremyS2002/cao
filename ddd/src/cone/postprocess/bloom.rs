@@ -44,9 +44,10 @@ pub struct BloomRenderer {
     pub blur_pipeline: gfx::ReflectedGraphics,
     pub uniform: gfx::Uniform<BloomParams>,
     pub iterations: usize,
-    // pub targets: Vec<gfx::GTexture2D>,
+    pub blur_targets: HashMap<u64, Vec<gfx::GTexture2D>>,
     pub blur_bundles: HashMap<u64, Vec<gfx::Bundle>>,
     pub intensity: f32,
+    pub name: Option<String>,
 }
 
 impl BloomRenderer {
@@ -70,21 +71,23 @@ impl BloomRenderer {
             name.as_ref().map(|n| format!("{}_uniform", n)),
         )?;
 
-        let [prefilter_pipeline, blur_pipeline] = Self::pipelines(device, name)?;
+        let [prefilter_pipeline, blur_pipeline] = Self::pipelines(device, name.as_ref())?;
 
         Ok(Self {
             prefilter_pipeline,
             prefilter_bundles: HashMap::new(),
             blur_pipeline,
+            blur_targets: HashMap::new(),
             blur_bundles: HashMap::new(),
             uniform,
             iterations,
             // targets,
+            name,
             intensity,
         })
     }
 
-    pub fn pipelines(device: &gpu::Device, name: Option<String>) -> Result<[gfx::ReflectedGraphics; 2], gpu::Error> {
+    pub fn pipelines(device: &gpu::Device, name: Option<&String>) -> Result<[gfx::ReflectedGraphics; 2], gpu::Error> {
         let vert_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/display.vert.spv");
         let prefilter_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/bloom_prefilter.frag.spv");
         let blur_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/bloom_blur.frag.spv");
@@ -132,12 +135,35 @@ impl BloomRenderer {
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
     ) -> Result<(), gpu::Error> {
-        if buffer.bloom_maps.len() < 2 {
-            eprintln!("Call to bloom pass with GeometryBuffer without enough bloom maps, no action taken");
-            return Ok(());
+        if self.blur_targets.get(&buffer.id).is_none() {
+            let mut blur_targets = Vec::new();
+            
+            for i in 0..self.iterations {
+                let w = buffer.width >> (i + 1);
+                let h = buffer.height >> (i + 1);
+                if w < 2 || h < 2 { break }
+
+                let t = gfx::GTexture2D::from_formats(
+                    device, 
+                    w, 
+                    h, 
+                    gpu::Samples::S1, 
+                    gpu::TextureUsage::SAMPLED
+                        | gpu::TextureUsage::COLOR_OUTPUT, 
+                    1, 
+                    gfx::alt_formats(gpu::Format::Rgba16Float), 
+                    self.name.as_ref().map(|n| format!("{}_bloom_target_{}", n, i))
+                )?.unwrap();
+
+                blur_targets.push(t);
+            }
+
+            self.blur_targets.insert(buffer.id, blur_targets);
         }
 
-        let first = &buffer.bloom_maps.get(0).unwrap().view;
+        let blur_targets = self.blur_targets.get(&buffer.id).unwrap();
+
+        let first = &blur_targets.get(0).unwrap().view;
         
         let mut pass = encoder.graphics_pass_reflected::<()>(
             device, 
@@ -181,7 +207,7 @@ impl BloomRenderer {
 
         let blur_bundles = {
             if self.blur_bundles.get(&buffer.id).is_none() {
-                let b = buffer.bloom_maps.iter()
+                let b = blur_targets.iter()
                     .map(|t| {
                         match self.blur_pipeline.bundle().unwrap()
                             .set_resource("u_color", t)
@@ -202,9 +228,9 @@ impl BloomRenderer {
             self.blur_bundles.get(&buffer.id).unwrap()
         };
 
-        let len = self.iterations.min(buffer.bloom_maps.len());
+        let len = self.iterations.min(blur_targets.len());
         for i in 1..len {
-            let target = buffer.bloom_maps.get(i).unwrap();
+            let target = blur_targets.get(i).unwrap();
             let mut pass = encoder.graphics_pass_reflected::<()>(
                 device, 
                 &[gfx::Attachment {
@@ -231,7 +257,7 @@ impl BloomRenderer {
         }
 
         for i in (0..(len-1)).rev() {
-            let target = buffer.bloom_maps.get(i).unwrap();
+            let target = blur_targets.get(i).unwrap();
             let mut pass = encoder.graphics_pass_reflected::<()>(
                 device, 
                 &[gfx::Attachment {

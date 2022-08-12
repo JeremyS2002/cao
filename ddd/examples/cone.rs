@@ -133,14 +133,12 @@ impl Cone {
             gpu::Samples::S1, 
             cone::GeometryBufferPrecision::High,
             cone::GeometryBuffer::ALL_MAPS,
-            true,
             Some("buffers".to_string()),
         )?;
 
         let smaa_renderer = ddd::utils::SMAARenderer::new(
             &mut encoder,
             &device,
-            &buffer.get("output").unwrap().view,
             ddd::utils::SMAAState::MEDIUM,
             ddd::utils::DisplayFlags::all(),
             None,
@@ -479,7 +477,6 @@ impl Cone {
 
         let display_renderer = ddd::utils::DisplayRenderer::new(
             &device, 
-            &buffer.get("albedo").unwrap().view, 
             ddd::utils::DisplayFlags::all(),
             None,
         )?;
@@ -811,6 +808,7 @@ impl Cone {
         self.smaa_renderer.aces(
             &mut encoder,
             &self.device,
+            &self.buffer.get("output").unwrap().view,
             gfx::Attachment {
                 raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
                 load: gpu::LoadOp::Clear,
@@ -821,6 +819,7 @@ impl Cone {
         // self.display_renderer.aces(
         //     &mut encoder,
         //     &self.device,
+        //     &self.buffer.get("albedo").unwrap().view, 
         //     gfx::Attachment {
         //         raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
         //         load: gpu::LoadOp::Clear,
