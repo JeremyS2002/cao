@@ -29,7 +29,7 @@ name = "uniform"
 name = "storage"
 
 [[example]]
-name = "push_constant"
+name = "push_constants"
 
 [[example]]
 name = "maths"

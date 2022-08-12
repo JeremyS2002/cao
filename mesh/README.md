@@ -1,9 +1,8 @@
 # mesh
 
-# example
-run from inside `cao/mesh`
-```
-```
+# examples
+TODO
+See ddd examples for loading obj files.
 
 # TODO
 - Marching Cubes

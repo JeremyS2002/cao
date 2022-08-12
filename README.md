@@ -4,7 +4,7 @@ Experimenting with Vulkan and Rust
 TODO: Move common types into seperate crate (Don't need multiple format enums)
 
 ## gpu
-Low level wrapper of vulkan. Manages creation and destruction of vulkan objects as well as hiding some of the more unpleasant parts of the vulkan api.
+Low (ish) level wrapper of vulkan. Manages creation and destruction of vulkan objects as well as hiding some of the more unpleasant parts of the vulkan api.
 
 ## gfx
 Utilities built on top of gpu. Specifically: simpler command buffer recording, reflected pipelines, image loading, mesh creation.
