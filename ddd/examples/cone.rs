@@ -284,7 +284,6 @@ impl Cone {
 
         let leather_material = cone::Material::textured(
             &device,
-            &camera,
             &leather_albedo,
             &leather_roughness,
             None,
@@ -331,7 +330,6 @@ impl Cone {
 
         let metal_material = cone::Material::textured(
             &device,
-            &camera,
             &metal_albedo,
             &metal_roughness,
             Some(&metal_metallic),
@@ -342,7 +340,6 @@ impl Cone {
 
         let wax_material = cone::Material::constant(
             &device,
-            &camera,
             &cone::MaterialData {
                 albedo: glam::vec4(0.5, 0.1, 0.0, 1.0),
                 roughness: 0.8,
@@ -353,7 +350,6 @@ impl Cone {
 
         let chrome_material = cone::Material::constant(
             &device,
-            &camera,
             &cone::MaterialData {
                 albedo: glam::vec4(0.9, 0.9, 1.0, 1.0),
                 roughness: 0.1,
@@ -400,7 +396,6 @@ impl Cone {
 
         let wood_material = cone::Material::textured(
             &device,
-            &camera,
             &wood_albedo,
             &wood_roughness,
             None,
@@ -575,6 +570,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.buffer,
+            &self.camera,
             Some((&self.mesh as _, &self.metal_instance)),
             true,
         )?;
@@ -583,6 +579,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.buffer,
+            &self.camera,
             Some((&self.mesh as _, &self.leather_instance)),
             false,
         )?;
@@ -591,6 +588,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.buffer,
+            &self.camera,
             Some((&self.mesh as _, &self.chrome_instance)),
             false,
         )?;
@@ -599,6 +597,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.buffer,
+            &self.camera,
             Some((&self.mesh as _, &self.wax_instance)),
             false,
         )?;
@@ -607,6 +606,7 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.buffer,
+            &self.camera,
             Some((&self.plane as _, &self.wood_instance)),
             false,
         )?;
