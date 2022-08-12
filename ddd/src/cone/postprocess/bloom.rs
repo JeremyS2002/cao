@@ -1,6 +1,7 @@
 
 use gfx::prelude::*;
 
+use std::collections::HashMap;
 use std::borrow::Cow;
 
 use crate::cone::GeometryBuffer;
@@ -39,11 +40,12 @@ impl BloomParams {
 /// Renders bloom into the output of 
 pub struct BloomRenderer {
     pub prefilter_pipeline: gfx::ReflectedGraphics,
-    pub prefilter_bundle: gfx::Bundle,
+    pub prefilter_bundles: HashMap<u64, gfx::Bundle>,
     pub blur_pipeline: gfx::ReflectedGraphics,
     pub uniform: gfx::Uniform<BloomParams>,
-    pub targets: Vec<gfx::GTexture2D>,
-    pub blur_bundles: Vec<gfx::Bundle>,
+    pub iterations: usize,
+    // pub targets: Vec<gfx::GTexture2D>,
+    pub blur_bundles: HashMap<u64, Vec<gfx::Bundle>>,
     pub intensity: f32,
 }
 
@@ -54,7 +56,7 @@ impl BloomRenderer {
         mut iterations: usize,
         intensity: f32,
         threshold: f32,
-        buffer: &GeometryBuffer,
+        // buffer: &GeometryBuffer,
         name: Option<String>,
     ) -> Result<Self, gpu::Error> {
         iterations = iterations.max(2);
@@ -68,82 +70,18 @@ impl BloomRenderer {
             name.as_ref().map(|n| format!("{}_uniform", n)),
         )?;
 
-        let targets = Self::targets(
-            device, 
-            buffer.width,
-            buffer.height,
-            iterations, 
-            name.as_ref()
-        )?;
-
         let [prefilter_pipeline, blur_pipeline] = Self::pipelines(device, name)?;
-
-        let prefilter_bundle = match prefilter_pipeline.bundle().unwrap()
-            .set_resource("u_color", buffer.get("output").unwrap())
-            .unwrap()
-            .set_resource("u_sampler", &buffer.sampler)
-            .unwrap()
-            .set_resource("u_data", &uniform)
-            .unwrap()
-            .build(device) {
-                Ok(g) => g,
-                Err(e) => match e {
-                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
-                }
-            };
-
-        let blur_bundles = targets.iter()
-            .map(|t| {
-                match blur_pipeline.bundle().unwrap()
-                    .set_resource("u_color", t)
-                    .unwrap()
-                    .set_resource("u_sampler", &buffer.sampler)
-                    .unwrap()
-                    .build(device) {
-                        Ok(g) => Ok(g),
-                        Err(e) => match e {
-                            gfx::BundleBuildError::Gpu(e) => Err(e),
-                            e => unreachable!("{}", e)
-                        }
-                    }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Self {
             prefilter_pipeline,
-            prefilter_bundle,
+            prefilter_bundles: HashMap::new(),
             blur_pipeline,
-            blur_bundles,
+            blur_bundles: HashMap::new(),
             uniform,
-            targets,
+            iterations,
+            // targets,
             intensity,
         })
-    }
-
-    pub fn targets(device: &gpu::Device, width: u32, height: u32, iterations: usize, name: Option<&String>) -> Result<Vec<gfx::GTexture2D>, gpu::Error> {
-        let mut targets = Vec::new();
-
-        for i in 0..iterations {
-            let w = width >> (i + 1);
-            let h = height >> (i + 1);
-            if width < 2 || height < 2 { break }
-
-            let t = gfx::GTexture2D::from_formats(
-                device, 
-                w, h, 
-                gpu::Samples::S1, 
-                gpu::TextureUsage::SAMPLED
-                    | gpu::TextureUsage::COLOR_OUTPUT, 
-                1, 
-                gfx::alt_formats(gpu::Format::Rgba32Float), 
-                name.map(|n| format!("{}_target_{}", n, i))
-            )?.unwrap();
-
-            targets.push(t);
-        }
-
-        Ok(targets)
     }
 
     pub fn pipelines(device: &gpu::Device, name: Option<String>) -> Result<[gfx::ReflectedGraphics; 2], gpu::Error> {
@@ -194,7 +132,12 @@ impl BloomRenderer {
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
     ) -> Result<(), gpu::Error> {
-        let first = &self.targets.get(0).unwrap().view;
+        if buffer.bloom_maps.len() < 2 {
+            eprintln!("Call to bloom pass with GeometryBuffer without enough bloom maps, no action taken");
+            return Ok(());
+        }
+
+        let first = &buffer.bloom_maps.get(0).unwrap().view;
         
         let mut pass = encoder.graphics_pass_reflected::<()>(
             device, 
@@ -211,12 +154,57 @@ impl BloomRenderer {
             &self.prefilter_pipeline,
         )?;
 
-        pass.set_bundle_ref(&self.prefilter_bundle);
+        let prefilter_bundle = if let Some(b) = self.prefilter_bundles.get(&buffer.id) {
+            b.clone()
+        } else {
+            let b = match self.prefilter_pipeline.bundle().unwrap()
+                .set_resource("u_color", buffer.get("output").unwrap())
+                .unwrap()
+                .set_resource("u_sampler", &buffer.sampler)
+                .unwrap()
+                .set_resource("u_data", &self.uniform)
+                .unwrap()
+                .build(device) {
+                    Ok(g) => g,
+                    Err(e) => match e {
+                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    }
+                };
+            self.prefilter_bundles.insert(buffer.id, b.clone());
+            b
+        };
+            
+        pass.set_bundle_into(prefilter_bundle);
         pass.draw(0, 3, 0, 1);
         pass.finish();
 
-        for i in 1..self.targets.len() {
-            let target = self.targets.get(i).unwrap();
+        let blur_bundles = {
+            if self.blur_bundles.get(&buffer.id).is_none() {
+                let b = buffer.bloom_maps.iter()
+                    .map(|t| {
+                        match self.blur_pipeline.bundle().unwrap()
+                            .set_resource("u_color", t)
+                            .unwrap()
+                            .set_resource("u_sampler", &buffer.sampler)
+                            .unwrap()
+                            .build(device) {
+                                Ok(g) => Ok(g),
+                                Err(e) => match e {
+                                    gfx::BundleBuildError::Gpu(e) => Err(e),
+                                    e => unreachable!("{}", e)
+                                }
+                            }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                self.blur_bundles.insert(buffer.id, b);
+            }
+            self.blur_bundles.get(&buffer.id).unwrap()
+        };
+
+        let len = self.iterations.min(buffer.bloom_maps.len());
+        for i in 1..len {
+            let target = buffer.bloom_maps.get(i).unwrap();
             let mut pass = encoder.graphics_pass_reflected::<()>(
                 device, 
                 &[gfx::Attachment {
@@ -236,14 +224,14 @@ impl BloomRenderer {
             pass.push_vec2("texel_size", texel_size.into());
             pass.push_f32("intensity", 1.0);
 
-            let bundle = self.blur_bundles.get(i - 1).unwrap();
+            let bundle = blur_bundles.get(i - 1).unwrap();
             pass.set_bundle_ref(bundle);
             pass.draw(0, 3, 0, 1);
             pass.finish();
         }
 
-        for i in (0..(self.targets.len()-1)).rev() {
-            let target = self.targets.get(i).unwrap();
+        for i in (0..(len-1)).rev() {
+            let target = buffer.bloom_maps.get(i).unwrap();
             let mut pass = encoder.graphics_pass_reflected::<()>(
                 device, 
                 &[gfx::Attachment {
@@ -263,7 +251,7 @@ impl BloomRenderer {
             pass.push_vec2("texel_size", texel_size.into());
             pass.push_f32("intensity", 1.0);
 
-            let bundle = self.blur_bundles.get(i + 1).unwrap();
+            let bundle = blur_bundles.get(i + 1).unwrap();
             pass.set_bundle_ref(bundle);
             pass.draw(0, 3, 0, 1);
             pass.finish();
@@ -286,7 +274,7 @@ impl BloomRenderer {
         let texel_size = 1.0 / glam::vec2(buffer.width as f32, buffer.height as f32);
         pass.push_vec2("texel_size", texel_size.into());
         pass.push_f32("intensity", self.intensity);
-        let bundle = self.blur_bundles.get(0).unwrap();
+        let bundle = blur_bundles.get(0).unwrap();
         pass.set_bundle_ref(bundle);
         pass.draw(0, 3, 0, 1);
         pass.finish();

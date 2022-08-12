@@ -133,6 +133,7 @@ impl Cone {
             gpu::Samples::S1, 
             cone::GeometryBufferPrecision::High,
             cone::GeometryBuffer::ALL_MAPS,
+            true,
             Some("buffers".to_string()),
         )?;
 
@@ -183,7 +184,6 @@ impl Cone {
             8,
             0.6,
             1.2,
-            &buffer,
             None,
         )?;
 
