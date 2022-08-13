@@ -7,6 +7,16 @@ use either::*;
 use crate::data::DataType;
 use crate::data::{PrimitiveType, PrimitiveVal};
 
+#[derive(Clone, Copy, Debug)]
+pub enum CmpOp {
+    Eq,
+    NEq,
+    Lt,
+    Gt,
+    Le,
+    Ge,
+}
+
 #[derive(Clone, Debug)]
 pub enum Instruction {
     Store {
@@ -161,6 +171,7 @@ pub enum Instruction {
     },
     Break,
     Continue,
+    Discard,
     FnCall {
         fn_id: usize,
         store_id: usize,
@@ -246,6 +257,13 @@ pub enum Instruction {
         ty: PrimitiveType,
         comp_ty: PrimitiveType,
         res: usize,
+    },
+    Cmp {
+        op: CmpOp,
+        lhs: usize,
+        rhs: usize,
+        ty: PrimitiveType,
+        store: usize,
     },
 }
 
@@ -347,15 +365,17 @@ impl Instruction {
                 conditions,
                 instructions,
                 else_instructions,
-            } => process_if_chain(
-                conditions,
-                instructions,
-                else_instructions,
-                builder,
-                s,
-                break_target,
-                continue_target,
-            ),
+            } => {
+                process_if_chain(
+                    conditions,
+                    instructions,
+                    else_instructions,
+                    builder,
+                    s,
+                    break_target,
+                    continue_target,
+                );
+            },
             Instruction::Loop { condition, body } => process_loop(builder, condition, body, s),
             Instruction::Break => builder.branch(break_target.unwrap()).unwrap(),
             Instruction::Continue => builder.branch(continue_target.unwrap()).unwrap(),
@@ -936,6 +956,69 @@ impl Instruction {
 
                 s.var_map.insert(*res, res_var);
             }
+            Instruction::Discard => { eprintln!("shouldn't be here") },
+            Instruction::Cmp { op, lhs, rhs, ty, store } => {
+                let f = match *op {
+                    CmpOp::Eq => match *ty {
+                        PrimitiveType::Bool => rspirv::dr::Builder::logical_equal,
+                        PrimitiveType::Int => rspirv::dr::Builder::i_equal,
+                        PrimitiveType::UInt => rspirv::dr::Builder::i_equal,
+                        PrimitiveType::Float => rspirv::dr::Builder::f_ord_equal,
+                        PrimitiveType::Double => rspirv::dr::Builder::f_ord_equal,
+                        _ => todo!(),
+                    },
+                    CmpOp::NEq => match *ty {
+                        PrimitiveType::Bool => rspirv::dr::Builder::logical_not_equal,
+                        PrimitiveType::Int => rspirv::dr::Builder::i_not_equal,
+                        PrimitiveType::UInt => rspirv::dr::Builder::i_not_equal,
+                        PrimitiveType::Float => rspirv::dr::Builder::f_unord_not_equal,
+                        PrimitiveType::Double => rspirv::dr::Builder::f_unord_not_equal,
+                        _ => todo!(),
+                    },
+                    CmpOp::Lt => match *ty {
+                        PrimitiveType::Int => rspirv::dr::Builder::s_less_than,
+                        PrimitiveType::UInt => rspirv::dr::Builder::u_less_than,
+                        PrimitiveType::Float => rspirv::dr::Builder::f_ord_less_than,
+                        PrimitiveType::Double => rspirv::dr::Builder::f_ord_less_than,
+                        _ => todo!(),
+                    },
+                    CmpOp::Gt => match *ty {
+                        PrimitiveType::Int => rspirv::dr::Builder::s_greater_than,
+                        PrimitiveType::UInt => rspirv::dr::Builder::u_greater_than,
+                        PrimitiveType::Float => rspirv::dr::Builder::f_ord_greater_than,
+                        PrimitiveType::Double => rspirv::dr::Builder::f_ord_greater_than,
+                        _ => todo!(),
+                    },
+                    CmpOp::Le => match *ty {
+                        PrimitiveType::Int => rspirv::dr::Builder::s_less_than_equal,
+                        PrimitiveType::UInt => rspirv::dr::Builder::u_less_than_equal,
+                        PrimitiveType::Float => rspirv::dr::Builder::f_ord_less_than_equal,
+                        PrimitiveType::Double => rspirv::dr::Builder::f_ord_less_than_equal,
+                        _ => todo!(),
+                    },
+                    CmpOp::Ge => match *ty {
+                        PrimitiveType::Int => rspirv::dr::Builder::s_greater_than_equal,
+                        PrimitiveType::UInt => rspirv::dr::Builder::u_greater_than_equal,
+                        PrimitiveType::Float => rspirv::dr::Builder::f_ord_greater_than_equal,
+                        PrimitiveType::Double => rspirv::dr::Builder::f_ord_greater_than_equal,
+                        _ => todo!(),
+                    },
+                };
+
+                let spv_ty = ty.base_type(builder);
+                let spv_lhs_var = *s.var_map.get(lhs).unwrap();
+                let spv_lhs_obj = builder.load(spv_ty, None, spv_lhs_var, None, None).unwrap();
+                let spv_rhs_var = *s.var_map.get(rhs).unwrap();
+                let spv_rhs_obj = builder.load(spv_ty, None, spv_rhs_var, None, None).unwrap();
+
+                let res_ty = PrimitiveType::Bool.base_type(builder);
+                let res_obj = f(builder, res_ty, None, spv_lhs_obj, spv_rhs_obj).unwrap();
+                let res_var = PrimitiveType::Bool.variable(builder, s.var_block);
+                builder.store(res_var, res_obj, None, None).unwrap();
+
+                s.var_map.insert(*store, res_var);
+            }
+            
         }
     }
 }
@@ -1088,14 +1171,18 @@ fn process_if_chain(
     s: &mut CompileState<'_>,
     break_target: Option<u32>,
     continue_target: Option<u32>,
-) {
+) -> bool {
     if conditions.len() == 0 {
+        let mut discard = false;
         if let Some(else_instructions) = else_instructions {
             for instruction in else_instructions {
-                instruction.process(builder, s, break_target, continue_target);
+                match instruction {
+                    Instruction::Discard => discard = true,
+                    i => i.process(builder, s, break_target, continue_target),
+                }
             }
         }
-        return;
+        return discard;
     }
 
     let condition = conditions.pop_front().unwrap();
@@ -1121,15 +1208,25 @@ fn process_if_chain(
 
     builder.begin_block(Some(true_label)).unwrap();
 
-    for mut instruction in instructions.pop_front().unwrap() {
-        instruction.process(builder, s, break_target, continue_target);
+    let mut discard = false;
+    for instruction in instructions.pop_front().unwrap() {
+        match instruction {
+            Instruction::Discard => {
+                discard = true;
+            },
+            mut i => i.process(builder, s, break_target, continue_target),
+        }
     }
 
-    builder.branch(end_label).unwrap();
-
+    if discard {
+        builder.kill().unwrap();
+    } else {
+        builder.branch(end_label).unwrap();
+    }
+    
     builder.begin_block(Some(false_label)).unwrap();
 
-    process_if_chain(
+    let discard = process_if_chain(
         conditions,
         instructions,
         else_instructions,
@@ -1139,8 +1236,13 @@ fn process_if_chain(
         continue_target,
     );
 
-    builder.branch(end_label).unwrap();
+    if discard {
+        builder.kill().unwrap();
+    } else {
+        builder.branch(end_label).unwrap();
+    }
     builder.begin_block(Some(end_label)).unwrap();
+    false
 }
 
 fn process_vector_shuffle(

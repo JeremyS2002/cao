@@ -1,23 +1,20 @@
-use spv::prelude::*;
+// use spv::prelude::*;
 
 fn main() {
     let src = "
         #version 450
-
-        layout(set = 0, binding = 0) buffer Storage {
-            float xs[];
-        } u_storage;
-
-        void main() {
-            int i = gl_InstanceIndex;
-            uint j = uint(i);
-            //gl_Position = vec4(in_pos, 0.0, 1.0);
+        
+        void main()
+        {           
+            float x = 4.0;  
+            float y = 10.0;
+            bool b = x < y;
         }
     ";
 
     let compiler = shaderc::Compiler::new().unwrap();
     let spv = compiler
-        .compile_into_spirv(src, shaderc::ShaderKind::Vertex, "", "main", None)
+        .compile_into_spirv(src, shaderc::ShaderKind::Fragment, "", "main", None)
         .unwrap();
 
     use rspirv::binary::Disassemble;
@@ -81,27 +78,27 @@ fn main() {
     // ===================================================================
     // ===================================================================
 
-    let vertex_spv = {
-        let builder = spv::VertexBuilder::new();
+    // let vertex_spv = {
+    //     let builder = spv::VertexBuilder::new();
 
-        let in_pos = builder.in_vec2(0, false, Some("in_pos"));
+    //     let in_pos = builder.in_vec2(0, false, Some("in_pos"));
 
-        let position = builder.position();
+    //     let position = builder.position();
 
-        builder.main(|b| {
-            let pos = b.load_in(in_pos);
-            let x = pos.x(b);
-            let y = pos.y(b);
-            let pos = b.vec4(&x, &y, &0.0, &1.0);
-            b.store_out(position, pos);
-        });
+    //     builder.main(|b| {
+    //         let pos = b.load_in(in_pos);
+    //         let x = pos.x(b);
+    //         let y = pos.y(b);
+    //         let pos = b.vec4(&x, &y, &0.0, &1.0);
+    //         b.store_out(position, pos);
+    //     });
 
-        builder.compile()
-    };
+    //     builder.compile()
+    // };
 
-    let mut loader = rspirv::dr::Loader::new();
-    rspirv::binary::parse_words(vertex_spv, &mut loader).unwrap();
-    let module = loader.module();
+    // let mut loader = rspirv::dr::Loader::new();
+    // rspirv::binary::parse_words(vertex_spv, &mut loader).unwrap();
+    // let module = loader.module();
 
-    println!("{}", module.disassemble());
+    // println!("{}", module.disassemble());
 }

@@ -1003,6 +1003,148 @@ pub trait Handle {
 
         <T::Component as AsComponent>::Read::from_id(new_id)
     }
+
+    fn eq<T>(&self, lhs: &dyn SpvRustEq<T>, rhs: &dyn SpvRustEq<T>) -> Bool 
+    where
+        T: AsPrimitive,
+        T: SpvEq<T>
+    {
+        let store = self.builder().get_new_id();
+
+        let ty = lhs.ty();
+
+        let lhs = lhs.id(&*self.builder());
+        let rhs = rhs.id(&*self.builder());
+
+        self.builder().push_instruction(Instruction::Cmp { 
+            op: CmpOp::Eq,
+            lhs,
+            rhs,
+            ty,
+            store, 
+        });
+
+        Bool::from_id(store)
+    }
+
+    fn neq<T>(&self, lhs: &dyn SpvRustEq<T>, rhs: &dyn SpvRustEq<T>) -> Bool 
+    where
+        T: AsPrimitive,
+        T: SpvNEq<T>
+    {
+        let store = self.builder().get_new_id();
+
+        let ty = lhs.ty();
+
+        let lhs = lhs.id(&*self.builder());
+        let rhs = rhs.id(&*self.builder());
+
+        self.builder().push_instruction(Instruction::Cmp { 
+            op: CmpOp::NEq,
+            lhs,
+            rhs,
+            ty,
+            store, 
+        });
+
+        Bool::from_id(store)
+    }
+
+    fn lt<T>(&self, lhs: &dyn SpvRustEq<T>, rhs: &dyn SpvRustEq<T>) -> Bool 
+    where
+        T: AsPrimitive,
+        T: SpvLt<T>
+    {
+        let store = self.builder().get_new_id();
+
+        let ty = lhs.ty();
+
+        let lhs = lhs.id(&*self.builder());
+        let rhs = rhs.id(&*self.builder());
+
+        self.builder().push_instruction(Instruction::Cmp { 
+            op: CmpOp::Lt,
+            lhs,
+            rhs,
+            ty,
+            store, 
+        });
+
+        Bool::from_id(store)
+    }
+
+    fn gt<T>(&self, lhs: &dyn SpvRustEq<T>, rhs: &dyn SpvRustEq<T>) -> Bool 
+    where
+        T: AsPrimitive,
+        T: SpvGt<T>
+    {
+        let store = self.builder().get_new_id();
+
+        let ty = lhs.ty();
+
+        let lhs = lhs.id(&*self.builder());
+        let rhs = rhs.id(&*self.builder());
+
+        self.builder().push_instruction(Instruction::Cmp { 
+            op: CmpOp::Gt,
+            lhs,
+            rhs,
+            ty,
+            store, 
+        });
+
+        Bool::from_id(store)
+    }
+
+    fn le<T>(&self, lhs: &dyn SpvRustEq<T>, rhs: &dyn SpvRustEq<T>) -> Bool 
+    where
+        T: AsPrimitive,
+        T: SpvLe<T>
+    {
+        let store = self.builder().get_new_id();
+
+        let ty = lhs.ty();
+
+        let lhs = lhs.id(&*self.builder());
+        let rhs = rhs.id(&*self.builder());
+
+        self.builder().push_instruction(Instruction::Cmp { 
+            op: CmpOp::Le,
+            lhs,
+            rhs,
+            ty,
+            store, 
+        });
+
+        Bool::from_id(store)
+    }
+
+    fn ge<T>(&self, lhs: &dyn SpvRustEq<T>, rhs: &dyn SpvRustEq<T>) -> Bool 
+    where
+        T: AsPrimitive,
+        T: SpvGe<T>
+    {
+        let store = self.builder().get_new_id();
+
+        let ty = lhs.ty();
+
+        let lhs = lhs.id(&*self.builder());
+        let rhs = rhs.id(&*self.builder());
+
+        self.builder().push_instruction(Instruction::Cmp { 
+            op: CmpOp::Ge,
+            lhs,
+            rhs,
+            ty,
+            store, 
+        });
+
+        Bool::from_id(store)
+    }
+
+    fn discard(&self) {
+        self.builder().push_instruction(Instruction::Discard);
+    }
 }
 
 impl Handle for FnHandle {
