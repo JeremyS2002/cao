@@ -287,6 +287,7 @@ impl Cone {
             None,
             None,//Some(&leather_normal),
             &sampler,
+            false,
         )
         .unwrap();
 
@@ -333,6 +334,7 @@ impl Cone {
             Some(&metal_metallic),
             None,
             &sampler,
+            false,
         )
         .unwrap();
 
@@ -399,6 +401,7 @@ impl Cone {
             None,
             Some(&wood_normal),
             &sampler,
+            false,
         )
         .unwrap();
 

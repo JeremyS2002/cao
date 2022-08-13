@@ -266,6 +266,7 @@ impl<'a> MaterialBuilder<'a> {
     /// Set the outputs to sample from the textures
     ///
     /// The fragment builder can't be used after this function
+    /// if discard then if the albedo alpha channel is 0.0 the fragment will be discarded
     pub fn textured_fragment(
         &mut self,
         world_pos: spv::Input<spv::Vec3>,
@@ -276,6 +277,7 @@ impl<'a> MaterialBuilder<'a> {
         metallic: Option<&'a gfx::Texture2D>,
         subsurface: Option<&'a gfx::Texture2D>,
         sampler: &'a gpu::Sampler,
+        discard: bool,
     ) {
         self.textured_or_default_fragment(
             world_pos,
@@ -286,6 +288,7 @@ impl<'a> MaterialBuilder<'a> {
             metallic,
             subsurface,
             sampler,
+            discard,
             &MaterialData::default(),
         )
     }
@@ -293,16 +296,25 @@ impl<'a> MaterialBuilder<'a> {
     /// Set the outputs to read from the uniform buffer
     ///
     /// The fragment builder can't be used after this function
+    /// if discard then if the albedo alpha channel is 0.0 the fragment will be discarded
     pub fn uniform_fragment(
         &mut self,
         world_pos: spv::Input<spv::Vec3>,
         normal: spv::Input<spv::Vec3>,
         uniform: &'a super::MaterialParams,
+        discard: bool,
     ) {
         let params = self.set_fragment_uniform(&uniform, Some("u_params"));
 
         self.fragment.main(|b| {
             let albedo: spv::Vec4 = b.load_uniform_field(params, "albedo");
+            if discard {
+                let a = albedo.w(b);
+                let bl = b.eq(&a, &0.0f32);
+                b.spv_if(bl, |b| {
+                    b.discard();
+                });
+            }
             let roughness: spv::Float = b.load_uniform_field(params, "metallic");
             let metallic: spv::Float = b.load_uniform_field(params, "metallic");
             let mut subsurface: spv::Vec4 = b.load_uniform_field(params, "subsurface");
@@ -343,6 +355,7 @@ impl<'a> MaterialBuilder<'a> {
         });
     }
 
+    /// if discard then if the albedo alpha channel is 0.0 the fragment will be discarded
     pub fn textured_or_default_fragment(
         &mut self,
         world_pos: spv::Input<spv::Vec3>,
@@ -361,6 +374,7 @@ impl<'a> MaterialBuilder<'a> {
         metallic: Option<&'a gfx::Texture2D>,
         subsurface: Option<&'a gfx::Texture2D>,
         sampler: &'a gpu::Sampler,
+        discard: bool,
         defaults: &MaterialData,
     ) {
         let albedo = if let Some(albedo) = albedo {
@@ -419,9 +433,17 @@ impl<'a> MaterialBuilder<'a> {
             }
 
             if let Some(albedo) = albedo {
+                let albedo = b.sample_texture(b.combine_texture_sampler(albedo, sampler), uv);
+                if discard {
+                    let a = albedo.w(b);
+                    let bl = b.eq(&a, &0.0f32);
+                    b.spv_if(bl, |b| {
+                        b.discard();
+                    });
+                }
                 b.store_out(
                     self.albedo,
-                    b.sample_texture(b.combine_texture_sampler(albedo, sampler), uv),
+                    albedo,
                 );
             } else {
                 b.store_out(self.albedo, defaults.albedo);
@@ -651,10 +673,6 @@ impl<'a> MaterialBuilder<'a> {
     }
 
     /// Build a material from custom graphics pipeline parameters
-    ///
-    /// If there are less than the number of blend states required then this function will panic
-    /// 5 states are required by default
-    /// If using subsurface then another is required
     pub fn build_from_info(
         self,
         device: &gpu::Device,
@@ -699,13 +717,6 @@ impl<'a> MaterialBuilder<'a> {
             };
 
             set0
-            // Some(match bundle.build(device)  {
-            //     Ok(b) => b,
-            //     Err(e) => match e {
-            //         gfx::BundleBuildError::Gpu(e) => Err(e)?,
-            //         e => unreachable!("{}", e),
-            //     }
-            // })
         } else {
             None
         };
@@ -729,6 +740,8 @@ pub struct Material {
 
 impl Material {
     /// Create a default material with a single instance
+    /// 
+    /// if discard then if the albedo alpha channel is 0.0 the fragment will be discarded
     pub fn textured(
         device: &gpu::Device,
         albedo: &gfx::Texture2D,
@@ -736,6 +749,7 @@ impl Material {
         metallic: Option<&gfx::Texture2D>,
         normal: Option<&gfx::Texture2D>,
         sampler: &gpu::Sampler,
+        discard: bool,
     ) -> Result<Self, gfx::error::ReflectedError> {
         if let Some(normal) = normal {
             let mut builder = MaterialBuilder::new();
@@ -749,6 +763,7 @@ impl Material {
                 metallic,
                 None,
                 sampler,
+                discard,
                 &Default::default(),
             );
             builder.build(device)
@@ -756,52 +771,25 @@ impl Material {
             let mut builder = MaterialBuilder::new();
             let (world_pos, normal, uv) = builder.default_vertex();
             builder.textured_fragment(
-                world_pos, normal, uv, albedo, roughness, metallic, None, sampler,
+                world_pos, normal, uv, albedo, roughness, metallic, None, sampler, discard
             );
             builder.build(device)
         }
     }
 
-    /// Create a default material with multiple instances
-    // pub fn instanced_textured(
-    //     device: &gpu::Device,
-    //     camera: &Camera,
-    //     albedo: &gfx::Texture2D,
-    //     roughness: &gfx::Texture2D,
-    //     metallic: Option<&gfx::Texture2D>,
-    //     sampler: &gpu::Sampler,
-    // ) -> Result<Self, gfx::error::ReflectedError> {
-    //     let mut builder = MaterialBuilder::new();
-    //     let (world_pos, normal, uv) = builder.instanced_vertex(camera);
-    //     builder.textured_fragment(
-    //         world_pos, normal, uv, albedo, roughness, metallic, None, sampler,
-    //     );
-    //     builder.build(device)
-    // }
-
     /// Create a material with uniform parameters with a single instance
+    ///
+    /// if discard then if the albedo alpha channel is 0.0 the fragment will be discarded
     pub fn uniform(
         device: &gpu::Device,
         uniform: &super::MaterialParams,
+        discard: bool,
     ) -> Result<Self, gfx::error::ReflectedError> {
         let mut builder = MaterialBuilder::new();
         let (world_pos, normal, _) = builder.default_vertex();
-        builder.uniform_fragment(world_pos, normal, uniform);
+        builder.uniform_fragment(world_pos, normal, uniform, discard);
         builder.build(device)
     }
-
-    /// Create a material with uniform parameters with multiple instances
-    // pub fn uniform_instanced(
-    //     device: &gpu::Device,
-    //     camera: &Camera,
-    //     instances: &crate::utils::Instances,
-    //     uniform: &super::MaterialParams,
-    // ) -> Result<Self, gfx::error::ReflectedError> {
-    //     let mut builder = MaterialBuilder::new();
-    //     let (world_pos, normal, _) = builder.instanced_vertex(camera, instances);
-    //     builder.uniform_fragment(world_pos, normal, uniform);
-    //     builder.build(device)
-    // }
 
     /// Create a material with constant parameters with a single instance
     pub fn constant(
@@ -814,19 +802,6 @@ impl Material {
         builder.build(device)
     }
 
-    /// Create a material with constant parameters with multiple instances
-    // pub fn constant_instanced(
-    //     device: &gpu::Device,
-    //     camera: &Camera,
-    //     instances: &crate::utils::Instances,
-    //     constants: &super::MaterialData,
-    // ) -> Result<Self, gfx::error::ReflectedError> {
-    //     let mut builder = MaterialBuilder::new();
-    //     let (world_pos, normal, _) = builder.instanced_vertex(camera, instances);
-    //     builder.constant_fragment(world_pos, normal, constants);
-    //     builder.build(device)
-    // }
-
     /// Draw all the meshes with the material into self
     pub fn pass<'a, 'b, V: gfx::Vertex>(
         &'a mut self,
@@ -836,7 +811,7 @@ impl Material {
         camera: &'a Camera,
         meshes: impl IntoIterator<Item = (&'b dyn gfx::Mesh<V>, &'b Instances)>,
         clear: bool,
-    ) -> Result<(), gfx::error::ReflectedError> {
+    ) -> Result<(), gpu::Error> {
         let load = if clear {
             gpu::LoadOp::Clear
         } else {
