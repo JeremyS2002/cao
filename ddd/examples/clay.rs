@@ -128,7 +128,7 @@ impl Clay {
 
         let smooth_renderer = clay::SmoothRenderer::new(&device, None)?;
 
-        let model = glam::Mat4::from_translation(glam::vec3(0.0, -0.5, 0.0)) 
+        let model = glam::Mat4::from_translation(glam::vec3(0.0, -1.5, -5.0)) 
             * glam::Mat4::from_scale(glam::vec3(2.0, 2.0, 2.0));
 
         let instances = vec![model.into()];
