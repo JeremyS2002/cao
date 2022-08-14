@@ -674,7 +674,7 @@ impl PointLightRenderer {
 
 // base passes
 impl PointLightRenderer {
-    pub fn base_clipped_pass_owned<'a>(
+    pub fn base_clipped_pass<'a>(
         &mut self,
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,

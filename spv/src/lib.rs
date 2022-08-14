@@ -442,11 +442,22 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             glsl_ext: ext,
         };
 
-        for mut instruction in self.get_instructions() {
-            instruction.process(&mut builder, &mut s, None, None);
+        let mut discard = false;
+        for instruction in self.get_instructions() {
+            match instruction {
+                Instruction::Discard => {
+                    discard = true;
+                },
+                mut i => i.process(&mut builder, &mut s, None, None),
+            }            
         }
 
-        builder.ret().unwrap();
+        if discard {
+            builder.kill().unwrap();
+        } else {
+            builder.ret().unwrap();
+        }
+        
         builder.end_function().unwrap();
 
         builder.module().assemble()
