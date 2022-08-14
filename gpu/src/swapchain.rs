@@ -35,16 +35,17 @@ impl SwapchainDesc {
     /// and pick a valid present_mode/format/image_count
     pub fn from_surface(surface: &crate::Surface, device: &crate::Device) -> Result<Self, Error> {
         let info = surface.info(device)?;
+        let texture_count = if info.min_images > 3 {
+            info.min_images
+        } else {
+            3
+        };
         Ok(Self {
             format: info.formats[0],
             present_mode: info.present_modes[0],
-            texture_count: if info.min_images > 3 {
-                info.min_images
-            } else {
-                3
-            },
+            texture_count,
             texture_usage: crate::TextureUsage::COLOR_OUTPUT,
-            frames_in_flight: 1,
+            frames_in_flight: texture_count as _,
         })
     }
 }
@@ -485,6 +486,31 @@ impl Swapchain {
         Ok(())
     }
 
+    /// Get the frame at the index supplied
+    /// 
+    /// Note: the frame won't be presentable, it hasn't been acquired this is just a reference to it
+    /// Will panic if the index is out of bounds of the number of frames
+    /// 
+    /// Valid Usage:
+    /// frame must be less than the swapchains frames_in_flight
+    /// The view must be acqured before submitting command buffers that draw to the frame
+    /// The view returned hasn't been acquired so can't be presented
+    /// Note: If implementing multiple frames in flight then the frame index must be different for each view otherwise they 
+    /// could cause errors about semaphores being used without waiting on them
+    pub fn frame<'a>(&'a self, index: usize, frame: usize) -> SwapchainView<'a> {
+        SwapchainView {
+            inner: &self.inner,
+            view: self.views.get(index).unwrap(),
+            wait_semaphore: frame,
+            signal_semaphore: frame,
+            index: index as _,
+            drawn: Cell::new(false),
+        }
+    }
+
+    /// Acquire the next frame in the swapchain to be presented
+    /// 
+    /// Returns Ok((frame, suboptimal)) or Err(e)
     pub fn acquire<'a>(&'a self, timeout: u64) -> Result<(SwapchainView<'a>, bool), crate::Error> {
         //let start = std::time::Instant::now();
         let frame = self.frame.get();
