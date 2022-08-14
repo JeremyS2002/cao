@@ -9,9 +9,7 @@ color_edge_detect.frag
 blending_weight.vert
 blending_weight.frag
 neighborhood_blending.vert
-neighborhood_blending_clip.frag
-neighborhood_blending_reinhard.frag
-neighborhood_blending_aces.frag
+neighborhood_blending.frag
 '
 
 for preset in $presets

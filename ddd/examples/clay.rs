@@ -38,7 +38,7 @@ pub struct Clay {
     start_time: std::time::Instant,
 
     smaa_renderer: ddd::utils::SMAARenderer,
-    display_renderer: ddd::utils::DisplayRenderer,
+    display_renderer: ddd::utils::CopyRenderer,
     smooth_renderer: clay::SmoothRenderer,
 
     width: u32,
@@ -118,20 +118,18 @@ impl Clay {
             &mut encoder,
             &device,
             ddd::utils::SMAAState::MEDIUM,
-            ddd::utils::DisplayFlags::all(),
             None,
         )?;
 
-        let display_renderer = ddd::utils::DisplayRenderer::new(
+        let display_renderer = ddd::utils::CopyRenderer::new(
             &device, 
-            ddd::utils::DisplayFlags::all(),
             None,
         )?;
 
         let smooth_renderer = clay::SmoothRenderer::new(&device, None)?;
 
         let model = glam::Mat4::from_translation(glam::vec3(0.0, -0.5, 0.0)) 
-            * glam::Mat4::from_scale(glam::vec3(0.5, 0.5, 0.5));
+            * glam::Mat4::from_scale(glam::vec3(2.0, 2.0, 2.0));
 
         let instances = vec![model.into()];
         let mesh_instance = ddd::utils::Instances::new(
@@ -277,26 +275,28 @@ impl Clay {
             &self.camera,
         )?;
 
-        // self.smaa_renderer.aces(
-        //     &mut encoder,
-        //     &self.device,
-        //     gfx::Attachment {
-        //         raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
-        //         load: gpu::LoadOp::Clear,
-        //         store: gpu::StoreOp::Store,
-        //     },
-        // )?;
-
-        self.display_renderer.aces(
+        self.smaa_renderer.pass(
             &mut encoder,
             &self.device,
-            &self.target.view, 
+            &self.target.view,
+            None,
             gfx::Attachment {
                 raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
                 load: gpu::LoadOp::Clear,
                 store: gpu::StoreOp::Store,
             },
         )?;
+
+        // self.display_renderer.clip(
+        //     &mut encoder,
+        //     &self.device,
+        //     &self.target.view, 
+        //     gfx::Attachment {
+        //         raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
+        //         load: gpu::LoadOp::Clear,
+        //         store: gpu::StoreOp::Store,
+        //     },
+        // )?;
 
         encoder.submit(&mut self.command, true)?;
 

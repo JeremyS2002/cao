@@ -175,6 +175,13 @@ macro_rules! impl_renderer {
         
                 Ok(())
             }
+
+            /// To avoid memory use after free issues vulkan objects are kept alive as long as they can be used
+            /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
+            /// This function drops Descriptor sets cached by self
+            pub fn clean(&mut self) {
+                self.bundles.clear();
+            }
         }
     };
 }

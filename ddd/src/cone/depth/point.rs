@@ -310,39 +310,6 @@ impl PointDepthMapRenderer {
         })
     }
 
-    /// Create the pipeline used for rendering non instanced meshes shadow
-    // pub fn pipeline(
-    //     device: &gpu::Device,
-    //     cull_face: Option<gpu::FrontFace>,
-    // ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
-    //     let vertex_spv =
-    //         gpu::include_spirv!("../../../shaders/cone/shadow_passes/point_single.vert.spv");
-    //     let fragment_spv =
-    //         gpu::include_spirv!("../../../shaders/cone/shadow_passes/shadow.frag.spv");
-    //     match gfx::ReflectedGraphics::from_spv(
-    //         device,
-    //         &vertex_spv,
-    //         None,
-    //         Some(&fragment_spv),
-    //         gpu::Rasterizer {
-    //             cull_face: cull_face
-    //                 .map(|_| gpu::CullFace::Front)
-    //                 .unwrap_or(gpu::CullFace::None),
-    //             front_face: cull_face.unwrap_or(gpu::FrontFace::Clockwise),
-    //             ..Default::default()
-    //         },
-    //         &[],
-    //         Some(gpu::DepthStencilState::default_depth()),
-    //         None,
-    //     ) {
-    //         Ok(p) => Ok(p),
-    //         Err(e) => match e {
-    //             gfx::error::ReflectedError::Gpu(e) => Err(e)?,
-    //             _ => unreachable!(),
-    //         },
-    //     }
-    // }
-
     /// Create the pipeline used for rendering instanced meshes shadows
     pub fn pipeline(
         device: &gpu::Device,
@@ -375,90 +342,6 @@ impl PointDepthMapRenderer {
             },
         }
     }
-
-    /// Draw each of the meshes shadows into the supplied shadow map with the instance they are paired with
-    // pub fn single_pass<'a, 'b, V: gfx::Vertex>(
-    //     &mut self,
-    //     encoder: &mut gfx::CommandEncoder<'a>,
-    //     device: &gpu::Device,
-    //     shadow: &PointDepthMap,
-    //     meshes: impl IntoIterator<Item = (&'b dyn gfx::Mesh<V>, &'b Instances)>,
-    //     clear: bool,
-    // ) -> Result<(), gpu::Error> {
-    //     let meshes = meshes.into_iter().collect::<Vec<_>>();
-    //     let mut face_idx = 0;
-    //     for face in &shadow.faces {
-    //         let mut pass = encoder.graphics_pass_reflected(
-    //             device,
-    //             &[],
-    //             &[],
-    //             Some(gfx::Attachment {
-    //                 raw: gpu::Attachment::View(
-    //                     Cow::Owned(face.clone()),
-    //                     gpu::ClearValue::Depth(1.0),
-    //                 ),
-    //                 load: if clear {
-    //                     gpu::LoadOp::Clear
-    //                 } else {
-    //                     gpu::LoadOp::Load
-    //                 },
-    //                 store: gpu::StoreOp::Store,
-    //             }),
-    //             &self.pipeline,
-    //         )?;
-    //         let key = unsafe { std::mem::transmute(shadow.uniform.buffer.raw_buffer()) };
-    //         let shadow_set = if let Some(s) = self.single_shadow_map.get(&key) {
-    //             s.clone()
-    //         } else {
-    //             let s = device.create_descriptor_set(&gpu::DescriptorSetDesc {
-    //                 name: None,
-    //                 entries: &[gpu::DescriptorSetEntry::Buffer(
-    //                     shadow.uniform.buffer.slice_ref(..),
-    //                 )],
-    //                 layout: self
-    //                     .pipeline
-    //                     .reflect_data
-    //                     .descriptor_layouts()
-    //                     .unwrap()
-    //                     .get(0)
-    //                     .unwrap(),
-    //             })?;
-    //             self.single_shadow_map.insert(key, s.clone());
-    //             s
-    //         };
-    //         for (mesh, instance) in &meshes {
-    //             let key = unsafe { std::mem::transmute(instance.buffer.raw_buffer()) };
-
-    //             let instance_set = if let Some(b) = self.single_instance_map.get(&key) {
-    //                 b.clone()
-    //             } else {
-    //                 let s = device.create_descriptor_set(&gpu::DescriptorSetDesc {
-    //                     name: None,
-    //                     entries: &[gpu::DescriptorSetEntry::Buffer(
-    //                         instance.buffer.slice_ref(..),
-    //                     )],
-    //                     layout: self
-    //                         .pipeline
-    //                         .reflect_data
-    //                         .descriptor_layouts()
-    //                         .unwrap()
-    //                         .get(1)
-    //                         .unwrap(),
-    //                 })?;
-    //                 self.single_instance_map.insert(key, s.clone());
-    //                 s
-    //             };
-
-    //             pass.push_u32("face", face_idx);
-    //             pass.bind_descriptors_owned(0, vec![shadow_set.clone(), instance_set.clone()]);
-    //             pass.draw_mesh_owned(*mesh);
-    //         }
-
-    //         face_idx += 1;
-    //     }
-
-    //     Ok(())
-    // }
 
     /// Draw each of the meshes shadows into the supplied shadow map with the instance they are paired with
     pub fn pass<'a, 'b, V: gfx::Vertex>(
@@ -542,6 +425,14 @@ impl PointDepthMapRenderer {
         }
 
         Ok(())
+    }
+
+    /// To avoid memory use after free issues vulkan objects are kept alive as long as they can be used
+    /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
+    /// This function drops Descriptor sets cached by self
+    pub fn clean(&mut self) {
+        self.instances_map.clear();
+        self.shadow_map.clear();
     }
 }
 

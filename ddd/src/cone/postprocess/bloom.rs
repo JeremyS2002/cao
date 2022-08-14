@@ -88,7 +88,7 @@ impl BloomRenderer {
     }
 
     pub fn pipelines(device: &gpu::Device, name: Option<&String>) -> Result<[gfx::ReflectedGraphics; 2], gpu::Error> {
-        let vert_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/display.vert.spv");
+        let vert_spv = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let prefilter_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/bloom_prefilter.frag.spv");
         let blur_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/bloom_blur.frag.spv");
 
@@ -306,5 +306,14 @@ impl BloomRenderer {
         pass.finish();
 
         Ok(())
+    }
+
+    /// To avoid memory use after free issues vulkan objects are kept alive as long as they can be used
+    /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
+    /// This function drops Descriptor sets cached by self
+    pub fn clean(&mut self) {
+        self.blur_bundles.clear();
+        self.blur_targets.clear();
+        self.prefilter_bundles.clear();
     }
 }

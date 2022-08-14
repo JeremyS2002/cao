@@ -2,12 +2,12 @@
 
 #include "utils.glsl"
 
+layout(location = 0) in vec2 in_uv;
+
 layout(location = 0) out vec2 out_color;
 
 layout(push_constant) uniform Data {
     uint sample_count;
-    float width;
-    float height;
 };
 
 vec2 integrate_brdf(float n_dot_v, float roughness) {
@@ -41,6 +41,5 @@ vec2 integrate_brdf(float n_dot_v, float roughness) {
 }
 
 void main() {
-    vec2 uv = vec2(gl_FragCoord.xy) / vec2(width, height);
-    out_color = integrate_brdf(uv.x, uv.y);
+    out_color = integrate_brdf(in_uv.x, in_uv.y);
 }

@@ -1,5 +1,7 @@
 #version 450
 
+layout(location = 0) in vec2 in_uv;
+
 layout(location = 0) out vec4 out_color;
 
 layout(set = 0, binding = 0) uniform texture2D u_albedo;
@@ -13,8 +15,7 @@ layout(push_constant) uniform Strength {
 };
 
 void main() {
-    vec2 uv = vec2(gl_FragCoord.xy) / vec2(width, height);
-    vec4 albedo = texture(sampler2D(u_albedo, u_sampler), uv);
-    float ao = texture(sampler2D(u_ao, u_sampler), uv).x;
+    vec4 albedo = texture(sampler2D(u_albedo, u_sampler), in_uv);
+    float ao = texture(sampler2D(u_ao, u_sampler), in_uv).x;
     out_color = vec4(albedo.rgb * strength * ao, albedo.a);
 }

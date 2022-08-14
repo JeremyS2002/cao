@@ -2,6 +2,8 @@
 
 #include "utils.glsl"
 
+layout(location = 0) in vec2 in_uv;
+
 layout(location = 0) out vec4 out_color;
 
 layout(set = 0, binding = 0) uniform texture2D u_position;
@@ -31,13 +33,12 @@ layout(push_constant) uniform Data {
 };
 
 void main() {
-    vec2 uv = vec2(gl_FragCoord.xy) / vec2(width, height);
-    vec3 position = texture(sampler2D(u_position, u_sampler), uv).xyz;
-    vec3 normal = texture(sampler2D(u_normal, u_sampler), uv).xyz;
-    vec4 albedo = texture(sampler2D(u_albedo, u_sampler), uv);
-    float metallic = texture(sampler2D(u_metallic, u_sampler), uv).x;
-    float roughness = texture(sampler2D(u_roughness, u_sampler), uv).x;
-    float ao = texture(sampler2D(u_ao, u_sampler), uv).x;
+    vec3 position = texture(sampler2D(u_position, u_sampler), in_uv).xyz;
+    vec3 normal = texture(sampler2D(u_normal, u_sampler), in_uv).xyz;
+    vec4 albedo = texture(sampler2D(u_albedo, u_sampler), in_uv);
+    float metallic = texture(sampler2D(u_metallic, u_sampler), in_uv).x;
+    float roughness = texture(sampler2D(u_roughness, u_sampler), in_uv).x;
+    float ao = texture(sampler2D(u_ao, u_sampler), in_uv).x;
 
     vec3 view = normalize(u_camera.position - position);
     vec3 ref = reflect(-view, normal);

@@ -194,7 +194,7 @@ impl PointLightRenderer {
     pub const BLEND_STATE: gpu::BlendState = gpu::BlendState::ADD;
 
     pub const RASTERIZER: gpu::Rasterizer = gpu::Rasterizer {
-        cull_face: gpu::CullFace::None,
+        cull_face: gpu::CullFace::Back,
         front_face: gpu::FrontFace::Clockwise,
         polygon_mode: gpu::PolygonMode::Fill,
         primitive_topology: gpu::PrimitiveTopology::TriangleList,
@@ -286,7 +286,7 @@ impl PointLightRenderer {
         device: &gpu::Device,
         name: Option<String>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
-        let vert = gpu::include_spirv!("../../../shaders/cone/screen.vert.spv");
+        let vert = gpu::include_spirv!("../../../shaders/cone/point_light_passes/base_full.vert.spv");
         let frag = gpu::include_spirv!("../../../shaders/cone/point_light_passes/base.frag.spv");
         Self::create_full_pipeline(device, &vert, &frag, name)
     }
@@ -305,7 +305,7 @@ impl PointLightRenderer {
         device: &gpu::Device,
         name: Option<String>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
-        let vert = gpu::include_spirv!("../../../shaders/cone/screen.vert.spv");
+        let vert = gpu::include_spirv!("../../../shaders/cone/point_light_passes/base_full.vert.spv");
         let frag = gpu::include_spirv!("../../../shaders/cone/point_light_passes/shadow.frag.spv");
         Self::create_full_pipeline(device, &vert, &frag, name)
     }
@@ -325,7 +325,7 @@ impl PointLightRenderer {
         device: &gpu::Device,
         name: Option<String>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
-        let vert = gpu::include_spirv!("../../../shaders/cone/screen.vert.spv");
+        let vert = gpu::include_spirv!("../../../shaders/cone/point_light_passes/base_full.vert.spv");
         let frag =
             gpu::include_spirv!("../../../shaders/cone/point_light_passes/subsurface.frag.spv");
         Self::create_full_pipeline(device, &vert, &frag, name)
@@ -998,5 +998,17 @@ impl PointLightRenderer {
         }
 
         Ok(())
+    }
+
+    /// To avoid memory use after free issues vulkan objects are kept alive as long as they can be used
+    /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
+    /// This function drops Descriptor sets cached by self
+    pub fn clean(&mut self) {
+        self.base_clipped_bundles.clear();
+        self.shadow_clipped_bundles.clear();
+        self.subsurface_clipped_bundles.clear();
+        self.base_full_bundles.clear();
+        self.shadow_full_bundles.clear();
+        self.subsurface_full_bundles.clear();
     }
 }

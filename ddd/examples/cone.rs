@@ -36,9 +36,12 @@ pub struct Cone {
     point_renderer: cone::PointLightRenderer,
     ao_renderer: cone::AORenderer,
     smaa_renderer: ddd::utils::SMAARenderer,
-    display_renderer: ddd::utils::DisplayRenderer,
+    display_renderer: ddd::utils::CopyRenderer,
     solid_renderer: clay::SolidRenderer,
     bloom_renderer: cone::BloomRenderer,
+    tonemap_renderer: cone::GlobalToneMapRenderer,
+    
+    antialiased: gfx::GTexture2D,
 
     mesh: gfx::IndexedMesh<cone::Vertex>,
     plane: gfx::IndexedMesh<cone::Vertex>,
@@ -140,7 +143,6 @@ impl Cone {
             &mut encoder,
             &device,
             ddd::utils::SMAAState::MEDIUM,
-            ddd::utils::DisplayFlags::all(),
             None,
         )?;
 
@@ -184,6 +186,24 @@ impl Cone {
             1.2,
             None,
         )?;
+
+        let tonemap_renderer = cone::GlobalToneMapRenderer::new(
+            &mut encoder,
+            &device,
+            cone::GlobalToneMapParams::default(),
+            None,
+        )?;
+        let antialiased = gfx::GTexture2D::from_formats(
+            &device,
+            buffer.width(),
+            buffer.height(),
+            gpu::Samples::S1,
+            gpu::TextureUsage::SAMPLED
+                | gpu::TextureUsage::COLOR_OUTPUT,
+            1,
+            gfx::alt_formats(gpu::Format::Rgba32Float),
+            None,
+        )?.unwrap();
 
         let sampler = device.create_sampler(&gpu::SamplerDesc {
             wrap_x: gpu::WrapMode::ClampToEdge,
@@ -475,9 +495,8 @@ impl Cone {
 
         encoder.submit(&mut command_buffer, true)?;
 
-        let display_renderer = ddd::utils::DisplayRenderer::new(
+        let display_renderer = ddd::utils::CopyRenderer::new(
             &device, 
-            ddd::utils::DisplayFlags::all(),
             None,
         )?;
 
@@ -497,6 +516,8 @@ impl Cone {
             display_renderer,
             solid_renderer,
             bloom_renderer,
+            tonemap_renderer,
+            antialiased,
 
             mesh,
             plane,
@@ -615,6 +636,11 @@ impl Cone {
             &self.camera
         )?;
 
+        // encoder.clear_texture(
+        //     self.buffer.get("ao").unwrap().whole_slice_ref(), 
+        //     gpu::ClearValue::ColorFloat([1.0; 4]),
+        // );
+
         self.env_renderer.environment_pass(
             &mut encoder,
             &self.device,
@@ -701,6 +727,21 @@ impl Cone {
             &self.buffer
         )?;
 
+        self.smaa_renderer.pass(
+            &mut encoder,
+            &self.device,
+            &self.buffer.get("output").unwrap().view,
+            None,
+            gfx::Attachment {
+                raw: gpu::Attachment::View(
+                    Cow::Borrowed(&self.antialiased.view), 
+                    gpu::ClearValue::ColorFloat([0.0; 4])
+                ),
+                load: gpu::LoadOp::Clear,
+                store: gpu::StoreOp::Store,
+            },
+        )?;
+        
         encoder.record(&mut self.offscreen_command, false)?;
 
         Ok(())
@@ -805,21 +846,23 @@ impl Cone {
         self.controller
             .update_cam_owned(&mut encoder, &mut self.camera);
 
-        self.smaa_renderer.aces(
-            &mut encoder,
-            &self.device,
-            &self.buffer.get("output").unwrap().view,
+        self.tonemap_renderer.pass(
+            &mut encoder, 
+            &self.device, 
+            &self.antialiased.view,
             gfx::Attachment {
                 raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
-                load: gpu::LoadOp::Clear,
+                load: gpu::LoadOp::DontCare,
                 store: gpu::StoreOp::Store,
-            },
+            } ,
         )?;
-
-        // self.display_renderer.aces(
+    
+        // for debugging, try taking a look at the geometry buffers other frames
+        // eg &self.antialiased.view -> *self.buffer.get("normal").unwrap().view,
+        // self.display_renderer.pass(
         //     &mut encoder,
         //     &self.device,
-        //     &self.buffer.get("albedo").unwrap().view, 
+        //     &self.antialiased.view, 
         //     gfx::Attachment {
         //         raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
         //         load: gpu::LoadOp::Clear,
