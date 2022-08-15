@@ -437,7 +437,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::ADD],
             depth_state,
-            Some("splat_stage".to_string()),
+            Some("splat_stage"),
         )?;
 
         let ink_splat_bundle = splat_stage
@@ -466,7 +466,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
-            Some("advect_stage".to_string()),
+            Some("advect_stage"),
         )?;
 
         let advect_vel_bundle_a = advection_stage
@@ -521,7 +521,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
-            Some("div_stage".to_string()),
+            Some("div_stage"),
         )?;
 
         let divergence_bundle_a = divergence_stage
@@ -552,7 +552,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
-            Some("curl_stage".to_string()),
+            Some("curl_stage"),
         )?;
 
         let curl_bundle_a = curl_stage
@@ -583,7 +583,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
-            Some("vort_stage".to_string()),
+            Some("vort_stage"),
         )?;
 
         let vorticity_bundle_a = vorticity_stage
@@ -618,7 +618,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
-            Some("clear_stage".to_string()),
+            Some("clear_stage"),
         )?;
 
         let clear_bundle_a = clear_stage
@@ -651,7 +651,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
-            Some("pressure_stage".to_string()),
+            Some("pressure_stage"),
         )?;
 
         let pressure_bundle_a = pressure_stage
@@ -684,7 +684,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
-            Some("grad_sub_stage".to_string()),
+            Some("grad_sub_stage"),
         )?;
 
         let grad_sub_bundle_a = grad_sub_stage
@@ -717,7 +717,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
-            Some("display_stage".to_string()),
+            Some("display_stage"),
         )?;
 
         let display_bundle_a = display_stage

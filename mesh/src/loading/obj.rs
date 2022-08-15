@@ -55,12 +55,13 @@ pub fn load_meshes_from_obj<P: AsRef<Path> + std::fmt::Debug, V: Vertex>(
 
         let indices = &*model.mesh.indices;
 
+        let name = name.map(|n| format!("{}_{}", n, model.name));
         let mesh = match gfx::IndexedMesh::new(
             encoder,
             device,
             &vertices,
             &indices,
-            name.map(|n| format!("{}_{}", n, model.name)),
+            name.as_ref().map(|n| &**n),
         ) {
             Ok(m) => m,
             Err(e) => return Err(LoadError::Gpu(model.name, e))

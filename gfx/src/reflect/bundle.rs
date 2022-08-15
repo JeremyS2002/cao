@@ -18,7 +18,7 @@ pub struct BundleBuilder<'a> {
     /// key of the pipeline this is related to
     pub(crate) parent_id: u64,
     /// The name of the pipeline this is related to
-    pub(crate) parent_name: Option<String>,
+    pub(crate) parent_name: Option<&'a str>,
     /// stores the name of a binding to its location
     pub(crate) map: &'a HashMap<String, (usize, usize)>,
     /// stores the types of bindings so check that the DescriptorSets created are valid

@@ -251,8 +251,9 @@ impl SMAARenderer {
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
         state: SMAAState,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
+        let n = name.as_ref().map(|n| format!("{}_area_texture", n));
         let area = gfx::GTexture2D::from_raw_image(
             encoder,
             device,
@@ -261,9 +262,10 @@ impl SMAARenderer {
             smaa_area::HEIGHT as u32,
             gpu::TextureUsage::SAMPLED,
             1,
-            name.as_ref().map(|n| format!("{}_area_texture", n)),
+            n.as_ref().map(|n| &**n),
         )?;
 
+        let n = name.as_ref().map(|n| format!("{}_search_texture", n));
         let search = gfx::GTexture2D::from_raw_image(
             encoder,
             device,
@@ -272,7 +274,7 @@ impl SMAARenderer {
             smaa_search::HEIGHT as u32,
             gpu::TextureUsage::SAMPLED,
             1,
-            name.as_ref().map(|n| format!("{}_search_texture", n)),
+            n.as_ref().map(|n| &**n),
         )?;
 
         let sampler = device.create_sampler(&gpu::SamplerDesc {
@@ -285,6 +287,7 @@ impl SMAARenderer {
             ..Default::default()
         })?;
 
+        let n = name.as_ref().map(|n| format!("{}_edge_detect", n));
         let edge_detect = match gfx::ReflectedGraphics::from_spv(
             device,
             &state.edge_detect_vert(),
@@ -293,7 +296,7 @@ impl SMAARenderer {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
-            name.as_ref().map(|n| format!("{}_edge_detect", n)),
+            n.as_ref().map(|n| &**n),
         ) {
             Ok(g) => g,
             Err(e) => match e {
@@ -302,6 +305,7 @@ impl SMAARenderer {
             },
         };
 
+        let n = name.as_ref().map(|n| format!("{}_blend_weight", n));
         let blend_weight = match gfx::ReflectedGraphics::from_spv(
             device,
             &state.blend_weight_vert(),
@@ -310,7 +314,7 @@ impl SMAARenderer {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
-            name.as_ref().map(|n| format!("{}_blend_weight", n)),
+            n.as_ref().map(|n| &**n),
         ) {
             Ok(g) => g,
             Err(e) => match e {
@@ -319,10 +323,11 @@ impl SMAARenderer {
             },
         };
 
+        let n = name.as_ref().map(|n| format!("{}_neighborhood_blend", n));
         let neighborhood_blend = Self::create_neighborhood(
             device, 
             &state, 
-            name.as_ref().map(|n| format!("{}_neighborhood_blend", n))
+            n.as_ref().map(|n| &**n),
         )?;
 
         Ok(Self {
@@ -349,7 +354,7 @@ impl SMAARenderer {
     pub fn create_neighborhood(
         device: &gpu::Device,
         state: &SMAAState,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = state.neighborhood_blend_vert();
         let frag = state.neighborhood_blend_frag();

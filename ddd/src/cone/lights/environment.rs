@@ -371,16 +371,17 @@ impl EnvironmentMapGenerator<'static> {
     pub fn new(
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let sampler = device.create_sampler(&gpu::SamplerDesc {
             name: name.as_ref().map(|n| format!("{}_sampler", n)),
             ..Default::default()
         })?;
+        let n = name.map(|n| format!("{}_cube", n));
         let cube = mesh::cube(
             encoder, 
             device, 
-            name.as_ref().map(|n| format!("{}_cube", n))
+            n.as_ref().map(|n| &**n),
         )?;
         let [diffuse_pipeline, specular_pipeline, brdf_pipeline] = Self::pipelines(device, name)?;
         
@@ -395,7 +396,7 @@ impl EnvironmentMapGenerator<'static> {
 }
 
 impl<'a> EnvironmentMapGenerator<'a> {
-    pub fn pipelines(device: &gpu::Device, name: Option<String>) -> Result<[gfx::ReflectedGraphics; 3], gpu::Error> {
+    pub fn pipelines(device: &gpu::Device, name: Option<&str>) -> Result<[gfx::ReflectedGraphics; 3], gpu::Error> {
         let cube_push_vertex_spv = gpu::include_spirv!("../../../shaders/cube_push.vert.spv");
         let cube_buffer_vertex_spv = gpu::include_spirv!("../../../shaders/cube_buffer.vert.spv");
         let diffuse_spv =
@@ -405,6 +406,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
         let screen_spv = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let brdf_spv = gpu::include_spirv!("../../../shaders/cone/creation/ibl_brdf.frag.spv");
 
+        let n = name.map(|n| format!("{}_diffuse_renderer", n));
         let diffuse = match gfx::ReflectedGraphics::from_spv(
             device,
             &cube_push_vertex_spv,
@@ -413,7 +415,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
-            name.as_ref().map(|n| format!("{}_diffuse_renderer", n)),
+            n.as_ref().map(|n| &**n),
         ) {
             Ok(g) => g,
             Err(e) => match e {
@@ -726,23 +728,28 @@ impl EnvironmentRenderer {
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
         flags: EnvironmentRendererFlags,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let sampler = device.create_sampler(&gpu::SamplerDesc {
             name: name.as_ref().map(|n| format!("{}_sampler", n)),
             ..gpu::SamplerDesc::LINEAR
         })?;
 
+        let cn = name.as_ref().map(|n| format!("{}_cube", n));
+        let an = name.as_ref().map(|n| format!("{}_ambient", n));
+        let sn = name.as_ref().map(|n| format!("{}_skybox", n));
+        let en = name.as_ref().map(|n| format!("{}_environment", n));
+
         Ok(Self {
             cube: mesh::cube(
                 encoder,
                 device,
-                name.as_ref().map(|n| format!("{}_cube", n)),
+                cn.as_ref().map(|n| &**n),
             )?,
             ambient: if flags.contains(EnvironmentRendererFlags::AMBIENT) {
                 Some(Self::create_ambient(
                     device,
-                    name.as_ref().map(|n| format!("{}_ambient", n)),
+                    an.as_ref().map(|n| &**n),
                 )?)
             } else {
                 None
@@ -751,7 +758,7 @@ impl EnvironmentRenderer {
             skybox: if flags.contains(EnvironmentRendererFlags::SKYBOX) {
                 Some(Self::create_skybox(
                     device,
-                    name.as_ref().map(|n| format!("{}_skybox", n)),
+                    sn.as_ref().map(|n| &**n),
                 )?)
             } else {
                 None
@@ -760,7 +767,7 @@ impl EnvironmentRenderer {
             environment: if flags.contains(EnvironmentRendererFlags::ENVIRONMENT) {
                 Some(Self::create_environment(
                     device,
-                    name.as_ref().map(|n| format!("{}_environment", n)),
+                    en.as_ref().map(|n| &**n),
                 )?)
             } else {
                 None
@@ -812,7 +819,7 @@ impl EnvironmentRenderer {
         device: &gpu::Device,
         vert: &[u32],
         frag: &[u32],
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         match gfx::ReflectedGraphics::from_spv(
             device,
@@ -838,7 +845,7 @@ impl EnvironmentRenderer {
 
     pub fn create_ambient(
         device: &gpu::Device,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let frag = gpu::include_spirv!("../../../shaders/cone/environment/ambient.frag.spv");
@@ -847,7 +854,7 @@ impl EnvironmentRenderer {
 
     pub fn create_environment(
         device: &gpu::Device,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let frag = gpu::include_spirv!("../../../shaders/cone/environment/environment.frag.spv");
@@ -856,7 +863,7 @@ impl EnvironmentRenderer {
 
     pub fn create_skybox(
         device: &gpu::Device,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         match gfx::ReflectedGraphics::from_spv(
             device,

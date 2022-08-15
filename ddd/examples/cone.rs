@@ -136,7 +136,7 @@ impl Cone {
             gpu::Samples::S1, 
             cone::GeometryBufferPrecision::High,
             cone::GeometryBuffer::ALL_MAPS,
-            Some("buffers".to_string()),
+            None,
         )?;
 
         let smaa_renderer = ddd::utils::SMAARenderer::new(

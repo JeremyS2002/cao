@@ -101,7 +101,7 @@ macro_rules! make_texture_1d {
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
                 format: $format,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error> {
                 Ok(Self(GTexture1D::from_dimension(
                     device,
@@ -121,7 +121,7 @@ macro_rules! make_texture_1d {
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
                 formats: impl IntoIterator<Item = $format>,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Option<Self>, gpu::Error> {
                 Ok(GTexture1D::from_formats(
                     device,
@@ -144,7 +144,7 @@ macro_rules! make_texture_1d {
                 raw_texture: &[P],
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error> {
                 $format::try_from(P::FORMAT).unwrap();
                 Ok(Self(GTexture1D::from_raw_image(
@@ -185,7 +185,7 @@ macro_rules! make_texture_1d_array {
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
                 format: $format,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error> {
                 Ok(Self(GTexture1DArray::from_dimension(
                     device,
@@ -206,7 +206,7 @@ macro_rules! make_texture_1d_array {
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
                 formats: impl IntoIterator<Item = $format>,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Option<Self>, gpu::Error> {
                 Ok(GTexture1DArray::from_formats(
                     device,
@@ -230,7 +230,7 @@ macro_rules! make_texture_1d_array {
                 raw_textures: &[&[P]],
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error> {
                 $format::try_from(P::FORMAT).unwrap();
                 Ok(Self(GTexture1DArray::from_raw_images(
@@ -274,7 +274,7 @@ macro_rules! make_texture_2d {
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
                 format: $format,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error> {
                 Ok(Self(GTexture2D::from_dimension(
                     device,
@@ -296,7 +296,7 @@ macro_rules! make_texture_2d {
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
                 formats: impl IntoIterator<Item = $format>,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Option<Self>, gpu::Error> {
                 Ok(GTexture2D::from_formats(
                     device,
@@ -322,7 +322,7 @@ macro_rules! make_texture_2d {
                 height: gpu::Size,
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error> {
                 $format::try_from(P::FORMAT).unwrap();
                 Ok(Self(GTexture2D::from_raw_image(
@@ -363,7 +363,7 @@ macro_rules! make_texture_2d {
                 image: &image::ImageBuffer<P, C>,
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error>
             where
                 P: FormatData + image::Pixel + 'static,
@@ -410,7 +410,7 @@ macro_rules! make_texture_2d_array {
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
                 format: $format,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error> {
                 Ok(Self(GTexture2DArray::new(
                     device,
@@ -436,7 +436,7 @@ macro_rules! make_texture_2d_array {
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
                 formats: impl IntoIterator<Item = $format>,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Option<Self>, gpu::Error> {
                 Ok(GTexture2DArray::from_formats(
                     device,
@@ -463,7 +463,7 @@ macro_rules! make_texture_2d_array {
                 height: gpu::Size,
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error> {
                 $format::try_from(P::FORMAT).unwrap();
                 Ok(Self(GTexture2DArray::from_raw_images(
@@ -506,7 +506,7 @@ macro_rules! make_texture_2d_array {
                 images: &[&image::ImageBuffer<P, C>],
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error>
             where
                 P: FormatData + image::Pixel + 'static,
@@ -556,7 +556,7 @@ macro_rules! make_texture_cube {
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
                 format: $format,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error> {
                 Ok(Self(GTextureCube::new(
                     device,
@@ -578,7 +578,7 @@ macro_rules! make_texture_cube {
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
                 formats: impl IntoIterator<Item = $format>,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Option<Self>, gpu::Error> {
                 Ok(GTextureCube::from_formats(
                     device,
@@ -603,7 +603,7 @@ macro_rules! make_texture_cube {
                 raw_textures: &[&[P]; 6],
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error> {
                 $format::try_from(P::FORMAT).unwrap();
                 Ok(Self(GTextureCube::from_raw_images(
@@ -645,7 +645,7 @@ macro_rules! make_texture_cube {
                 images: &[&image::ImageBuffer<P, C>; 6],
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error>
             where
                 P: FormatData + image::Pixel + 'static,
@@ -692,7 +692,7 @@ macro_rules! make_texture_cube_array {
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
                 format: $format,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error> {
                 Ok(Self(GTextureCubeArray::new(
                     device,
@@ -716,7 +716,7 @@ macro_rules! make_texture_cube_array {
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
                 formats: impl IntoIterator<Item = $format>,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Option<Self>, gpu::Error> {
                 Ok(GTextureCubeArray::from_formats(
                     device,
@@ -742,7 +742,7 @@ macro_rules! make_texture_cube_array {
                 raw_textures: &[&[&[P]; 6]],
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error> {
                 $format::try_from(P::FORMAT).unwrap();
                 Ok(Self(GTextureCubeArray::from_raw_images(
@@ -786,7 +786,7 @@ macro_rules! make_texture_cube_array {
                 images: &[&[&image::ImageBuffer<P, C>; 6]],
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error>
             where
                 P: FormatData + image::Pixel + 'static,
@@ -834,7 +834,7 @@ macro_rules! make_texture_3d {
                 depth: gpu::Size,
                 usage: gpu::TextureUsage,
                 format: $format,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Self, gpu::Error> {
                 Ok(Self(GTexture3D::new(
                     device,
@@ -856,7 +856,7 @@ macro_rules! make_texture_3d {
                 depth: gpu::Size,
                 usage: gpu::TextureUsage,
                 formats: impl IntoIterator<Item = $format>,
-                name: Option<String>,
+                name: Option<&str>,
             ) -> Result<Option<Self>, gpu::Error> {
                 Ok(GTexture3D::from_formats(
                     device,

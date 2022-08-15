@@ -78,7 +78,7 @@ macro_rules! impl_renderer {
         }
         
         impl $name {
-            pub fn new(device: &gpu::Device, name: Option<String>) -> Result<Self, gpu::Error> {
+            pub fn new(device: &gpu::Device, name: Option<&str>) -> Result<Self, gpu::Error> {
                 let pipeline = Self::pipeline(device, name)?;
                 Ok(Self {
                     pipeline,
@@ -86,10 +86,11 @@ macro_rules! impl_renderer {
                 })
             }
         
-            pub fn pipeline(device: &gpu::Device, name: Option<String>) -> Result<gfx::ReflectedGraphics, gpu::Error> {
+            pub fn pipeline(device: &gpu::Device, name: Option<&str>) -> Result<gfx::ReflectedGraphics, gpu::Error> {
                 let vert_spv = gpu::include_spirv!($vert);
                 let frag_spv = gpu::include_spirv!($frag);
                 
+                let name = name.map(|n| format!("{}_renderer", n));
                 let g = match gfx::ReflectedGraphics::from_spv(
                     device,
                     &vert_spv,
@@ -106,7 +107,7 @@ macro_rules! impl_renderer {
                         stencil_front: None,
                         stencil_back: None,
                     }),
-                    name.as_ref().map(|n| format!("{}_renderer", n))
+                    name.as_ref().map(|n| &**n),
                 ) {
                     Ok(g) => g,
                     Err(e) => match e {

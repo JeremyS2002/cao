@@ -30,7 +30,7 @@ impl ReflectedCompute {
     pub fn new(
         device: &gpu::Device,
         compute: &[u32],
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, error::ReflectedError> {
         let mut descriptor_set_layouts = HashMap::new();
         let mut descriptor_set_names = HashMap::new();
@@ -57,7 +57,7 @@ impl ReflectedCompute {
             super::reflect_raw::combine_descriptor_set_layouts(
                 device,
                 descriptor_set_layouts,
-                &name,
+                name,
             )?;
 
         let pipeline_layout_name = name.as_ref().map(|n| format!("{}_pipeline_layout", n));
@@ -110,7 +110,7 @@ impl ReflectedCompute {
         if self.descriptor_set_layouts.is_some() {
             Some(BundleBuilder {
                 parent_id: self.id,
-                parent_name: self.pipeline.name().map(|s| s.to_string()),
+                parent_name: self.pipeline.name(),
                 map: self.descriptor_set_names.as_ref().unwrap(),
                 types: self.descriptor_set_types.as_ref().unwrap(),
                 layouts: self.descriptor_set_layouts.as_ref().unwrap(),

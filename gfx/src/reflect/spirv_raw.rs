@@ -34,7 +34,7 @@ pub(crate) fn parse_vertex_states(
 pub(crate) fn combine_descriptor_set_layouts(
     device: &gpu::Device,
     descriptor_set_layouts: HashMap<u32, HashMap<u32, gpu::DescriptorLayoutEntry>>,
-    name: &Option<String>,
+    name: Option<&str>,
 ) -> Result<
     (
         Vec<gpu::DescriptorLayout>,

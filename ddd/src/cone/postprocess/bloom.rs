@@ -58,20 +58,21 @@ impl BloomRenderer {
         intensity: f32,
         threshold: f32,
         // buffer: &GeometryBuffer,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         iterations = iterations.max(2);
 
         let params = BloomParams::new(intensity, threshold, 0.7);
 
+        let n = name.as_ref().map(|n| format!("{}_uniform", n));
         let uniform = gfx::Uniform::new(
             encoder,
             device,
             params,
-            name.as_ref().map(|n| format!("{}_uniform", n)),
+            n.as_ref().map(|n| &**n),
         )?;
 
-        let [prefilter_pipeline, blur_pipeline] = Self::pipelines(device, name.as_ref())?;
+        let [prefilter_pipeline, blur_pipeline] = Self::pipelines(device, name)?;
 
         Ok(Self {
             prefilter_pipeline,
@@ -82,16 +83,17 @@ impl BloomRenderer {
             uniform,
             iterations,
             // targets,
-            name,
+            name: name.map(|n| n.to_string()),
             intensity,
         })
     }
 
-    pub fn pipelines(device: &gpu::Device, name: Option<&String>) -> Result<[gfx::ReflectedGraphics; 2], gpu::Error> {
+    pub fn pipelines(device: &gpu::Device, name: Option<&str>) -> Result<[gfx::ReflectedGraphics; 2], gpu::Error> {
         let vert_spv = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let prefilter_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/bloom_prefilter.frag.spv");
         let blur_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/bloom_blur.frag.spv");
 
+        let n = name.as_ref().map(|n| format!("{}_prefilter_renderer", n));
         let prefilter_pipeline = match gfx::ReflectedGraphics::from_spv(
             device,
             &vert_spv,
@@ -100,7 +102,7 @@ impl BloomRenderer {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
-            name.as_ref().map(|n| format!("{}_prefilter_renderer", n)),
+            n.as_ref().map(|n| &**n),
         ) {
             Ok(g) => g,
             Err(e) => match e {
@@ -109,6 +111,7 @@ impl BloomRenderer {
             }
         };
 
+        let n = name.as_ref().map(|n| format!("{}_blur_renderer", n));
         let blur_pipeline = match gfx::ReflectedGraphics::from_spv(
             device,
             &vert_spv,
@@ -117,7 +120,7 @@ impl BloomRenderer {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::ADD],
             None,
-            name.as_ref().map(|n| format!("{}_blur_renderer", n)),
+            n.as_ref().map(|n| &**n),
         ) {
             Ok(g) => g,
             Err(e) => match e {
@@ -143,6 +146,7 @@ impl BloomRenderer {
                 let h = buffer.height >> (i + 1);
                 if w < 2 || h < 2 { break }
 
+                let n = self.name.as_ref().map(|n| format!("{}_bloom_target_{}", n, i));
                 let t = gfx::GTexture2D::from_formats(
                     device, 
                     w, 
@@ -152,7 +156,7 @@ impl BloomRenderer {
                         | gpu::TextureUsage::COLOR_OUTPUT, 
                     1, 
                     gfx::alt_formats(gpu::Format::Rgba16Float), 
-                    self.name.as_ref().map(|n| format!("{}_bloom_target_{}", n, i))
+                    n.as_ref().map(|n| &**n),
                 )?.unwrap();
 
                 blur_targets.push(t);

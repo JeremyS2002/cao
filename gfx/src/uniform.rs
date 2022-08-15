@@ -31,7 +31,7 @@ impl<U: bytemuck::Pod + Default> Uniform<U> {
     pub fn default(
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         Self::new(encoder, device, U::default(), name)
     }
@@ -45,7 +45,7 @@ impl<U: bytemuck::Pod> Uniform<U> {
         device: &gpu::Device,
         data: U,
         usage: gpu::BufferUsage,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let uniform_name = if let Some(name) = name {
             Some(format!("{}_buffer", name))
@@ -76,7 +76,7 @@ impl<U: bytemuck::Pod> Uniform<U> {
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
         data: U,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         Self::from_usage(encoder, device, data, gpu::BufferUsage::empty(), name)
     }

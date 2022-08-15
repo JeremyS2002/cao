@@ -81,20 +81,22 @@ impl AORenderer {
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
         params: AOParams,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
+        let n = name.map(|n| format!("{}_noise_texture", n));
         let noise_texture = Self::noise_texture(
             encoder, 
             device,
             4,
-            name.as_ref().map(|n| format!("{}_noise_texture", n)),
+            n.as_ref().map(|n| &**n),
         )?;
         
+        let n = name.map(|n| format!("{}_uniform", n));
         let uniform = gfx::Uniform::new(
             encoder,
             device,
             params,
-            name.as_ref().map(|n| format!("{}_uniform", n)),
+            n.as_ref().map(|n| &**n),
         )?;
         
         let noise_sampler = device.create_sampler(&gpu::SamplerDesc {
@@ -119,11 +121,12 @@ impl AORenderer {
         })
     }
 
-    pub fn pipelines(device: &gpu::Device, name: Option<String>) -> Result<[gfx::ReflectedGraphics; 2], gpu::Error> {
+    pub fn pipelines(device: &gpu::Device, name: Option<&str>) -> Result<[gfx::ReflectedGraphics; 2], gpu::Error> {
         let screen_spv = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let calc_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/ao_calc.frag.spv");
         let blur_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/ao_blur.frag.spv");
 
+        let n = name.map(|n| format!("{}_calc_renderer", n));
         let calc_pipeline = match gfx::ReflectedGraphics::from_spv(
             device,
             &screen_spv,
@@ -141,7 +144,7 @@ impl AORenderer {
                 stencil_front: None,
                 stencil_back: None,
             }),
-            name.as_ref().map(|n| format!("{}_calc_renderer", n)),
+            n.as_ref().map(|n| &**n),
         ) {
             Ok(g) => g,
             Err(e) => match e {
@@ -150,6 +153,7 @@ impl AORenderer {
             }
         };
 
+        let n = name.as_ref().map(|n| format!("{}_blur_renderer", n));
         let blur_pipeline = match gfx::ReflectedGraphics::from_spv(
             device,
             &screen_spv,
@@ -158,7 +162,7 @@ impl AORenderer {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
-            name.as_ref().map(|n| format!("{}_blur_renderer", n)),
+            n.as_ref().map(|n| &**n),
         ) {
             Ok(g) => g,
             Err(e) => match e {
@@ -174,7 +178,7 @@ impl AORenderer {
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device, 
         resolution: u32,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::GTexture2D, gpu::Error> {
         use rand::prelude::*;
 

@@ -125,19 +125,28 @@ impl PointLightRenderer {
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
         flags: PointLightRendererFlags,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
+
+        let sn = name.as_ref().map(|n| format!("{}_sphere", n));
+        let bcn = name.as_ref().map(|n| format!("{}_base_clipped_pipeline", n));
+        let bfn = name.as_ref().map(|n| format!("{}_base_full_pipeline", n));
+        let scn = name.as_ref().map(|n| format!("{}_shadow_clipped_pipeline", n));
+        let sfn = name.as_ref().map(|n| format!("{}_shadow_full_pipeline", n));
+        let sbcn = name.as_ref().map(|n| format!("{}_subsurface_clipped_pipeline", n));
+        let sbfn = name.as_ref().map(|n| format!("{}_subsurface_full_pipeline", n));
+
         Ok(Self {
             sphere: mesh::ico_sphere(
                 encoder,
                 device,
                 3,
-                name.as_ref().map(|n| format!("{}_sphere", n)),
+                sn.as_ref().map(|n| &**n),
             )?,
             base_clipped: if flags.contains(PointLightRendererFlags::BASE_CLIPPED) {
                 Some(Self::create_base_clipped(
                     device,
-                    name.as_ref().map(|n| format!("{}_base_clipped_pipeline", n)),
+                    bcn.as_ref().map(|n| &**n),
                 )?)
             } else {
                 None
@@ -146,7 +155,7 @@ impl PointLightRenderer {
             base_full: if flags.contains(PointLightRendererFlags::BASE_FULL) {
                 Some(Self::create_base_full(
                     device,
-                    name.as_ref().map(|n| format!("{}_base_full", n)),
+                    bfn.as_ref().map(|n| &**n),
                 )?)
             } else {
                 None
@@ -155,7 +164,7 @@ impl PointLightRenderer {
             shadow_clipped: if flags.contains(PointLightRendererFlags::SHADOW_CLIPPED) {
                 Some(Self::create_shadow_clipped(
                     device,
-                    name.as_ref().map(|n| format!("{}_base_full", n)),
+                    scn.as_ref().map(|n| &**n),
                 )?)
             } else {
                 None
@@ -164,7 +173,7 @@ impl PointLightRenderer {
             shadow_full: if flags.contains(PointLightRendererFlags::SHADOW_FULL) {
                 Some(Self::create_shadow_full(
                     device,
-                    name.as_ref().map(|n| format!("{}_base_full", n)),
+                    sfn.as_ref().map(|n| &**n),
                 )?)
             } else {
                 None
@@ -173,7 +182,7 @@ impl PointLightRenderer {
             subsurface_clipped: if flags.contains(PointLightRendererFlags::SUBSURFACE_CLIPPED) {
                 Some(Self::create_subsurface_clipped(
                     device,
-                    name.as_ref().map(|n| format!("{}_base_full", n)),
+                    sbcn.as_ref().map(|n| &**n),
                 )?)
             } else {
                 None
@@ -182,7 +191,7 @@ impl PointLightRenderer {
             subsurface_full: if flags.contains(PointLightRendererFlags::SUBSURFACE_FULL) {
                 Some(Self::create_subsurface_full(
                     device,
-                    name.as_ref().map(|n| format!("{}_base_full", n)),
+                    sbfn.as_ref().map(|n| &**n),
                 )?)
             } else {
                 None
@@ -210,7 +219,7 @@ impl PointLightRenderer {
         vert: &[u32],
         frag: &[u32],
         depth: gpu::DepthState,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         match gfx::ReflectedGraphics::from_spv(
             device,
@@ -238,7 +247,7 @@ impl PointLightRenderer {
         device: &gpu::Device,
         vert: &[u32],
         frag: &[u32],
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         Self::create_pipeline(
             device,
@@ -257,7 +266,7 @@ impl PointLightRenderer {
         device: &gpu::Device,
         vert: &[u32],
         frag: &[u32],
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         Self::create_pipeline(
             device,
@@ -274,7 +283,7 @@ impl PointLightRenderer {
 
     pub fn create_base_clipped(
         device: &gpu::Device,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert =
             gpu::include_spirv!("../../../shaders/cone/point_light_passes/base_clipped.vert.spv");
@@ -284,7 +293,7 @@ impl PointLightRenderer {
 
     pub fn create_base_full(
         device: &gpu::Device,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/cone/point_light_passes/base_full.vert.spv");
         let frag = gpu::include_spirv!("../../../shaders/cone/point_light_passes/base.frag.spv");
@@ -293,7 +302,7 @@ impl PointLightRenderer {
 
     pub fn create_shadow_clipped(
         device: &gpu::Device,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert =
             gpu::include_spirv!("../../../shaders/cone/point_light_passes/base_clipped.vert.spv");
@@ -303,7 +312,7 @@ impl PointLightRenderer {
 
     pub fn create_shadow_full(
         device: &gpu::Device,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/cone/point_light_passes/base_full.vert.spv");
         let frag = gpu::include_spirv!("../../../shaders/cone/point_light_passes/shadow.frag.spv");
@@ -312,7 +321,7 @@ impl PointLightRenderer {
 
     pub fn create_subsurface_clipped(
         device: &gpu::Device,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert =
             gpu::include_spirv!("../../../shaders/cone/point_light_passes/base_clipped.vert.spv");
@@ -323,7 +332,7 @@ impl PointLightRenderer {
 
     pub fn create_subsurface_full(
         device: &gpu::Device,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/cone/point_light_passes/base_full.vert.spv");
         let frag =

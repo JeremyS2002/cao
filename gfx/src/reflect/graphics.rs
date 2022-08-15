@@ -135,7 +135,7 @@ impl ReflectedGraphics {
         rasterizer: gpu::Rasterizer,
         blend_states: &[gpu::BlendState],
         depth_stencil: Option<gpu::DepthStencilState>,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, error::ReflectedError> {
         let vertex_map = super::spirv_raw::parse_vertex_states(&vertex);
         let mut descriptor_set_layouts = HashMap::new();
@@ -210,7 +210,7 @@ impl ReflectedGraphics {
             super::spirv_raw::combine_descriptor_set_layouts(
                 device,
                 descriptor_set_layouts,
-                &name,
+                name,
             )?;
 
         let pipeline_layout = device.create_pipeline_layout(&gpu::PipelineLayoutDesc {
@@ -262,7 +262,7 @@ impl ReflectedGraphics {
                 rasterizer,
                 blend_states: blend_states.to_vec().into(),
                 depth_stencil,
-                name,
+                name: name.map(|n| n.to_string()),
             },
         })
     }
@@ -282,7 +282,7 @@ impl ReflectedGraphics {
         rasterizer: gpu::Rasterizer,
         blend_states: &[gpu::BlendState],
         depth_stencil: Option<gpu::DepthStencilState>,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, error::ReflectedError> {
         let mut descriptor_set_layouts = HashMap::new();
         let mut descriptor_set_names = HashMap::new();
@@ -365,7 +365,7 @@ impl ReflectedGraphics {
             super::reflect_raw::combine_descriptor_set_layouts(
                 device,
                 descriptor_set_layouts,
-                &name,
+                name,
             )?;
 
         let pipeline_layout_name = name.as_ref().map(|n| format!("{}_pipeline_layout", n));
@@ -419,7 +419,7 @@ impl ReflectedGraphics {
                 rasterizer,
                 blend_states: blend_states.to_vec().into(),
                 depth_stencil,
-                name,
+                name: name.map(|n| n.to_string()),
             },
         })
     }
@@ -512,7 +512,7 @@ impl ReflectedGraphics {
         if self.reflect_data.descriptor_set_layouts.is_some() {
             Some(BundleBuilder {
                 parent_id: self.id,
-                parent_name: self.pipeline_data.name.clone(),
+                parent_name: self.pipeline_data.name.as_ref().map(|n| &**n),
                 map: self.reflect_data.descriptor_set_map.as_ref().unwrap(),
                 types: self.reflect_data.descriptor_set_types.as_ref().unwrap(),
                 layouts: self.reflect_data.descriptor_set_layouts.as_ref().unwrap(),

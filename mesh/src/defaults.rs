@@ -9,7 +9,7 @@ use std::collections::HashMap;
 pub fn xy_plane<V: Vertex>(
     encoder: &mut gfx::CommandEncoder<'_>,
     device: &gpu::Device,
-    name: Option<String>,
+    name: Option<&str>,
 ) -> Result<gfx::IndexedMesh<V>, gpu::Error> {
     gfx::IndexedMesh::new(
         encoder,
@@ -55,7 +55,7 @@ pub fn xy_plane<V: Vertex>(
 pub fn xz_plane<V: Vertex>(
     encoder: &mut gfx::CommandEncoder<'_>,
     device: &gpu::Device,
-    name: Option<String>,
+    name: Option<&str>,
 ) -> Result<gfx::IndexedMesh<V>, gpu::Error> {
     gfx::IndexedMesh::new(
         encoder,
@@ -101,7 +101,7 @@ pub fn xz_plane<V: Vertex>(
 pub fn yz_plane<V: Vertex>(
     encoder: &mut gfx::CommandEncoder<'_>,
     device: &gpu::Device,
-    name: Option<String>,
+    name: Option<&str>,
 ) -> Result<gfx::IndexedMesh<V>, gpu::Error> {
     gfx::IndexedMesh::new(
         encoder,
@@ -146,7 +146,7 @@ pub fn ico_sphere<V: Vertex>(
     encoder: &mut gfx::CommandEncoder<'_>,
     device: &gpu::Device,
     subdivisions: u32,
-    name: Option<String>,
+    name: Option<&str>,
 ) -> Result<gfx::IndexedMesh<V>, gpu::Error> {
     let mut vertices = Vec::new();
 
@@ -260,7 +260,7 @@ fn get_middle<V: Vertex>(add: fn(&mut Vec<V>, glam::Vec3) -> (), c: &mut HashMap
 pub fn cube<V: Vertex>(
     encoder: &mut gfx::CommandEncoder<'_>,
     device: &gpu::Device,
-    name: Option<String>,
+    name: Option<&str>,
 ) -> Result<gfx::BasicMesh<V>, gpu::Error> {
     gfx::BasicMesh::new(
         encoder,

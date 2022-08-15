@@ -20,9 +20,10 @@ impl CopyRenderer {
             ..gpu::SamplerDesc::LINEAR
         })?;
 
+        let n = name.as_ref().map(|n| format!("{}_pipeline", n));
         let pipeline = Self::create_pipeline(
             device, 
-            name.as_ref().map(|n| format!("{}_pipeline", n)),
+            n.as_ref().map(|n| &**n),
         )?;
 
         Ok(Self {
@@ -34,7 +35,7 @@ impl CopyRenderer {
 
     pub fn create_pipeline(
         device: &gpu::Device,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../shaders/screen.vert.spv");
         let frag = gpu::include_spirv!("../../shaders/copy.frag.spv");

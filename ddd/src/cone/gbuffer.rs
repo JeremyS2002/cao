@@ -95,7 +95,7 @@ impl GeometryBuffer {
         ms: gpu::Samples,
         quality: GeometryBufferPrecision,
         maps: impl IntoIterator<Item=&'a (&'a str, u8)>,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let maps_iter = maps.into_iter();
 
@@ -120,6 +120,7 @@ impl GeometryBuffer {
                 _ => panic!("Call to create Geometry Buffer with map name {} components {}\nThe number of components must be in the range 1..=4", n, num_components),
             };
 
+            let tn = name.as_ref().map(|n0| format!("{}_{}", n0, n));
             let t = gfx::GTexture2D::from_formats(
                 device,
                 width,
@@ -131,7 +132,7 @@ impl GeometryBuffer {
                     | gpu::TextureUsage::COPY_DST,
                 1,
                 gfx::alt_formats(format),
-                name.as_ref().map(|n0| format!("{}_{}", n0, n)),
+                tn.as_ref().map(|n| &**n),
             )?
             .unwrap();
             maps.insert(n.to_string(), t);
@@ -139,6 +140,7 @@ impl GeometryBuffer {
             match ms {
                 gpu::Samples::S1 => (),
                 _ => {
+                    let tn = name.as_ref().map(|n0| format!("{}_{}_ms", n0, n));
                     let t = gfx::GTexture2D::from_formats(
                         device,
                         width,
@@ -150,7 +152,7 @@ impl GeometryBuffer {
                             | gpu::TextureUsage::COPY_DST,
                         1,
                         gfx::alt_formats(format),
-                        name.as_ref().map(|n0| format!("{}_{}_ms", n0, n)),
+                        tn.as_ref().map(|n| &**n),
                     )?
                     .unwrap();
                     ms_maps.insert(n.to_string(), t);
@@ -158,6 +160,7 @@ impl GeometryBuffer {
             }
         }
 
+        let dn = name.as_ref().map(|n| format!("{}_depth", n));
         let depth = gfx::GTexture2D::new(
             device,
             width,
@@ -169,9 +172,10 @@ impl GeometryBuffer {
                 | gpu::TextureUsage::COPY_DST,
             1,
             gpu::Format::Depth32Float,
-            name.as_ref().map(|n| format!("{}_depth", n)),
+            dn.as_ref().map(|n| &**n),
         )?;
 
+        let dn = name.as_ref().map(|n| format!("{}_depth_ms", n));
         let ms_depth = if ms != gpu::Samples::S1 {
             Some(gfx::GTexture2D::new(
                 device,
@@ -184,7 +188,7 @@ impl GeometryBuffer {
                     | gpu::TextureUsage::COPY_DST,
                 1,
                 gpu::Format::Depth32Float,
-                name.as_ref().map(|n| format!("{}_depth_ms", n)),
+                dn.as_ref().map(|n| &**n),
             )?)
         } else {
             None

@@ -319,7 +319,7 @@ impl<D: AsDimension> GTexture<D> {
         usage: gpu::TextureUsage,
         mip_levels: u32,
         format: gpu::Format,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let texture = device.create_texture(&gpu::TextureDesc {
             format,
@@ -328,7 +328,7 @@ impl<D: AsDimension> GTexture<D> {
             usage,
             memory: gpu::MemoryType::Device,
             layout: gpu::TextureLayout::General,
-            name,
+            name: name.map(|n| n.to_string()),
         })?;
         let view = texture.create_default_view()?;
         Ok(Self {
@@ -576,7 +576,7 @@ impl GTexture1D {
         usage: gpu::TextureUsage,
         mip_levels: u32,
         format: gpu::Format,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         Self::from_dimension(device, D1(width), usage, mip_levels, format, name)
     }
@@ -589,7 +589,7 @@ impl GTexture1D {
         usage: gpu::TextureUsage,
         mip_levels: u32,
         formats: impl IntoIterator<Item = gpu::Format>,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(
             device,
@@ -614,7 +614,7 @@ impl GTexture1D {
         raw_texture: &[P],
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let t = Self::new(
             device,
@@ -669,7 +669,7 @@ impl GTexture1DArray {
         usage: gpu::TextureUsage,
         mip_levels: u32,
         format: gpu::Format,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         Self::from_dimension(
             device,
@@ -690,7 +690,7 @@ impl GTexture1DArray {
         usage: gpu::TextureUsage,
         mip_levels: u32,
         formats: impl IntoIterator<Item = gpu::Format>,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(
             device,
@@ -715,7 +715,7 @@ impl GTexture1DArray {
         raw_textures: &[&[P]],
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let t = Self::new(
             device,
@@ -780,7 +780,7 @@ impl GTexture2D {
         usage: gpu::TextureUsage,
         mip_levels: u32,
         format: gpu::Format,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         Self::from_dimension(
             device,
@@ -802,7 +802,7 @@ impl GTexture2D {
         usage: gpu::TextureUsage,
         mip_levels: u32,
         formats: impl IntoIterator<Item = gpu::Format>,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(
             device,
@@ -831,7 +831,7 @@ impl GTexture2D {
         height: gpu::Size,
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let t = Self::from_dimension(
             device,
@@ -898,7 +898,7 @@ impl GTexture2D {
         image: &image::ImageBuffer<P, C>,
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error>
     where
         P: FormatData + image::Pixel + 'static,
@@ -963,7 +963,7 @@ impl GTexture2DArray {
         usage: gpu::TextureUsage,
         mip_levels: u32,
         format: gpu::Format,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         Self::from_dimension(
             device,
@@ -986,7 +986,7 @@ impl GTexture2DArray {
         usage: gpu::TextureUsage,
         mip_levels: u32,
         formats: impl IntoIterator<Item = gpu::Format>,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(
             device,
@@ -1015,7 +1015,7 @@ impl GTexture2DArray {
         height: gpu::Size,
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let t = Self::from_dimension(
             device,
@@ -1089,7 +1089,7 @@ impl GTexture2DArray {
         images: &[&image::ImageBuffer<P, C>],
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error>
     where
         P: FormatData + image::Pixel + 'static,
@@ -1155,7 +1155,7 @@ impl GTextureCube {
         usage: gpu::TextureUsage,
         mip_levels: u32,
         format: gpu::Format,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         Self::from_dimension(device, Cube(width, height), usage, mip_levels, format, name)
     }
@@ -1169,7 +1169,7 @@ impl GTextureCube {
         usage: gpu::TextureUsage,
         mip_levels: u32,
         formats: impl IntoIterator<Item = gpu::Format>,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(
             device,
@@ -1195,7 +1195,7 @@ impl GTextureCube {
         raw_textures: &[&[P]; 6],
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let t = Self::new(
             device,
@@ -1334,7 +1334,7 @@ impl GTextureCube {
         images: &[&image::ImageBuffer<P, C>; 6],
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error>
     where
         P: FormatData + image::Pixel + 'static,
@@ -1398,7 +1398,7 @@ impl GTextureCubeArray {
         usage: gpu::TextureUsage,
         mip_levels: u32,
         format: gpu::Format,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         Self::from_dimension(
             device,
@@ -1420,7 +1420,7 @@ impl GTextureCubeArray {
         usage: gpu::TextureUsage,
         mip_levels: u32,
         formats: impl IntoIterator<Item = gpu::Format>,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(
             device,
@@ -1449,7 +1449,7 @@ impl GTextureCubeArray {
         raw_textures: &[&[&[P]; 6]],
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let t = Self::new(
             device,
@@ -1520,7 +1520,7 @@ impl GTextureCubeArray {
         images: &[&[&image::ImageBuffer<P, C>; 6]],
         usage: gpu::TextureUsage,
         mip_levels: u32,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error>
     where
         P: FormatData + image::Pixel + 'static,
@@ -1587,7 +1587,7 @@ impl GTexture3D {
         depth: gpu::Size,
         usage: gpu::TextureUsage,
         format: gpu::Format,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         Self::from_dimension(device, D3(width, height, depth), usage, 1, format, name)
     }
@@ -1601,7 +1601,7 @@ impl GTexture3D {
         depth: gpu::Size,
         usage: gpu::TextureUsage,
         formats: impl IntoIterator<Item = gpu::Format>,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<Option<Self>, gpu::Error> {
         if let Some(format) = choose_format(
             device,

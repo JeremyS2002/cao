@@ -36,7 +36,7 @@ pub trait CameraController {
         &self,
         encoder: &mut gfx::CommandEncoder,
         device: &gpu::Device,
-        name: Option<String>,
+        name: Option<&str>,
     ) -> Result<super::Camera, gpu::Error> {
         let data = self.cam_data();
         super::Camera::new(encoder, device, data, name)
