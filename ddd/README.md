@@ -30,13 +30,12 @@ run form inside `cao/ddd` (to avoid path errors in loading files)
         - [ ] basic lighting
         - [ ] shadows
     - [ ] hdr
-        - [ ] gamma correction
-        - [x] reinhard
-        - [x] aces
-        - [ ] exposure
+        - [x] tonemapping
+        - [ ] local tonemapping
     - [ ] antialiasing
         - [x] msaa
         - [ ] smaa (1x ✔️ T2x ❌ S2x ❌ 4x ❌)
+        - [ ] fxaa
     - [x] normal mapping
     - [ ] parallax mapping
     - [ ] postprocessing
@@ -50,9 +49,10 @@ run form inside `cao/ddd` (to avoid path errors in loading files)
         - [ ] depth of field
         - [ ] screen space global illumination
     - [ ] skeletal animation
+    - [ ] inverse kinematics
     - [ ] reflection probes
 - clay
-    - [ ] basic template
+    - [x] basic template
     - [ ] wireframing
     - [ ] transparency
     - [ ] highliting objects
