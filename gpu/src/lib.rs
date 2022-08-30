@@ -242,14 +242,16 @@ pub struct Instance {
 impl std::fmt::Debug for Instance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "vulkan instance")?;
-        writeln!(f, "Validation layers")?;
+        writeln!(f, "Validation layers: [")?;
         for layer in &self.validation_layers {
-            writeln!(f, "{:?}", layer)?;
+            writeln!(f, "    {:?}", layer)?;
         }
-        writeln!(f, "Extensions")?;
+        writeln!(f, "]")?;
+        writeln!(f, "Extensions: [")?;
         for ext in &self.extension_names {
-            writeln!(f, "{:?}", ext)?;
+            writeln!(f, "    {:?}", ext)?;
         }
+        writeln!(f, "]")?;
         Ok(())
     }
 }
@@ -259,6 +261,9 @@ impl Instance {
     ///
     /// This is the entry point to the api and will be the first object created
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkInstance.html>
+    /// 
+    /// Panics if VK_LAYER_KHRONOS_validation is unavailable
+    /// use [`Instance::no_validation`] to create an instance without validation for realease builds
     pub fn new(desc: &InstanceDesc<'_>) -> Result<Self, Error> {
         let mut validation_layers = desc.validation_layers.to_owned();
         validation_layers.push(KHRONOS_VALIDATION);
@@ -316,7 +321,10 @@ impl Instance {
             api_version,
         };
 
-        let extension_names = extension_names();
+        let mut extension_names = extension_names();
+        if desc.validation_layers.len() != 0 {
+            extension_names.push(ash::extensions::ext::DebugUtils::name());
+        }
 
         let available_extensions_result = VK_ENTRY.enumerate_instance_extension_properties(None);
         let available_extensions = match available_extensions_result {

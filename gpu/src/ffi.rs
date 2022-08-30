@@ -82,9 +82,7 @@ pub(crate) fn extension_names() -> Vec<&'static CStr> {
     let mut v = required_extension_names();
     v.push(ash::extensions::khr::Surface::name());
     v.push(ash::extensions::khr::Swapchain::name());
-    // v.push(ash::extensions::khr::TimelineSemaphore::name());
-
-    v.push(ash::extensions::ext::DebugUtils::name());
+    // v.push(ash::extensions::ext::DebugUtils::name());
     #[cfg(feature = "ray_tracing")]
     v.push(ash::extensions::khr::RayTracing::name());
     #[cfg(feature = "mesh_shading")]
