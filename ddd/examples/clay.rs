@@ -30,7 +30,7 @@ pub struct Clay {
     controller: ddd::utils::DebugController,
     camera: ddd::utils::Camera,
 
-    mesh: gfx::IndexedMesh<clay::Vertex>,
+    mesh: gfx::Mesh<clay::Vertex>,
     mesh_instance: ddd::utils::Instances,
 
     update_mouse: bool,

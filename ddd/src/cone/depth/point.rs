@@ -349,7 +349,7 @@ impl PointDepthMapRenderer {
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         shadow: &PointDepthMap,
-        meshes: impl IntoIterator<Item = (&'b dyn gfx::Mesh<V>, &'b Instances)>,
+        meshes: impl IntoIterator<Item = (&'b gfx::Mesh<V>, &'b Instances)>,
         clear: bool,
     ) -> Result<(), gpu::Error> {
         let meshes = meshes.into_iter().collect::<Vec<_>>();

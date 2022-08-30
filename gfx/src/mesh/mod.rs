@@ -8,78 +8,35 @@ pub mod vertex;
 
 pub use vertex::*;
 
-pub trait Mesh<V: Vertex> {
-    /// Draw self by reference
-    fn draw_ref<'a>(&'a self, pass: &mut dyn crate::GraphicsPass<'a>);
-
-    /// Draw self by clone
-    fn draw_owned<'a>(&self, pass: &mut dyn crate::GraphicsPass<'a>);
-
-    /// Draw self by consuming
-    fn draw_into(self, pass: &mut dyn crate::GraphicsPass<'_>);
-
-    /// Draw self by reference
-    /// 
-    /// If using an instance buffer then that needs to be set first
-    fn draw_instanced_ref<'a>(
-        &'a self,
-        pass: &mut dyn crate::GraphicsPass<'a>,
-        first_instance: u32,
-        instance_count: u32,
-    );
-
-    /// Draw self by clone
-    /// 
-    /// If using an instance buffer then that needs to be set first
-    fn draw_instanced_owned<'a>(
-        &self,
-        pass: &mut dyn crate::GraphicsPass<'a>,
-        first_instance: u32,
-        instance_count: u32,
-    );
-
-    /// Draw self by consuming
-    /// 
-    /// If using an instance buffer then that needs to be set first
-    fn draw_instanced_into(
-        self,
-        pass: &mut dyn crate::GraphicsPass<'_>,
-        first_instance: u32,
-        instance_count: u32,
-    );
-}
-
 /// A mesh with indexing
 ///
 /// Drawing this mesh instanced will bind the instance buffer to location 1
 #[derive(Debug, Clone)]
-pub struct IndexedMesh<V: Vertex> {
+pub struct Mesh<V: Vertex> {
     /// vertex buffer, usage: COPY_SRC COPY_DST VERTEX
     pub vertex_buffer: gpu::Buffer,
-    /// index buffer, usage: COPY_SRC COPY_DST INDEX
-    pub index_buffer: gpu::Buffer,
+    /// (index buffer, index_count), buffer usage: COPY_SRC COPY_DST INDEX
+    pub indices: Option<(gpu::Buffer, u32)>,
 
     /// Marks the mesh so that the vertex state can be infered
     pub _vertex_marker: std::marker::PhantomData<V>,
 
-    /// the number of indices in the index buffer
-    pub index_count: u32,
     /// the number of vertices in the vertex buffer
     pub vertex_count: u32,
 }
 
-impl<V: Vertex> IndexedMesh<V> {
+impl<V: Vertex> Mesh<V> {
     /// Create a new Mesh
     ///
     /// The mesh won't be valid until the encoder is submitted
-    pub fn new(
+    pub fn indexed(
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
         vertices: &[V],
         indices: &[u32],
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
-        Self::from_usage(
+        Self::from_usage_indexed(
             encoder,
             device,
             vertices,
@@ -93,7 +50,7 @@ impl<V: Vertex> IndexedMesh<V> {
     /// Create a new Mesh
     ///
     /// The mesh won't be valid until the encoder is submitted
-    pub fn from_usage(
+    pub fn from_usage_indexed(
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
         vertices: &[V],
@@ -164,113 +121,30 @@ impl<V: Vertex> IndexedMesh<V> {
 
         Ok(Self {
             vertex_buffer,
-            index_buffer,
+            indices: Some((index_buffer, indices.len() as u32)),
 
             _vertex_marker: std::marker::PhantomData,
 
             vertex_count: vertices.len() as u32,
-            index_count: indices.len() as u32,
         })
     }
-}
 
-impl<V: Vertex> Mesh<V> for IndexedMesh<V> {
-    fn draw_ref<'a>(&'a self, pass: &mut dyn crate::GraphicsPass<'a>) {
-        pass.bind_index_buffer(self.index_buffer.slice_ref(..), gpu::IndexType::U32);
-
-        pass.bind_vertex_buffer(self.vertex_buffer.slice_ref(..), 0);
-
-        pass.draw_indexed(0, self.index_count, 0, 1, 0);
-    }
-
-    fn draw_owned<'a>(&self, pass: &mut dyn crate::GraphicsPass<'a>) {
-        pass.bind_index_buffer(self.index_buffer.slice_owned(..), gpu::IndexType::U32);
-
-        pass.bind_vertex_buffer(self.vertex_buffer.slice_owned(..), 0);
-
-        pass.draw_indexed(0, self.index_count, 0, 1, 0);
-    }
-
-    fn draw_into(self, pass: &mut dyn crate::GraphicsPass<'_>) {
-        pass.bind_index_buffer(self.index_buffer.into_slice(..), gpu::IndexType::U32);
-
-        pass.bind_vertex_buffer(self.vertex_buffer.into_slice(..), 0);
-
-        pass.draw_indexed(0, self.index_count, 0, 1, 0);
-    }
-
-    fn draw_instanced_ref<'a>(
-        &'a self,
-        pass: &mut dyn crate::GraphicsPass<'a>,
-        first_instance: u32,
-        instance_count: u32,
-    ) {
-        pass.bind_index_buffer(self.index_buffer.slice_ref(..), gpu::IndexType::U32);
-
-        pass.bind_vertex_buffer(self.vertex_buffer.slice_ref(..), 0);
-
-        pass.draw_indexed(0, self.index_count, first_instance, instance_count, 0);
-    }
-
-    fn draw_instanced_owned<'a>(
-        &self,
-        pass: &mut dyn crate::GraphicsPass<'a>,
-        first_instance: u32,
-        instance_count: u32,
-    ) {
-        pass.bind_index_buffer(self.index_buffer.slice_owned(..), gpu::IndexType::U32);
-
-        pass.bind_vertex_buffer(self.vertex_buffer.slice_owned(..), 0);
-
-        pass.draw_indexed(0, self.index_count, first_instance, instance_count, 0);
-    }
-
-    fn draw_instanced_into(
-        self,
-        pass: &mut dyn crate::GraphicsPass<'_>,
-        first_instance: u32,
-        instance_count: u32,
-    ) {
-        pass.bind_index_buffer(self.index_buffer.into_slice(..), gpu::IndexType::U32);
-
-        pass.bind_vertex_buffer(self.vertex_buffer.into_slice(..), 0);
-
-        pass.draw_indexed(0, self.index_count, first_instance, instance_count, 0);
-    }
-}
-
-/// A mesh without indexing
-///
-/// Drawing this mesh instanced will bind the instance buffer to location 1
-#[derive(Debug, Clone)]
-pub struct BasicMesh<V: Vertex> {
-    /// vertex buffer, usage: COPY_SRC COPY_DST VERTEX
-    pub vertex_buffer: gpu::Buffer,
-
-    /// Marks the mesh so that the vertex state can be infered
-    pub _vertex_marker: std::marker::PhantomData<V>,
-
-    /// the number of vertices in the vertex buffer
-    pub vertex_count: u32,
-}
-
-impl<V: Vertex> BasicMesh<V> {
     /// Create a new Mesh
     ///
     /// The mesh won't be valid until the encoder is submitted
-    pub fn new(
+    pub fn basic(
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
         vertices: &[V],
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
-        Self::from_usage(encoder, device, vertices, gpu::BufferUsage::empty(), name)
+        Self::from_usage_basic(encoder, device, vertices, gpu::BufferUsage::empty(), name)
     }
 
     /// Create a new Mesh
     ///
     /// The mesh won't be valid until the encoder is submitted
-    pub fn from_usage(
+    pub fn from_usage_basic(
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
         vertices: &[V],
@@ -310,6 +184,7 @@ impl<V: Vertex> BasicMesh<V> {
 
         Ok(Self {
             vertex_buffer,
+            indices: None,
 
             _vertex_marker: std::marker::PhantomData,
 
@@ -318,26 +193,47 @@ impl<V: Vertex> BasicMesh<V> {
     }
 }
 
-impl<V: Vertex> Mesh<V> for BasicMesh<V> {
-    fn draw_ref<'a>(&'a self, pass: &mut dyn crate::GraphicsPass<'a>) {
+impl<V: Vertex> Mesh<V> {
+    /// Draw self by reference
+    pub fn draw_ref<'a>(&'a self, pass: &mut dyn crate::GraphicsPass<'a>) {
         pass.bind_vertex_buffer(self.vertex_buffer.slice_ref(..), 0);
 
-        pass.draw(0, self.vertex_count, 0, 1);
+        if let Some((index_buffer, index_count)) = &self.indices {
+            pass.bind_index_buffer(index_buffer.slice_ref(..), gpu::IndexType::U32);
+            pass.draw_indexed(0, *index_count, 0, 1, 0);
+        } else {
+            pass.draw(0, self.vertex_count, 0, 1);
+        }
     }
 
-    fn draw_owned<'a>(&self, pass: &mut dyn crate::GraphicsPass<'a>) {
+    /// Draw self by clone
+    pub fn draw_owned<'a>(&self, pass: &mut dyn crate::GraphicsPass<'a>) {
         pass.bind_vertex_buffer(self.vertex_buffer.slice_owned(..), 0);
 
-        pass.draw(0, self.vertex_count, 0, 1);
+        if let Some((index_buffer, index_count)) = &self.indices {
+            pass.bind_index_buffer(index_buffer.slice_owned(..), gpu::IndexType::U32);
+            pass.draw_indexed(0, *index_count, 0, 1, 0);
+        } else {
+            pass.draw(0, self.vertex_count, 0, 1);
+        }
     }
 
-    fn draw_into(self, pass: &mut dyn crate::GraphicsPass<'_>) {
+    /// Draw self by taking ownership
+    pub fn draw_into(self, pass: &mut dyn crate::GraphicsPass<'_>) {
         pass.bind_vertex_buffer(self.vertex_buffer.into_slice(..), 0);
 
-        pass.draw(0, self.vertex_count, 0, 1);
+        if let Some((index_buffer, index_count)) = self.indices {
+            pass.bind_index_buffer(index_buffer.into_slice(..), gpu::IndexType::U32);
+            pass.draw_indexed(0, index_count, 0, 1, 0);
+        } else {
+            pass.draw(0, self.vertex_count, 0, 1);
+        }
     }
 
-    fn draw_instanced_ref<'a>(
+    /// Draw self by reference
+    /// 
+    /// The instance buffer needs to be set first
+    pub fn draw_instanced_ref<'a>(
         &'a self,
         pass: &mut dyn crate::GraphicsPass<'a>,
         first_instance: u32,
@@ -345,10 +241,18 @@ impl<V: Vertex> Mesh<V> for BasicMesh<V> {
     ) {
         pass.bind_vertex_buffer(self.vertex_buffer.slice_ref(..), 0);
 
-        pass.draw(0, self.vertex_count, first_instance, instance_count);
+        if let Some((index_buffer, index_count)) = &self.indices {
+            pass.bind_index_buffer(index_buffer.slice_ref(..), gpu::IndexType::U32);
+            pass.draw_indexed(0, *index_count, first_instance, instance_count, 0);
+        } else {
+            pass.draw(0, self.vertex_count, first_instance, instance_count);
+        }
     }
 
-    fn draw_instanced_owned<'a>(
+    /// Draw self by clone
+    /// 
+    /// The instance buffer needs to be set first
+    pub fn draw_instanced_owned<'a>(
         &self,
         pass: &mut dyn crate::GraphicsPass<'a>,
         first_instance: u32,
@@ -356,10 +260,18 @@ impl<V: Vertex> Mesh<V> for BasicMesh<V> {
     ) {
         pass.bind_vertex_buffer(self.vertex_buffer.slice_owned(..), 0);
 
-        pass.draw(0, self.vertex_count, first_instance, instance_count);
+        if let Some((index_buffer, index_count)) = &self.indices {
+            pass.bind_index_buffer(index_buffer.slice_owned(..), gpu::IndexType::U32);
+            pass.draw_indexed(0, *index_count, first_instance, instance_count, 0);
+        } else {
+            pass.draw(0, self.vertex_count, first_instance, instance_count);
+        }
     }
 
-    fn draw_instanced_into(
+    /// Draw self by taking ownership
+    /// 
+    /// The instance buffer needs to be set first
+    pub fn draw_instanced_into(
         self,
         pass: &mut dyn crate::GraphicsPass<'_>,
         first_instance: u32,
@@ -367,6 +279,11 @@ impl<V: Vertex> Mesh<V> for BasicMesh<V> {
     ) {
         pass.bind_vertex_buffer(self.vertex_buffer.into_slice(..), 0);
 
-        pass.draw(0, self.vertex_count, first_instance, instance_count);
+        if let Some((index_buffer, index_count)) = self.indices {
+            pass.bind_index_buffer(index_buffer.into_slice(..), gpu::IndexType::U32);
+            pass.draw_indexed(0, index_count, first_instance, instance_count, 0);
+        } else {
+            pass.draw(0, self.vertex_count, first_instance, instance_count);
+        }
     }
 }

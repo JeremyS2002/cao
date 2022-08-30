@@ -99,7 +99,7 @@ bitflags::bitflags!(
 ///
 /// TODO cache sets not bundles to avoid creating duplicates
 pub struct PointLightRenderer {
-    pub sphere: gfx::IndexedMesh<BasicVertex>,
+    pub sphere: gfx::Mesh<BasicVertex>,
     /// Pure point light calculation clipped to only work on pixels < light.radius from light
     pub base_clipped: Option<gfx::ReflectedGraphics>,
     pub base_clipped_bundles: HashMap<(u64, u64, u64), gfx::Bundle>,

@@ -809,7 +809,7 @@ impl Material {
         device: &gpu::Device,
         buffer: &'a super::GeometryBuffer,
         camera: &'a Camera,
-        meshes: impl IntoIterator<Item = (&'b dyn gfx::Mesh<V>, &'b Instances)>,
+        meshes: impl IntoIterator<Item = (&'b gfx::Mesh<V>, &'b Instances)>,
         clear: bool,
     ) -> Result<(), gpu::Error> {
         let load = if clear {

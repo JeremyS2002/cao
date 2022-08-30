@@ -488,24 +488,24 @@ impl<'a, 'b, V: crate::Vertex> ReflectedGraphicsPass<'a, 'b, V> {
     }
 
     /// Draw a mesh referencing the mesh's buffers
-    pub fn draw_mesh_ref(&mut self, mesh: &'a (impl crate::Mesh<V> + ?Sized)) {
+    pub fn draw_mesh_ref(&mut self, mesh: &'a crate::Mesh<V>) {
         mesh.draw_ref(self);
     }
 
     /// Draw a mesh cloning the mesh's buffers
-    pub fn draw_mesh_owned(&mut self, mesh: &(impl crate::Mesh<V> + ?Sized)) {
+    pub fn draw_mesh_owned(&mut self, mesh: &crate::Mesh<V>) {
         mesh.draw_owned(self);
     }
 
     /// Draw a mesh consuming the mesh
-    pub fn draw_mesh_into(&mut self, mesh: impl crate::Mesh<V>) {
+    pub fn draw_mesh_into(&mut self, mesh: crate::Mesh<V>) {
         mesh.draw_into(self);
     }
 
     /// Draw a mesh referencing the mesh's buffers
     pub fn draw_instanced_mesh_ref(
         &mut self,
-        mesh: &'a (impl crate::Mesh<V> + ?Sized),
+        mesh: &'a crate::Mesh<V>,
         first_instance: u32,
         instance_count: u32,
     ) {
@@ -515,7 +515,7 @@ impl<'a, 'b, V: crate::Vertex> ReflectedGraphicsPass<'a, 'b, V> {
     /// Draw a mesh cloning the mesh's buffers
     pub fn draw_instanced_mesh_owned(
         &mut self,
-        mesh: &(impl crate::Mesh<V> + ?Sized),
+        mesh: &crate::Mesh<V>,
         first_instance: u32,
         instance_count: u32,
     ) {
@@ -525,7 +525,7 @@ impl<'a, 'b, V: crate::Vertex> ReflectedGraphicsPass<'a, 'b, V> {
     /// Draw a mesh consuming the mesh
     pub fn draw_instanced_mesh_into(
         &mut self,
-        mesh: impl crate::Mesh<V>,
+        mesh: crate::Mesh<V>,
         first_instance: u32,
         instance_count: u32,
     ) {

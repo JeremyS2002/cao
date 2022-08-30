@@ -67,7 +67,7 @@ struct Fractal {
     display_graphics: gfx::ReflectedGraphics,
     display_bundle: gfx::Bundle,
 
-    mesh: gfx::IndexedMesh<Vertex>,
+    mesh: gfx::Mesh<Vertex>,
     uniform: gfx::Uniform<Uniform>,
 
     prev_time: std::time::Instant,
@@ -104,7 +104,7 @@ impl Fractal {
 
         let sampler = device.create_sampler(&gpu::SamplerDesc::LINEAR)?;
 
-        let mesh = gfx::IndexedMesh::new(
+        let mesh = gfx::Mesh::indexed(
             &mut encoder,
             &device,
             &[

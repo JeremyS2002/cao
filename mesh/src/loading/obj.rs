@@ -11,7 +11,7 @@ pub fn load_meshes_from_obj<P: AsRef<Path> + std::fmt::Debug, V: Vertex>(
     gen_tangents: bool,
     path: P,
     name: Option<&str>,
-) -> Result<Vec<gfx::IndexedMesh<V>>, LoadError> {
+) -> Result<Vec<gfx::Mesh<V>>, LoadError> {
     let result = tobj::load_obj(
         path, 
         &tobj::GPU_LOAD_OPTIONS,
@@ -56,7 +56,7 @@ pub fn load_meshes_from_obj<P: AsRef<Path> + std::fmt::Debug, V: Vertex>(
         let indices = &*model.mesh.indices;
 
         let name = name.map(|n| format!("{}_{}", n, model.name));
-        let mesh = match gfx::IndexedMesh::new(
+        let mesh = match gfx::Mesh::indexed(
             encoder,
             device,
             &vertices,

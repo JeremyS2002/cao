@@ -95,7 +95,7 @@ pub struct SkyBoxGenerator<'a> {
     /// TODO: Multiple HashMap from format to compute? to allow for other that Rgba32Float
     pub rgb_to_rgba: Option<gfx::ReflectedCompute>,
     pub sampler: Cow<'a, gpu::Sampler>,
-    pub cube: Cow<'a, gfx::BasicMesh<BasicVertex>>,
+    pub cube: Cow<'a, gfx::Mesh<BasicVertex>>,
 }
 
 impl SkyBoxGenerator<'static> {
@@ -363,7 +363,7 @@ pub struct EnvironmentMapGenerator<'a> {
     pub specular_pipeline: gfx::ReflectedGraphics,
     pub brdf_pipeline: gfx::ReflectedGraphics,
     pub sampler: Cow<'a, gpu::Sampler>,
-    pub cube: Cow<'a, gfx::BasicMesh<BasicVertex>>,
+    pub cube: Cow<'a, gfx::Mesh<BasicVertex>>,
 }
 
 impl EnvironmentMapGenerator<'static> {
@@ -710,7 +710,7 @@ bitflags::bitflags!(
 
 /// Renders [`Skybox`] and [`Environment`] to the output of a GeometryBuffer
 pub struct EnvironmentRenderer {
-    pub cube: gfx::BasicMesh<BasicVertex>,
+    pub cube: gfx::Mesh<BasicVertex>,
     /// Ambient lighting calculation
     pub ambient: Option<gfx::ReflectedGraphics>,
     pub ambient_bundles: HashMap<u64, gfx::Bundle>,

@@ -43,9 +43,9 @@ pub struct Cone {
     
     antialiased: gfx::GTexture2D,
 
-    mesh: gfx::IndexedMesh<cone::Vertex>,
-    plane: gfx::IndexedMesh<cone::Vertex>,
-    cube: gfx::BasicMesh<clay::Vertex>,
+    mesh: gfx::Mesh<cone::Vertex>,
+    plane: gfx::Mesh<cone::Vertex>,
+    cube: gfx::Mesh<clay::Vertex>,
 
     leather_instance: ddd::utils::Instances,
     metal_instance: ddd::utils::Instances,

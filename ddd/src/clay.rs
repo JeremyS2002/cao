@@ -152,7 +152,7 @@ macro_rules! impl_renderer {
                 device: &gpu::Device,
                 target: gfx::Attachment<'a>,
                 depth: gfx::Attachment<'a>,
-                meshes: impl IntoIterator<Item=(&'a dyn gfx::Mesh<V>, &'b Instances, [f32; 4])>,
+                meshes: impl IntoIterator<Item=(&'a gfx::Mesh<V>, &'b Instances, [f32; 4])>,
                 camera: &Camera,
             ) -> Result<(), gpu::Error> {
                 let mut pass = encoder.graphics_pass_reflected(

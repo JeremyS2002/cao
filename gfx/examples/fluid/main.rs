@@ -149,7 +149,7 @@ struct Fluid {
     surface: gpu::Surface,
     device: gpu::Device,
     swapchain: gpu::Swapchain,
-    mesh: gfx::IndexedMesh<Vertex>,
+    mesh: gfx::Mesh<Vertex>,
     offscreen_command_a: gpu::CommandBuffer,
     offscreen_command_b: gpu::CommandBuffer,
     onscreen_command: gpu::CommandBuffer,
@@ -311,7 +311,7 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let mesh = gfx::IndexedMesh::new(
+        let mesh = gfx::Mesh::indexed(
             &mut encoder,
             &device,
             &[
@@ -833,7 +833,7 @@ impl Fluid {
     pub fn update_pass<'a>(
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
-        mesh: &'a gfx::IndexedMesh<Vertex>,
+        mesh: &'a gfx::Mesh<Vertex>,
         graphics: &gfx::ReflectedGraphics,
         bundle: &gfx::Bundle,
         output: &gpu::TextureView,
@@ -880,7 +880,7 @@ impl Fluid {
 
     fn _render_offscreen_raw(
         device: &gpu::Device,
-        mesh: &gfx::IndexedMesh<Vertex>,
+        mesh: &gfx::Mesh<Vertex>,
         u: &mut UniqueFields,
         a: &DoubleFields,
         b: &DoubleFields,

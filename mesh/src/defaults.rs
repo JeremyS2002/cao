@@ -10,8 +10,8 @@ pub fn xy_plane<V: Vertex>(
     encoder: &mut gfx::CommandEncoder<'_>,
     device: &gpu::Device,
     name: Option<&str>,
-) -> Result<gfx::IndexedMesh<V>, gpu::Error> {
-    gfx::IndexedMesh::new(
+) -> Result<gfx::Mesh<V>, gpu::Error> {
+    gfx::Mesh::indexed(
         encoder,
         device,
         &[
@@ -56,8 +56,8 @@ pub fn xz_plane<V: Vertex>(
     encoder: &mut gfx::CommandEncoder<'_>,
     device: &gpu::Device,
     name: Option<&str>,
-) -> Result<gfx::IndexedMesh<V>, gpu::Error> {
-    gfx::IndexedMesh::new(
+) -> Result<gfx::Mesh<V>, gpu::Error> {
+    gfx::Mesh::indexed(
         encoder,
         device,
         &[
@@ -102,8 +102,8 @@ pub fn yz_plane<V: Vertex>(
     encoder: &mut gfx::CommandEncoder<'_>,
     device: &gpu::Device,
     name: Option<&str>,
-) -> Result<gfx::IndexedMesh<V>, gpu::Error> {
-    gfx::IndexedMesh::new(
+) -> Result<gfx::Mesh<V>, gpu::Error> {
+    gfx::Mesh::indexed(
         encoder,
         device,
         &[
@@ -147,7 +147,7 @@ pub fn ico_sphere<V: Vertex>(
     device: &gpu::Device,
     subdivisions: u32,
     name: Option<&str>,
-) -> Result<gfx::IndexedMesh<V>, gpu::Error> {
+) -> Result<gfx::Mesh<V>, gpu::Error> {
     let mut vertices = Vec::new();
 
     // golden ratio
@@ -235,7 +235,7 @@ pub fn ico_sphere<V: Vertex>(
         indices = tmp_indices;
     }
 
-    gfx::IndexedMesh::new(encoder, device, &vertices, &indices, name)
+    gfx::Mesh::indexed(encoder, device, &vertices, &indices, name)
 }
 
 fn get_middle<V: Vertex>(add: fn(&mut Vec<V>, glam::Vec3) -> (), c: &mut HashMap<u64, u32>, vertices: &mut Vec<V>, mut p1: u32, mut p2: u32) -> u32 {
@@ -261,8 +261,8 @@ pub fn cube<V: Vertex>(
     encoder: &mut gfx::CommandEncoder<'_>,
     device: &gpu::Device,
     name: Option<&str>,
-) -> Result<gfx::BasicMesh<V>, gpu::Error> {
-    gfx::BasicMesh::new(
+) -> Result<gfx::Mesh<V>, gpu::Error> {
+    gfx::Mesh::basic(
         encoder,
         device,
         &[
