@@ -167,8 +167,9 @@ impl PointSubsurfaceMap {
         depth_width: u32,
         depth_height: u32,
         lut_width: u32,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
-        let depth = PointDepthMap::new(encoder, device, data, depth_width, depth_height)?;
+        let depth = PointDepthMap::new(encoder, device, data, depth_width, depth_height, name)?;
         Self::from_depth(encoder, device, depth, lut_width)
     }
 
@@ -245,8 +246,14 @@ impl PointDepthMap {
         data: PointDepthData,
         width: u32,
         height: u32,
+        name: Option<&str>,
     ) -> Result<PointDepthMap, gpu::Error> {
-        let uniform = gfx::Uniform::new(encoder, device, data, None)?;
+        let uniform = gfx::Uniform::new(
+            encoder, 
+            device, 
+            data, 
+            name.as_ref().map(|n| format!("{}_uniform", n)).as_ref().map(|n| &**n)
+        )?;
         let texture = gfx::GTextureCube::new(
             device,
             width,
@@ -254,7 +261,7 @@ impl PointDepthMap {
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::DEPTH_OUTPUT,
             1,
             gpu::Format::Depth32Float,
-            None,
+            name.as_ref().map(|n| format!("{}_texture", n)).as_ref().map(|n| &**n),
         )?;
         let faces = [
             texture.face_view(gfx::CubeFace::PosX)?,

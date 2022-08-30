@@ -1,6 +1,8 @@
 use gfx::GraphicsPass;
 use spv::prelude::*;
 
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::{borrow::Cow, collections::HashMap};
 
 use crate::utils::*;
@@ -723,8 +725,8 @@ impl<'a> MaterialBuilder<'a> {
 
         Ok(Material { 
             graphics, 
-            camera_set_map: HashMap::new(),
-            instance_set_map: HashMap::new(),
+            camera_set_map: Arc::new(Mutex::new(HashMap::new())),
+            instance_set_map: Arc::new(Mutex::new(HashMap::new())),
             set,
         })
     }
@@ -733,8 +735,8 @@ impl<'a> MaterialBuilder<'a> {
 /// contains fragment module resources for module
 pub struct Material {
     pub graphics: gfx::ReflectedGraphics,
-    pub instance_set_map: HashMap<u64, gpu::DescriptorSet>,
-    pub camera_set_map: HashMap<u64, gpu::DescriptorSet>,
+    pub instance_set_map: Arc<Mutex<HashMap<u64, gpu::DescriptorSet>>>,
+    pub camera_set_map: Arc<Mutex<HashMap<u64, gpu::DescriptorSet>>>,
     pub set: Option<gpu::DescriptorSet>,
 }
 
@@ -804,7 +806,7 @@ impl Material {
 
     /// Draw all the meshes with the material into self
     pub fn pass<'a, 'b, V: gfx::Vertex>(
-        &'a mut self,
+        &'a self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         buffer: &'a super::GeometryBuffer,
@@ -890,7 +892,8 @@ impl Material {
             &self.graphics,
         )?;
 
-        let camera_set = if let Some(s) = self.camera_set_map.get(&camera.buffer.id()) {
+        let mut camera_set_map = self.camera_set_map.lock().unwrap();
+        let camera_set = if let Some(s) = camera_set_map.get(&camera.buffer.id()) {
             s.clone()
         } else {
             let s = match self.graphics.bundle().unwrap()
@@ -902,7 +905,7 @@ impl Material {
                         e => unreachable!("{}", e),
                     }
                 };
-            self.camera_set_map.insert(camera.buffer.id(), s.clone());
+            camera_set_map.insert(camera.buffer.id(), s.clone());
             s
         };
 
@@ -914,7 +917,8 @@ impl Material {
         }
 
         for (mesh, instances) in meshes {
-            let instance_set = if let Some(i) = self.instance_set_map.get(&instances.buffer.id()) {
+            let mut instance_set_map = self.instance_set_map.lock().unwrap();
+            let instance_set = if let Some(i) = instance_set_map.get(&instances.buffer.id()) {
                 i.clone()
             } else {
                 let s = match self.graphics.bundle().unwrap()
@@ -926,7 +930,7 @@ impl Material {
                             e => unreachable!("{}", e),
                         }
                     };
-                self.instance_set_map.insert(instances.buffer.id(), s.clone());
+                instance_set_map.insert(instances.buffer.id(), s.clone());
                 s
             };
             pass.bind_descriptor_owned(1, instance_set);
@@ -940,7 +944,7 @@ impl Material {
     /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
     /// This function drops Descriptor sets cached by self
     pub fn clean(&mut self) {
-        self.camera_set_map.clear();
-        self.instance_set_map.clear();
+        self.camera_set_map.lock().unwrap().clear();
+        self.instance_set_map.lock().unwrap().clear();
     }
 }

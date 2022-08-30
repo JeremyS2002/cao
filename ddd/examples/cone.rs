@@ -480,6 +480,7 @@ impl Cone {
             cone::PointDepthData::from_light(&light.data, 0.1, 20.0, 0.05, 0.005),
             1024,
             1024,
+            None,
         )?;
 
         let subsurface = cone::PointSubsurfaceMap::new(
@@ -489,6 +490,7 @@ impl Cone {
             1024,
             1024,
             512,
+            None,
         )?;
 
         let shadow_renderer =

@@ -202,8 +202,20 @@ impl PointLightRenderer {
 
     pub const BLEND_STATE: gpu::BlendState = gpu::BlendState::ADD;
 
-    pub const RASTERIZER: gpu::Rasterizer = gpu::Rasterizer {
+    pub const FULL_RASTERIZER: gpu::Rasterizer = gpu::Rasterizer {
         cull_face: gpu::CullFace::Back,
+        front_face: gpu::FrontFace::Clockwise,
+        polygon_mode: gpu::PolygonMode::Fill,
+        primitive_topology: gpu::PrimitiveTopology::TriangleList,
+        depth_bias_constant: 0.0,
+        depth_bias_slope: 0.0,
+        depth_bias: false,
+        depth_clamp: false,
+        line_width: 1.0,
+    };
+
+    pub const CLIPPED_RASTERIZER: gpu::Rasterizer = gpu::Rasterizer {
+        cull_face: gpu::CullFace::None,
         front_face: gpu::FrontFace::Clockwise,
         polygon_mode: gpu::PolygonMode::Fill,
         primitive_topology: gpu::PrimitiveTopology::TriangleList,
@@ -218,7 +230,7 @@ impl PointLightRenderer {
         device: &gpu::Device,
         vert: &[u32],
         frag: &[u32],
-        depth: gpu::DepthState,
+        rasterizer: gpu::Rasterizer,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         match gfx::ReflectedGraphics::from_spv(
@@ -226,10 +238,10 @@ impl PointLightRenderer {
             &vert,
             None,
             Some(&frag),
-            Self::RASTERIZER,
+            rasterizer,
             &[Self::BLEND_STATE],
             Some(gpu::DepthStencilState {
-                depth: Some(depth),
+                depth: None,
                 stencil_front: None,
                 stencil_back: None,
             }),
@@ -253,11 +265,7 @@ impl PointLightRenderer {
             device,
             vert,
             frag,
-            gpu::DepthState {
-                write_enable: false,
-                test_enable: true,
-                compare_op: gpu::CompareOp::LessEqual,
-            },
+            Self::CLIPPED_RASTERIZER,
             name,
         )
     }
@@ -272,11 +280,7 @@ impl PointLightRenderer {
             device,
             vert,
             frag,
-            gpu::DepthState {
-                write_enable: false,
-                test_enable: true,
-                compare_op: gpu::CompareOp::Greater,
-            },
+            Self::FULL_RASTERIZER,
             name,
         )
     }
