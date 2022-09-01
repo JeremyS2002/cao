@@ -67,6 +67,16 @@ pub enum Command<'a> {
         pipeline: Cow<'a, gpu::ComputePipeline>,
         commands: Vec<crate::pass::ComputePassCommand<'a>>,
     },
+    WriteTimeStamp {
+        query: Cow<'a, gpu::TimeQuery>,
+        index: u32,
+        pipeline_stage: gpu::PipelineStage,
+    },
+    ResetTimeQuery {
+        query: Cow<'a, gpu::TimeQuery>,
+        first_query: u32,
+        query_count: u32,
+    },
 }
 
 impl<'a> Command<'a> {
@@ -148,6 +158,16 @@ impl<'a> Command<'a> {
                 }
                 command_buffer.end_graphics_pass()?;
             }
+            Command::WriteTimeStamp { 
+                query, 
+                index, 
+                pipeline_stage 
+            } => command_buffer.write_timestamp(&*query, *pipeline_stage, *index)?,
+            Command::ResetTimeQuery { query, first_query, query_count } => command_buffer.reset_time_query(
+                &*query, 
+                *first_query, 
+                *query_count
+            )?,
         }
         Ok(())
     }
@@ -521,6 +541,8 @@ impl<'a> Command<'a> {
             Command::GraphicsPass { .. } => gpu::AccessFlags::MEMORY_READ,
             Command::PipelineBarrier { .. } => gpu::AccessFlags::empty(),
             Command::ComputePass { .. } => gpu::AccessFlags::empty(),
+            Command::WriteTimeStamp { .. } => gpu::AccessFlags::empty(),
+            Command::ResetTimeQuery { .. } => gpu::AccessFlags::empty()
         }
     }
 
@@ -546,6 +568,8 @@ impl<'a> Command<'a> {
             Command::GraphicsPass { .. } => gpu::AccessFlags::MEMORY_READ,
             Command::PipelineBarrier { .. } => gpu::AccessFlags::empty(),
             Command::ComputePass { .. } => gpu::AccessFlags::empty(),
+            Command::WriteTimeStamp { .. } => gpu::AccessFlags::empty(),
+            Command::ResetTimeQuery { .. } => gpu::AccessFlags::empty(),
         }
     }
 
@@ -570,6 +594,8 @@ impl<'a> Command<'a> {
             }
             Command::PipelineBarrier { .. } => gpu::PipelineStageFlags::empty(),
             Command::ComputePass { .. } => gpu::PipelineStageFlags::COMPUTE,
+            Command::WriteTimeStamp { .. } => gpu::PipelineStageFlags::empty(),
+            Command::ResetTimeQuery { .. } => gpu::PipelineStageFlags::empty(),
         }
     }
 }
