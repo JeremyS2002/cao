@@ -203,6 +203,22 @@ impl RawDevice {
     ) -> Result<(), Error> {
         self.set_name(pipeline.raw.as_raw(), vk::ObjectType::PIPELINE, name)
     }
+
+    // pub fn set_query_name(
+    //     &self,
+    //     query: &crate::Query,
+    //     name: &str,
+    // ) -> Result<(), Error> {
+    //     self.set_name(query.raw.as_raw(), vk::ObjectType::QUERY_POOL, name)
+    // }
+
+    pub fn set_time_query_name(
+        &self,
+        query: &crate::TimeQuery,
+        name: &str,
+    ) -> Result<(), Error> {
+        self.set_name(query.raw.as_raw(), vk::ObjectType::QUERY_POOL, name)
+    }
 }
 
 impl Drop for RawDevice {

@@ -117,6 +117,7 @@ pub mod shader;
 pub mod surface;
 pub mod swapchain;
 pub mod texture;
+pub mod query;
 
 pub use binding::*;
 pub use buffer::*;
@@ -133,6 +134,7 @@ pub use shader::*;
 pub use surface::*;
 pub use swapchain::*;
 pub use texture::*;
+pub use query::*;
 
 /// Makes `&[u8]` into `&[u32]` ensuring correct alignment
 ///

@@ -50,6 +50,8 @@ bitflags::bitflags! {
         const DEPTH_CLAMP           = 0b000000000010000000000000000;
         /// Allows variable rate shading
         const VARIABLE_RATE_SHADING = 0b000000000100000000000000000;
+        /// Allows for use of TimeQueries
+        const TIME_QUERIES          = 0b000000001000000000000000000;
 
         /// Device supports all types of operations
         const BASE = Self::GRAPHICS.bits | Self::COMPUTE.bits | Self::TRANSFER.bits;
@@ -2702,6 +2704,20 @@ impl<'a> Attachment<'a> {
         match self {
             Self::View(v, _) => &*v,
             Self::Swapchain(s, _) => s.view,
+        }
+    }
+}
+
+pub enum QueryType {
+    Occlusion,
+    PipelineStatistics,
+}
+
+impl Into<vk::QueryType> for QueryType {
+    fn into(self) -> vk::QueryType {
+        match self {
+            QueryType::Occlusion => vk::QueryType::OCCLUSION,
+            QueryType::PipelineStatistics => vk::QueryType::PIPELINE_STATISTICS,
         }
     }
 }

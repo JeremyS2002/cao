@@ -547,6 +547,26 @@ impl CommandBuffer {
     pub fn dispatch(&mut self, x: u32, y: u32, z: u32) -> Result<(), crate::Error> {
         raw::dispatch(self.buffer, &self.device, x, y, z)
     }
+
+    /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkCmdWriteTimestamp.html>
+    pub fn write_timestamp(
+        &mut self, 
+        query: &crate::TimeQuery,
+        pipeline_stage: crate::PipelineStage,
+        index: u32,
+    ) -> Result<(), crate::Error> {
+        raw::write_timestamp(self.buffer, &self.device, query, pipeline_stage, index, &mut self.garbage)
+    }
+
+    /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkResetQueryPool.html>
+    pub fn reset_time_query(
+        &mut self,
+        query: &crate::TimeQuery,
+        first_query: u32,
+        query_count: u32,
+    ) -> Result<(), crate::Error> {
+        raw::reset_time_query(self.buffer, &self.device, query, first_query, query_count, &mut self.garbage)
+    }
 }
 
 impl Drop for CommandBuffer {

@@ -159,7 +159,7 @@ pub struct GraphicsPipelineDesc<'a> {
     /// how the depth testing should be performed
     pub depth_stencil: Option<crate::DepthStencilState>,
     /// what portion of the texture to render to
-    pub viewport: crate::Viewport,
+    pub viewports: &'a [crate::Viewport],
 }
 
 /// A GraphicsPipeline
@@ -349,24 +349,25 @@ impl GraphicsPipeline {
         let depth_state: Option<vk::PipelineDepthStencilStateCreateInfo> =
             desc.depth_stencil.map(|s| s.into());
 
-        let viewport = desc.viewport.into();
 
-        let scissors = vk::Rect2D {
+        let scissors = desc.viewports.iter().map(|v| vk::Rect2D {
             offset: vk::Offset2D { x: 0, y: 0 },
             extent: vk::Extent2D {
-                width: desc.viewport.width,
-                height: desc.viewport.height,
+                width: v.width as _,
+                height: v.height,
             },
-        };
+        }).collect::<Vec<_>>();
+
+        let viewports = desc.viewports.iter().map(|v| (*v).into()).collect::<Vec<_>>();
 
         let viewport_state = vk::PipelineViewportStateCreateInfo {
             s_type: vk::StructureType::PIPELINE_VIEWPORT_STATE_CREATE_INFO,
             p_next: ptr::null(),
             flags: vk::PipelineViewportStateCreateFlags::empty(),
-            scissor_count: 1,
-            p_scissors: &scissors,
-            viewport_count: 1,
-            p_viewports: &viewport,
+            scissor_count: scissors.len() as _,
+            p_scissors: scissors.as_ptr(),
+            viewport_count: viewports.len() as _,
+            p_viewports: viewports.as_ptr(),
         };
 
         let shader_stages = shaders

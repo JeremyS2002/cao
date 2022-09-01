@@ -1012,6 +1012,42 @@ pub(crate) fn push_constants(
     Ok(device.check_errors()?)
 }
 
+pub(crate) fn write_timestamp(
+    command_buffer: vk::CommandBuffer,
+    device: &crate::RawDevice,
+    query: &crate::TimeQuery,
+    pipeline_stage: crate::PipelineStage,
+    index: u32,
+    garbage: &mut super::Garbage
+) -> Result<(), crate::Error> {
+    garbage.queries.push(Arc::clone(&query.raw));
+    unsafe {
+        device.cmd_write_timestamp(
+            command_buffer, 
+            pipeline_stage.into(), 
+            **query.raw, 
+            index
+        )
+    }
+
+    Ok(device.check_errors()?)
+}
+
+pub(crate) fn reset_time_query(
+    command_buffer: vk::CommandBuffer,
+    device: &crate::RawDevice,
+    query: &crate::TimeQuery,
+    first_query: u32,
+    query_count: u32,
+    garbage: &mut super::Garbage
+) -> Result<(), crate::Error> {
+    garbage.queries.push(Arc::clone(&query.raw));
+    unsafe {
+        device.cmd_reset_query_pool(command_buffer, **query.raw, first_query, query_count)
+    }
+    Ok(device.check_errors()?)
+}
+
 pub(crate) fn submit(
     device: &crate::RawDevice,
     queue: vk::Queue,

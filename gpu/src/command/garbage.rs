@@ -16,6 +16,7 @@ pub(crate) struct Garbage {
     pub pipelines: Vec<Arc<vk::Pipeline>>,
     pub framebuffers: Vec<Arc<vk::Framebuffer>>,
     pub swapchains: Vec<crate::SwapchainInner>,
+    pub queries: Vec<Arc<vk::QueryPool>>,
     pub prev_semaphore: Option<Arc<vk::Semaphore>>,
 }
 
@@ -34,6 +35,7 @@ impl std::default::Default for Garbage {
             pipelines: Vec::new(),
             framebuffers: Vec::new(),
             swapchains: Vec::new(),
+            queries: Vec::new(),
             prev_semaphore: None,
         }
     }
@@ -109,6 +111,12 @@ impl Garbage {
 
         for swapchain in self.swapchains.drain(..) {
             drop(swapchain);
+        }
+
+        for pool in self.queries.drain(..) {
+            if let Ok(pool) = Arc::try_unwrap(pool) {
+                device.destroy_query_pool(pool, None);
+            }
         }
 
         if let Some(prev_semaphore) = self.prev_semaphore.take() {

@@ -126,9 +126,21 @@ impl Device {
         let (enabled_layer_names, enabled_extensions) =
             Self::enabled_layers_extension(instance, physical)?;
 
+        let reset_features = vk::PhysicalDeviceHostQueryResetFeatures {
+            s_type: vk::StructureType::PHYSICAL_DEVICE_HOST_QUERY_RESET_FEATURES,
+            p_next: ptr::null_mut(),
+            host_query_reset: vk::TRUE,
+        };
+
+        let p_next = if features.contains(crate::DeviceFeatures::TIME_QUERIES) {
+            &reset_features as *const _ as *const _
+        } else {
+            ptr::null()
+        };
+
         let create_info = vk::DeviceCreateInfo {
             s_type: vk::StructureType::DEVICE_CREATE_INFO,
-            p_next: ptr::null(),
+            p_next,
             flags: vk::DeviceCreateFlags::empty(),
             queue_create_info_count: 1,
             p_queue_create_infos: &queue_info,
@@ -408,7 +420,7 @@ impl Device {
                     }
                     f.queue_flags.contains(queue_req) && present
                 })
-                .unwrap()
+                .expect("ERROR: No queue supports desired features")
         };
 
         vk::DeviceQueueCreateInfo {
@@ -596,6 +608,15 @@ impl Device {
         desc: &crate::DescriptorSetDesc,
     ) -> Result<crate::DescriptorSet, crate::Error> {
         crate::DescriptorSet::new(self, desc)
+    }
+
+    /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkCreateQueryPool.html>
+    pub fn create_time_query(
+        &self,
+        count: u32,
+        name: Option<&str>,
+    ) -> Result<crate::TimeQuery, crate::Error> {
+        crate::TimeQuery::new(self, count, name)
     }
 }
 

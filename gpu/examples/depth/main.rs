@@ -264,7 +264,7 @@ fn main() {
         vertex_states: &[vertex_state],
         blend_states: &[blend_state],
         depth_stencil,
-        viewport,
+        viewports: &[viewport],
     }).unwrap();
 
     let mut command = device.create_command_buffer(None).unwrap();
@@ -324,7 +324,7 @@ fn main() {
                         vertex_states: &[vertex_state],
                         blend_states: &[blend_state],
                         depth_stencil,
-                        viewport,
+                        viewports: &[viewport],
                     }).unwrap();
 
                     swapchain.recreate(&device).unwrap();
