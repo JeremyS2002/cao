@@ -1,9 +1,7 @@
 #include "../utils.glsl"
 
 struct PointLightData {
-    float constant;
-    float linear;
-    float quadratic;
+    float falloff;
     
     float position_x;
     float position_y;
@@ -28,11 +26,12 @@ vec3 point_light_calc(
     vec3 light_pos = vec3(light.position_x, light.position_y, light.position_z);
 
     vec3 view = normalize(view_pos - world_pos);
-    vec3 to_light = normalize(light_pos - world_pos);
+    vec3 to_light = light_pos - world_pos;
+    vec3 to_light_unit = normalize(to_light);
     vec3 half_way = normalize(view + to_light);
 
-    float distance = length(light_pos - world_pos);
-    float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * distance * distance);
+    float distance2 = dot(to_light, to_light);
+    float attenuation = 1.0 / (0.001 + light.falloff * distance2);
     vec3 radiance = vec3(light.color_r, light.color_g, light.color_b) * attenuation;
 
     vec3 f0 = vec3(0.04);
@@ -40,10 +39,10 @@ vec3 point_light_calc(
     vec3 f = fresnelSchlick(max(dot(half_way, view), 0.0), f0);
 
     float ndf = distributionGGX(normal, half_way, roughness);
-    float g = geometry_smith(normal, view, to_light, roughness);
+    float g = geometry_smith(normal, view, to_light_unit, roughness);
 
     vec3 numerator = ndf * g * f;
-    float denominator = 4.0 * max(dot(normal, view), 0.0) * max(dot(normal, to_light), 0.0);
+    float denominator = 4.0 * max(dot(normal, view), 0.0) * max(dot(normal, to_light_unit), 0.0);
     vec3 specular = numerator / max(denominator, 0.001);
     
     // specular component weight
@@ -52,7 +51,7 @@ vec3 point_light_calc(
     vec3 kd = vec3(1.0) - ks;
     kd *= 1.0 - metallic;
 
-    float n_dot_l = max(dot(normal, to_light), 0.0);
+    float n_dot_l = max(dot(normal, to_light_unit), 0.0);
 
     return (kd * albedo / PI + specular) * radiance * n_dot_l;
 }
@@ -134,25 +133,28 @@ float point_shadow_calc(
 ) {
     vec3 shadow_pos = vec3(depth.pos_x, depth.pos_y, depth.pos_z);
     vec3 to_shadow = world_pos - shadow_pos;
-    float current_depth = length(to_shadow);
+    float current_depth2 = dot(to_shadow, to_shadow);
     vec3 shadow_sample = to_shadow;
     shadow_sample.y *= -1.0;
 
+    float z_far2 = depth.z_far * depth.z_far;
+
+    if (current_depth2 >= z_far2) {
+        return 0.0;
+    }
+
     float shadow = 0.0;
     float bias = max(depth.bias * (1.0 - dot(normal, to_shadow)), depth.bias);
-    float disk_radius = depth.strength * (1.0 + (current_depth / depth.z_far));
+    float disk_radius = depth.strength * (1.0 + (current_depth2 / (z_far2)));
     for (int i = 0; i < samples; i++) {
         float tmp_depth = texture(shadow_map, shadow_sample + sampleOffsetDirections[i] * disk_radius).r;
         tmp_depth *= depth.z_far;
-        if (current_depth - bias >= tmp_depth)
+        tmp_depth *= tmp_depth;
+        if (current_depth2 - bias >= tmp_depth)
             shadow += 1.0;
     }
 
     shadow /= float(samples);
-
-    if (current_depth >= depth.z_far) {
-        shadow = 0.0;
-    }
 
     return shadow;
 }

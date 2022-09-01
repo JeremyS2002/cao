@@ -254,15 +254,15 @@ impl PointDepthMap {
             data, 
             name.as_ref().map(|n| format!("{}_uniform", n)).as_ref().map(|n| &**n)
         )?;
-        let texture = gfx::GTextureCube::new(
+        let texture = gfx::GTextureCube::from_formats(
             device,
             width,
             height,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::DEPTH_OUTPUT,
             1,
-            gpu::Format::Depth32Float,
+            gfx::alt_formats(gpu::Format::Depth32Float),
             name.as_ref().map(|n| format!("{}_texture", n)).as_ref().map(|n| &**n),
-        )?;
+        )?.unwrap();
         let faces = [
             texture.face_view(gfx::CubeFace::PosX)?,
             texture.face_view(gfx::CubeFace::NegX)?,
@@ -298,6 +298,7 @@ impl std::ops::DerefMut for PointDepthMap {
     }
 }
 
+/// Used for rendering depth maps that correspond to point lights
 pub struct PointDepthMapRenderer {
     pub pipeline: gfx::ReflectedGraphics,
     pub shadow_map: HashMap<u64, gpu::DescriptorSet>,
@@ -305,11 +306,20 @@ pub struct PointDepthMapRenderer {
 }
 
 impl PointDepthMapRenderer {
+    /// Create a new [`PointDepthMapRenderer`] 
+    /// 
+    /// Used for rendering depth maps that correspond to point lights
+    /// 
+    /// cull_face determins if to cull a face or not
+    /// front_face determins what the front face is
     pub fn new(
         device: &gpu::Device,
-        cull_face: Option<gpu::FrontFace>,
+        cull_face: gpu::CullFace,
+        front_face: gpu::FrontFace,
+        // geometry_pass: bool,
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
-        let multi = Self::pipeline(device, cull_face)?;
+        let multi = Self::pipeline(device, cull_face, front_face, name)?;
         Ok(Self {
             pipeline: multi,
             shadow_map: HashMap::new(),
@@ -320,27 +330,47 @@ impl PointDepthMapRenderer {
     /// Create the pipeline used for rendering instanced meshes shadows
     pub fn pipeline(
         device: &gpu::Device,
-        cull_face: Option<gpu::FrontFace>,
+        cull_face: gpu::CullFace,
+        front_face: gpu::FrontFace,
+        // geometry_pass: bool,
+        name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
-        let vertex_spv =
-            gpu::include_spirv!("../../../shaders/cone/shadow_passes/point.vert.spv");
-        let fragment_spv =
-            gpu::include_spirv!("../../../shaders/cone/shadow_passes/shadow.frag.spv");
+        // let vertex_spv = if geometry_pass {
+        //     gpu::include_spirv!("../../../shaders/cone/shadow_passes/point_geom.vert.spv")
+        // } else {
+        //     gpu::include_spirv!("../../../shaders/cone/shadow_passes/point_simple.vert.spv")
+        // };
+
+        let vertex_spv = gpu::include_spirv!("../../../shaders/cone/shadow_passes/point.vert.spv");
+
+        // let geometry = if geometry_pass {
+        //     Some(gpu::include_spirv!("../../../shaders/cone/shadow_passes/point.geom.spv"))
+        // } else {
+        //     None
+        // };
+
+        let fragment_spv = gpu::include_spirv!("../../../shaders/cone/shadow_passes/shadow.frag.spv");
+
         match gfx::ReflectedGraphics::from_spv(
             device,
             &vertex_spv,
             None,
             Some(&fragment_spv),
             gpu::Rasterizer {
-                cull_face: cull_face
-                    .map(|_| gpu::CullFace::Front)
-                    .unwrap_or(gpu::CullFace::None),
-                front_face: cull_face.unwrap_or(gpu::FrontFace::Clockwise),
-                ..Default::default()
+                cull_face,
+                front_face,
+                depth_clamp: false,
+                polygon_mode: gpu::PolygonMode::Fill,
+                primitive_topology: gpu::PrimitiveTopology::TriangleList,
+                line_width: 1.0,
+                depth_bias: false,
+                depth_bias_constant: 0.01,
+                depth_bias_slope: 1.0,
+                
             },
             &[],
             Some(gpu::DepthStencilState::default_depth()),
-            None,
+            name.map(|n| format!("{}_renderer", n)).as_ref().map(|n| &**n),
         ) {
             Ok(p) => Ok(p),
             Err(e) => match e {
@@ -350,12 +380,116 @@ impl PointDepthMapRenderer {
         }
     }
 
-    /// Draw each of the meshes shadows into the supplied shadow map with the instance they are paired with
+    /// Draw each of the meshes shadow
+    // pub fn pass<'a, 'b, V: gfx::Vertex>(
+    //     &mut self,
+    //     encoder: &mut gfx::CommandEncoder<'a>,
+    //     device: &gpu::Device,
+    //     shadow: &'a PointDepthMap,
+    //     meshes: impl IntoIterator<Item = (&'b gfx::Mesh<V>, &'b Instances)>,
+    //     clear: bool,
+    // ) -> Result<(), gpu::Error> {
+    //     if self.geometry_pass {
+    //         self.geometry_pass(
+    //             encoder,
+    //             device,
+    //             shadow,
+    //             meshes,
+    //             clear
+    //         )
+    //     } else {
+    //         self.no_geometry_pass(
+    //             encoder, 
+    //             device, 
+    //             shadow, 
+    //             meshes, 
+    //             clear
+    //         )
+    //     }
+    // }
+
+    // fn geometry_pass<'a, 'b, V: gfx::Vertex>(
+    //     &mut self,
+    //     encoder: &mut gfx::CommandEncoder<'a>,
+    //     device: &gpu::Device,
+    //     shadow: &'a PointDepthMap,
+    //     meshes: impl IntoIterator<Item = (&'b gfx::Mesh<V>, &'b Instances)>,
+    //     clear: bool,
+    // ) -> Result<(), gpu::Error> {
+    //     let mut pass = encoder.graphics_pass_reflected(
+    //         device, 
+    //         &[], 
+    //         &[], 
+    //         Some(gfx::Attachment {
+    //             raw: gpu::Attachment::View(
+    //                 Cow::Borrowed(&shadow.texture.view),
+    //                 gpu::ClearValue::Depth(1.0),
+    //             ),
+    //             load: if clear {
+    //                 gpu::LoadOp::Clear
+    //             } else {
+    //                 gpu::LoadOp::Load
+    //             },
+    //             store: gpu::StoreOp::Store,
+    //         }), 
+    //         &self.pipeline
+    //     )?;
+
+    //     let key = shadow.uniform.buffer.id();
+    //     let shadow_set = if let Some(s) = self.shadow_map.get(&key) {
+    //         s.clone()
+    //     } else {
+    //         let s = device.create_descriptor_set(&gpu::DescriptorSetDesc {
+    //             name: None,
+    //             entries: &[gpu::DescriptorSetEntry::Buffer(
+    //                 shadow.uniform.buffer.slice_ref(..),
+    //             )],
+    //             layout: self
+    //                 .pipeline
+    //                 .reflect_data
+    //                 .descriptor_layouts()
+    //                 .unwrap()
+    //                 .get(0)
+    //                 .unwrap(),
+    //         })?;
+    //         self.instances_map.insert(key, s.clone());
+    //         s
+    //     };
+    //     for (mesh, instance) in meshes.into_iter() {
+    //         let key = instance.buffer.id();
+
+    //         let instance_set = if let Some(b) = self.instances_map.get(&key) {
+    //             b.clone()
+    //         } else {
+    //             let s = device.create_descriptor_set(&gpu::DescriptorSetDesc {
+    //                 name: None,
+    //                 entries: &[gpu::DescriptorSetEntry::Buffer(
+    //                     instance.buffer.slice_ref(..),
+    //                 )],
+    //                 layout: self
+    //                     .pipeline
+    //                     .reflect_data
+    //                     .descriptor_layouts()
+    //                     .unwrap()
+    //                     .get(1)
+    //                     .unwrap(),
+    //             })?;
+    //             self.instances_map.insert(key, s.clone());
+    //             s
+    //         };
+
+    //         pass.bind_descriptors_owned(0, vec![shadow_set.clone(), instance_set]);
+    //         pass.draw_instanced_mesh_owned(mesh, 0, instance.length as _);
+    //     }
+    //     Ok(())
+    // }
+
+    /// Draw each of the meshes shadow into the [`PointDepthMap`] supplied
     pub fn pass<'a, 'b, V: gfx::Vertex>(
         &mut self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
-        shadow: &PointDepthMap,
+        shadow: &'a PointDepthMap,
         meshes: impl IntoIterator<Item = (&'b gfx::Mesh<V>, &'b Instances)>,
         clear: bool,
     ) -> Result<(), gpu::Error> {
@@ -368,7 +502,7 @@ impl PointDepthMapRenderer {
                 &[],
                 Some(gfx::Attachment {
                     raw: gpu::Attachment::View(
-                        Cow::Owned(face.clone()),
+                        Cow::Borrowed(face),
                         gpu::ClearValue::Depth(1.0),
                     ),
                     load: if clear {
@@ -380,7 +514,7 @@ impl PointDepthMapRenderer {
                 }),
                 &self.pipeline,
             )?;
-            let key = unsafe { std::mem::transmute(shadow.uniform.buffer.raw_buffer()) };
+            let key = shadow.uniform.buffer.id();
             let shadow_set = if let Some(s) = self.shadow_map.get(&key) {
                 s.clone()
             } else {
@@ -401,7 +535,7 @@ impl PointDepthMapRenderer {
                 s
             };
             for (mesh, instance) in &meshes {
-                let key = unsafe { std::mem::transmute(instance.buffer.raw_buffer()) };
+                let key = instance.buffer.id();
 
                 let instance_set = if let Some(b) = self.instances_map.get(&key) {
                     b.clone()
@@ -424,7 +558,7 @@ impl PointDepthMapRenderer {
                 };
 
                 pass.push_u32("face", face_idx);
-                pass.bind_descriptors_owned(0, vec![shadow_set.clone(), instance_set.clone()]);
+                pass.bind_descriptors_owned(0, vec![shadow_set.clone(), instance_set]);
                 pass.draw_instanced_mesh_owned(*mesh, 0, instance.length as _);
             }
 

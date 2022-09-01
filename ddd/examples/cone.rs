@@ -29,6 +29,9 @@ pub struct Cone {
     device: gpu::Device,
     swapchain: gpu::Swapchain,
 
+    query1: gpu::TimeQuery,
+    query2: gpu::TimeQuery,
+
     controller: ddd::utils::DebugController,
     camera: ddd::utils::Camera,
     buffer: cone::GeometryBuffer,
@@ -44,6 +47,7 @@ pub struct Cone {
     antialiased: gfx::GTexture2D,
 
     mesh: gfx::Mesh<cone::Vertex>,
+    mesh_small: gfx::Mesh<cone::Vertex>,
     plane: gfx::Mesh<cone::Vertex>,
     cube: gfx::Mesh<clay::Vertex>,
 
@@ -87,7 +91,8 @@ impl Cone {
 
         let device = instance.create_device(&gpu::DeviceDesc {
             compatible_surfaces: &[&surface],
-            features: gpu::DeviceFeatures::BASE,
+            features: gpu::DeviceFeatures::BASE
+                | gpu::DeviceFeatures::GEOMETRY_SHADER,
             ..Default::default()
         })?;
 
@@ -102,11 +107,19 @@ impl Cone {
 
         println!("loading objects...");
 
+        let mesh_small = mesh::load_meshes_from_obj(
+            &mut encoder, 
+            &device, 
+            false, 
+            "../resources/models/dragon_small.obj",
+            None,
+        )?.remove(0);
+
         let mesh = mesh::load_meshes_from_obj(
             &mut encoder, 
             &device, 
             true, 
-            "../resources/models/dragon.obj",
+            "../resources/models/dragon.obj", 
             None,
         )?.remove(0);
         
@@ -154,9 +167,8 @@ impl Cone {
         )?;
 
         let point_renderer = cone::PointLightRenderer::new(
-            &mut encoder,
             &device,
-            cone::PointLightRendererFlags::FULL,
+            cone::PointLightRendererFlags::all(),
             None,
         )?;
 
@@ -181,9 +193,9 @@ impl Cone {
         let bloom_renderer = cone::BloomRenderer::new(
             &mut encoder, 
             &device, 
-            8,
-            0.6,
-            1.2,
+            4,
+            0.5,
+            1.5,
             None,
         )?;
 
@@ -361,10 +373,10 @@ impl Cone {
         let wax_material = cone::Material::constant(
             &device,
             &cone::MaterialData {
-                albedo: glam::vec4(0.5, 0.1, 0.0, 1.0),
+                albedo: glam::vec4(0.6, 0.2, 0.1, 1.0),
                 roughness: 0.8,
                 metallic: 0.0,
-                subsurface: glam::vec4(0.95, 0.66, 0.35, 0.9),
+                subsurface: glam::vec4(0.95, 0.66, 0.35, 0.5),
             },
         )?;
 
@@ -372,9 +384,9 @@ impl Cone {
             &device,
             &cone::MaterialData {
                 albedo: glam::vec4(0.9, 0.9, 1.0, 1.0),
-                roughness: 0.1,
+                roughness: 0.01,
                 metallic: 1.0,
-                subsurface: glam::vec4(0.0, 0.0, 0.0, 1.0),
+                subsurface: glam::vec4(0.0, 0.0, 0.0, 0.0),
             },
         )?;
 
@@ -447,7 +459,7 @@ impl Cone {
             32,
             128,
             512, 
-            4096
+            2048
         )?;
 
         let light_pos = glam::vec3(0.0, 2.0, 0.0);
@@ -456,9 +468,7 @@ impl Cone {
             &mut encoder,
             &device,
             cone::PointLightData::new(
-                0.5,
-                0.0,
-                0.025,
+                0.05,
                 light_pos,
                 [2.5; 3].into(),
                 0.05,
@@ -478,8 +488,8 @@ impl Cone {
             &mut encoder,
             &device,
             cone::PointDepthData::from_light(&light.data, 0.1, 20.0, 0.05, 0.005),
-            1024,
-            1024,
+            512,
+            512,
             None,
         )?;
 
@@ -487,14 +497,14 @@ impl Cone {
             &mut encoder,
             &device,
             cone::PointDepthData::from_light(&light.data, 0.1, 20.0, 0.05, 0.005),
-            1024,
-            1024,
             512,
+            512,
+            64,
             None,
         )?;
 
         let shadow_renderer =
-            cone::PointDepthMapRenderer::new(&device, Some(gpu::FrontFace::Clockwise))?;
+            cone::PointDepthMapRenderer::new(&device, gpu::CullFace::Front, gpu::FrontFace::Clockwise, None)?;
 
         println!("pre-computing lookup tables...");
 
@@ -504,6 +514,9 @@ impl Cone {
             &device, 
             None,
         )?;
+
+        let query1 = device.create_time_query(16, None)?;
+        let query2 = device.create_time_query(2, None)?;
 
         let mut s = Self {
             _instance: instance,
@@ -524,7 +537,11 @@ impl Cone {
             tonemap_renderer,
             antialiased,
 
+            query1,
+            query2,
+
             mesh,
+            mesh_small,
             plane,
             cube,
 
@@ -567,15 +584,18 @@ impl Cone {
     fn render_offscreen(&mut self) -> Result<(), anyhow::Error> {
         let mut encoder = gfx::CommandEncoder::new();
 
+        encoder.reset_time_query_ref(&self.query1, 0, 16);
+        encoder.write_timestamp_ref(&self.query1, 0, gpu::PipelineStage::TopOfPipe);
+
         self.shadow_renderer.pass(
             &mut encoder,
             &self.device,
             &self.shadow,
             [
-                (&self.mesh as _, &self.leather_instance),
-                (&self.mesh as _, &self.metal_instance),
-                (&self.mesh as _, &self.wax_instance),
-                (&self.mesh as _, &self.chrome_instance),
+                (&self.mesh_small as _, &self.leather_instance),
+                (&self.mesh_small as _, &self.metal_instance),
+                (&self.mesh_small as _, &self.wax_instance),
+                (&self.mesh_small as _, &self.chrome_instance),
             ]
             .into_iter(),
             true,
@@ -585,9 +605,12 @@ impl Cone {
             &mut encoder,
             &self.device,
             &self.subsurface,
-            std::iter::once((&self.mesh as _, &self.wax_instance)),
+            std::iter::once((&self.mesh_small as _, &self.wax_instance)),
             true,
         )?;
+
+        encoder.write_timestamp_ref(&self.query1, 1, gpu::PipelineStage::BottomOfPipe);
+        encoder.write_timestamp_ref(&self.query1, 2, gpu::PipelineStage::TopOfPipe);
 
         self.metal_material.pass(
             &mut encoder,
@@ -634,12 +657,18 @@ impl Cone {
             false,
         )?;
 
+        encoder.write_timestamp_ref(&self.query1, 3, gpu::PipelineStage::BottomOfPipe);
+        encoder.write_timestamp_ref(&self.query1, 4, gpu::PipelineStage::TopOfPipe);
+
         self.ao_renderer.ao_pass(
             &mut encoder, 
             &self.device, 
             &self.buffer, 
             &self.camera
         )?;
+
+        encoder.write_timestamp_ref(&self.query1, 5, gpu::PipelineStage::BottomOfPipe);
+        encoder.write_timestamp_ref(&self.query1, 6, gpu::PipelineStage::TopOfPipe);
 
         // encoder.clear_texture(
         //     self.buffer.get("ao").unwrap().whole_slice_ref(), 
@@ -656,7 +685,10 @@ impl Cone {
             true,
         )?;
 
-        // self.point_renderer.base_full_pass(
+        encoder.write_timestamp_ref(&self.query1, 7, gpu::PipelineStage::BottomOfPipe);
+        encoder.write_timestamp_ref(&self.query1, 8, gpu::PipelineStage::TopOfPipe);
+
+        // self.point_renderer.base_pass(
         //     &mut encoder,
         //     &self.device,
         //     &self.buffer,
@@ -666,18 +698,18 @@ impl Cone {
         //     false,
         // )?;
 
-        // self.point_renderer.shadow_full_pass(
+        // self.point_renderer.shadow_pass(
         //     &mut encoder,
         //     &self.device,
         //     &self.buffer,
         //     &self.camera,
         //     Some((&self.light, &self.shadow)),
         //     1.0,
-        //     25,
+        //     15,
         //     false
         // )?;
 
-        self.point_renderer.subsurface_full_pass(
+        self.point_renderer.subsurface_pass(
             &mut encoder,
             &self.device,
             &self.buffer,
@@ -688,6 +720,9 @@ impl Cone {
             15,
             false,
         )?;
+
+        encoder.write_timestamp_ref(&self.query1, 9, gpu::PipelineStage::BottomOfPipe);
+        encoder.write_timestamp_ref(&self.query1, 10, gpu::PipelineStage::TopOfPipe);
 
         self.solid_renderer.pass(
             &mut encoder, 
@@ -726,11 +761,17 @@ impl Cone {
             false,
         )?;
 
+        encoder.write_timestamp_ref(&self.query1, 11, gpu::PipelineStage::BottomOfPipe);
+        encoder.write_timestamp_ref(&self.query1, 12, gpu::PipelineStage::TopOfPipe);
+
         self.bloom_renderer.bloom_pass(
             &mut encoder, 
             &self.device, 
             &self.buffer
         )?;
+
+        encoder.write_timestamp_ref(&self.query1, 13, gpu::PipelineStage::BottomOfPipe);
+        encoder.write_timestamp_ref(&self.query1, 14, gpu::PipelineStage::TopOfPipe);
 
         self.smaa_renderer.pass(
             &mut encoder,
@@ -747,6 +788,8 @@ impl Cone {
             },
         )?;
         
+        encoder.write_timestamp_ref(&self.query1, 15, gpu::PipelineStage::BottomOfPipe);
+
         encoder.record(&mut self.offscreen_command, false)?;
 
         Ok(())
@@ -826,6 +869,8 @@ impl Cone {
 
         let mut encoder = gfx::CommandEncoder::new();
 
+        encoder.reset_time_query_ref(&self.query2, 0, 2);
+
         self.light.data.position.z = (self.start_time.elapsed().as_secs_f32() / 2.0).sin() * 6.0;
         self.shadow.data = cone::PointDepthData::from_light(
             &self.light.data,
@@ -851,6 +896,8 @@ impl Cone {
         self.controller
             .update_cam_owned(&mut encoder, &mut self.camera);
 
+        encoder.write_timestamp_ref(&self.query2, 0, gpu::PipelineStage::TopOfPipe);
+
         self.tonemap_renderer.pass(
             &mut encoder, 
             &self.device, 
@@ -862,12 +909,16 @@ impl Cone {
             } ,
         )?;
     
-        // for debugging, try taking a look at the geometry buffers other frames
-        // eg &self.antialiased.view -> *self.buffer.get("normal").unwrap().view,
+        encoder.write_timestamp_ref(&self.query2, 1, gpu::PipelineStage::BottomOfPipe);
+
+        // for debugging
+        // try taking a look at the geometry buffers other frames
+        // eg &self.antialiased.view -> &self.buffer.get("normal").unwrap().view,
         // self.display_renderer.pass(
         //     &mut encoder,
         //     &self.device,
-        //     &self.antialiased.view, 
+        //     &self.shadow.faces[2],
+        //     // &self.antialiased.view, 
         //     gfx::Attachment {
         //         raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
         //         load: gpu::LoadOp::Clear,
@@ -880,6 +931,29 @@ impl Cone {
         self.offscreen_command.submit()?;
 
         self.swapchain.present(frame)?;
+
+        let durations = self.query1.get_paired_times(0, 16)?;
+
+        println!("fps     : {}", 1.0 / dt);
+        println!("");
+        let names = &[
+            "shadows : ",
+            "geometry: ",
+            "ao      : ",
+            "env     : ",
+            "light   : ",
+            "sky+fwd : ",
+            "bloom   : ",
+            "smaa    : ",
+        ];
+        for (duration, name) in durations.iter().zip(names) {
+            println!("{}{:?}", name, duration);
+        }
+
+        let tonemap_duration = self.query2.get_paired_times(0, 2)?[0];
+        println!("tonemap : {:?}", tonemap_duration);
+
+        println!("");   
 
         Ok(())
     }

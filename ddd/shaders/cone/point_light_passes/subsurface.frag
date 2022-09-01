@@ -2,6 +2,8 @@
 
 #include "utils.glsl"
 
+layout(location = 0) in vec2 in_uv;
+
 layout(location = 0) out vec4 out_color;
 
 layout(set = 0, binding = 0) uniform texture2D u_position;
@@ -45,13 +47,12 @@ layout(push_constant) uniform PushData {
 };
 
 void main() {
-    vec2 uv = vec2(gl_FragCoord.xy) / vec2(width, height);
-    vec3 world_pos = texture(sampler2D(u_position, u_sampler), uv).xyz;
-    vec3 normal = texture(sampler2D(u_normal, u_sampler), uv).xyz;
-    vec4 albedo = texture(sampler2D(u_albedo, u_sampler), uv);
-    float roughness = texture(sampler2D(u_roughness, u_sampler), uv).x;
-    float metallic = texture(sampler2D(u_metallic, u_sampler), uv).x; 
-    vec4 subsurface = texture(sampler2D(u_subsurface, u_sampler), uv);
+    vec3 world_pos = texture(sampler2D(u_position, u_sampler), in_uv).xyz;
+    vec3 normal = texture(sampler2D(u_normal, u_sampler), in_uv).xyz;
+    vec4 albedo = texture(sampler2D(u_albedo, u_sampler), in_uv);
+    float roughness = texture(sampler2D(u_roughness, u_sampler), in_uv).x;
+    float metallic = texture(sampler2D(u_metallic, u_sampler), in_uv).x; 
+    vec4 subsurface = texture(sampler2D(u_subsurface, u_sampler), in_uv);
 
     float shadow = point_shadow_calc(
         u_shadow_data.depth,
@@ -76,8 +77,9 @@ void main() {
         PointLightData light = u_light_data.light;
 
         vec3 light_pos = vec3(light.position_x, light.position_y, light.position_z);
-        float distance = length(light_pos - world_pos);
-        float attenuation = 1.0 / (light.constant + light.linear * distance + light.quadratic * distance * distance);
+        vec3 to_light = light_pos - world_pos;
+        float distance2 = dot(to_light, to_light);
+        float attenuation = 1.0 / (0.001 + light.falloff * distance2);
 
         vec3 subsurface_pos = vec3(depth.pos_x, depth.pos_y, depth.pos_z);
         vec3 to_subsurface = world_pos - subsurface_pos;
