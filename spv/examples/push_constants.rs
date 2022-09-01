@@ -196,7 +196,7 @@ fn main() {
             vertex_states: &[vertex_state],
             blend_states: &[blend_state],
             depth_stencil: None,
-            viewport,
+            viewports: &[viewport],
         })
         .unwrap();
 
@@ -249,7 +249,7 @@ fn main() {
                             vertex_states: &[vertex_state],
                             blend_states: &[blend_state],
                             depth_stencil: None,
-                            viewport,
+                            viewports: &[viewport],
                         })
                         .unwrap();
                 }
