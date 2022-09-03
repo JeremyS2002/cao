@@ -53,7 +53,13 @@ pub struct DeviceDesc<'a, F: Fn(&DeviceInfo, &DeviceInfo) -> Ordering> {
     pub predicate: F,
 }
 
-fn default_device_ordering(l: &DeviceInfo, r: &DeviceInfo) -> Ordering {
+/// so you can leak private functions into public interfaces by accident apparently
+/// 
+/// the compiler doesn't check the access specifier when storing a function as a function pointer
+/// which can then be called from external code
+/// (noticed because this function was private but could still be set as the predicate in DeviceDesc::default()
+/// which can be called from other code as that field is public). weird
+pub fn default_device_ordering(l: &DeviceInfo, r: &DeviceInfo) -> Ordering {
     let l_s = l.device_type as u8;
     let r_s = r.device_type as u8;
     l_s.cmp(&r_s)
