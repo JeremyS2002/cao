@@ -69,9 +69,11 @@ pub struct MaterialBuilder<'a> {
 
     /// outputs required for the fragment material
 
-    /// the position of the fragment
-    pub position: spv::Output<spv::Vec3>,
-    /// the normal of the fragment
+    /// the position of the fragment in world space
+    pub world_pos: spv::Output<spv::Vec3>,
+    /// the position of the fragment in view space
+    pub view_pos: spv::Output<spv::Vec3>,
+    /// the normal of the fragment in world space
     pub normal: spv::Output<spv::Vec3>,
     /// the albedo of the fragment
     pub albedo: spv::Output<spv::Vec4>,
@@ -90,20 +92,22 @@ impl<'a> MaterialBuilder<'a> {
     pub fn new() -> Self {
         let vertex = spv::VertexBuilder::new();
         let fragment = spv::FragmentBuilder::new();
-        let position = fragment.output(0, false, Some("out_position"));
-        let normal = fragment.output(1, false, Some("out_normal"));
-        let albedo = fragment.output(2, false, Some("out_albedo"));
-        let roughness = fragment.output(3, false, Some("out_roughness"));
-        let metallic = fragment.output(4, false, Some("out_metallic"));
-        let subsurface = fragment.output(5, false, Some("out_subsurface"));
-        let uv = fragment.output(6, false, Some("out_uv"));
+        let world_pos = fragment.output(0, false, Some("out_world_pos"));
+        let view_pos = fragment.output(1, false, Some("out_view_pos"));
+        let normal = fragment.output(2, false, Some("out_normal"));
+        let albedo = fragment.output(3, false, Some("out_albedo"));
+        let roughness = fragment.output(4, false, Some("out_roughness"));
+        let metallic = fragment.output(5, false, Some("out_metallic"));
+        let subsurface = fragment.output(6, false, Some("out_subsurface"));
+        let uv = fragment.output(7, false, Some("out_uv"));
 
         Self {
             vertex,
             fragment,
             resources: Vec::new(),
 
-            position,
+            world_pos,
+            view_pos,
             normal,
             albedo,
             roughness,
@@ -134,8 +138,9 @@ impl<'a> MaterialBuilder<'a> {
     /// Creates a simple vertex state, can have one or multiple instances
     ///
     /// The vertex builder can't be used after this function
-    /// returns (in_position, in_normal, in_uv) for the fragment shader
+    /// returns (in_world_pos, in_view_pos, in_normal, in_uv) for the fragment shader
     pub fn default_vertex(&mut self) -> (
+        spv::Input<spv::Vec3>,
         spv::Input<spv::Vec3>,
         spv::Input<spv::Vec3>,
         spv::Input<spv::Vec2>,
@@ -144,16 +149,17 @@ impl<'a> MaterialBuilder<'a> {
         let in_normal = self.vertex.in_vec3(1, false, Some("in_normal"));
         let in_uv = self.vertex.in_vec2(2, false, Some("in_uv"));
 
-        let out_pos = self.vertex.out_vec3(0, false, Some("out_pos"));
-        let out_normal = self.vertex.out_vec3(1, false, Some("out_normal"));
-        let out_uv = self.vertex.out_vec2(2, false, Some("out_uv"));
+        let out_world_pos = self.vertex.out_vec3(0, false, Some("out_world_pos"));
+        let out_view_pos = self.vertex.out_vec3(1, false, Some("out_view_pos"));
+        let out_normal = self.vertex.out_vec3(2, false, Some("out_normal"));
+        let out_uv = self.vertex.out_vec2(3, false, Some("out_uv"));
 
         let camera = self.camera();
         let instances = self.instances();
 
         let instance_idx = self.vertex.instance_index();
 
-        let out_position = self.vertex.position();
+        let vk_position = self.vertex.position();
 
         self.vertex.main(|b| {
             let projection = b.load_uniform_field::<_, spv::Mat4>(camera, "projection");
@@ -168,10 +174,11 @@ impl<'a> MaterialBuilder<'a> {
             let z = in_pos.z(b);
             let in_pos4 = b.vec4(&x, &y, &z, &1.0);
             let world_pos = b.mul(model, in_pos4);
-            let camera_pos = b.mul(view, world_pos);
-            let screen_pos = b.mul(projection, camera_pos);
-            b.store_out(out_position, screen_pos);
-            b.store_out(out_pos, world_pos.xyz(b));
+            b.store_out(out_world_pos, world_pos.xyz(b));
+            let view_pos = b.mul(view, world_pos);
+            b.store_out(out_view_pos, view_pos.xyz(b));
+            let screen_pos = b.mul(projection, view_pos);
+            b.store_out(vk_position, screen_pos);
             let in_norm = b.load_in(in_normal);
             let model_x = b.mat_col(model, 0).xyz(b);
             let model_y = b.mat_col(model, 1).xyz(b);
@@ -184,18 +191,20 @@ impl<'a> MaterialBuilder<'a> {
             b.store_out(out_uv, b.load_in(in_uv));
         });
 
-        let in_pos = self.fragment.in_vec3(0, false, Some("in_pos"));
-        let in_normal = self.fragment.in_vec3(1, false, Some("in_normal"));
-        let in_uv = self.fragment.in_vec2(2, false, Some("in_uv"));
+        let in_world_pos = self.fragment.in_vec3(0, false, Some("in_pos"));
+        let in_view_pos = self.fragment.in_vec3(1, false, Some("in_view_pos"));
+        let in_normal = self.fragment.in_vec3(2, false, Some("in_normal"));
+        let in_uv = self.fragment.in_vec2(3, false, Some("in_uv"));
 
-        (in_pos, in_normal, in_uv)
+        (in_world_pos, in_view_pos, in_normal, in_uv)
     }
 
     /// Returns a vertex shader with a single instance
     ///
     /// The vertex builder can't be used after this function
-    /// returns (in_position, in_uv, in_t, in_b, in_n) for the fragment shader
+    /// returns (in_world_pos, in_view_pos, in_uv, in_t, in_b, in_n) for the fragment shader
     pub fn tbn_vertex(&mut self) -> (
+        spv::Input<spv::Vec3>,
         spv::Input<spv::Vec3>,
         spv::Input<spv::Vec2>,
         spv::Input<spv::Vec3>,
@@ -207,11 +216,12 @@ impl<'a> MaterialBuilder<'a> {
         let in_uv = self.vertex.in_vec2(2, false, Some("in_uv"));
         let in_tangent = self.vertex.in_vec3(3, false, Some("in_tangent"));
 
-        let out_pos = self.vertex.out_vec3(0, false, Some("out_pos"));
-        let out_uv = self.vertex.out_vec2(1, false, Some("out_uv"));
-        let out_t = self.vertex.out_vec3(2, false, Some("out_t"));
-        let out_b = self.vertex.out_vec3(3, false, Some("out_b"));
-        let out_n = self.vertex.out_vec3(4, false, Some("out_n"));
+        let out_world_pos = self.vertex.out_vec3(0, false, Some("out_world_pos"));
+        let out_view_pos = self.vertex.out_vec3(1, false, Some("out_view_pos"));
+        let out_uv = self.vertex.out_vec2(2, false, Some("out_uv"));
+        let out_t = self.vertex.out_vec3(3, false, Some("out_t"));
+        let out_b = self.vertex.out_vec3(4, false, Some("out_b"));
+        let out_n = self.vertex.out_vec3(5, false, Some("out_n"));
 
         let camera = self.camera();
         let instances = self.instances();
@@ -230,10 +240,11 @@ impl<'a> MaterialBuilder<'a> {
             let pos = b.load_in(in_pos);
             let (x, y, z) = (pos.x(b), pos.y(b), pos.z(b));
             let world_pos = b.mul(model, b.vec4(&x, &y, &z, &1.0));
+            b.store_out(out_world_pos, world_pos.xyz(b));
             let view_pos = b.mul(view, world_pos);
+            b.store_out(out_view_pos, view_pos.xyz(b));
             let screen_pos = b.mul(projection, view_pos);
             b.store_out(vk_position, screen_pos);
-            b.store_out(out_pos, world_pos.xyz(b));
 
             let uv = b.load_in(in_uv);
             b.store_out(out_uv, uv);
@@ -256,13 +267,14 @@ impl<'a> MaterialBuilder<'a> {
             b.store_out(out_n, n);
         });
 
-        let in_pos = self.fragment.in_vec3(0, false, Some("in_pos"));
-        let in_uv = self.fragment.in_vec2(1, false, Some("in_uv"));
-        let in_t = self.fragment.in_vec3(2, false, Some("in_t"));
-        let in_b = self.fragment.in_vec3(3, false, Some("in_b"));
-        let in_n = self.fragment.in_vec3(4, false, Some("in_n"));
+        let in_world_pos = self.fragment.in_vec3(0, false, Some("in_world_pos"));
+        let in_view_pos = self.fragment.in_vec3(1, false, Some("in_view_pos"));
+        let in_uv = self.fragment.in_vec2(2, false, Some("in_uv"));
+        let in_t = self.fragment.in_vec3(3, false, Some("in_t"));
+        let in_b = self.fragment.in_vec3(4, false, Some("in_b"));
+        let in_n = self.fragment.in_vec3(5, false, Some("in_n"));
 
-        (in_pos, in_uv, in_t, in_b, in_n)
+        (in_world_pos, in_view_pos, in_uv, in_t, in_b, in_n)
     }
 
     /// Set the outputs to sample from the textures
@@ -272,6 +284,7 @@ impl<'a> MaterialBuilder<'a> {
     pub fn textured_fragment(
         &mut self,
         world_pos: spv::Input<spv::Vec3>,
+        view_pos: spv::Input<spv::Vec3>,
         normal: spv::Input<spv::Vec3>,
         uv: spv::Input<spv::Vec2>,
         albedo: &'a gfx::Texture2D,
@@ -283,6 +296,7 @@ impl<'a> MaterialBuilder<'a> {
     ) {
         self.textured_or_default_fragment(
             world_pos,
+            view_pos,
             Left(normal),
             uv,
             Some(albedo),
@@ -302,6 +316,7 @@ impl<'a> MaterialBuilder<'a> {
     pub fn uniform_fragment(
         &mut self,
         world_pos: spv::Input<spv::Vec3>,
+        view_pos: spv::Input<spv::Vec3>,
         normal: spv::Input<spv::Vec3>,
         uniform: &'a super::MaterialParams,
         discard: bool,
@@ -324,7 +339,8 @@ impl<'a> MaterialBuilder<'a> {
             tmp = b.div(-1.0f32, tmp).exp(b);
             subsurface = b.vec4(&tmp.x(b), &tmp.y(b), &tmp.z(b), &subsurface.z(b));
 
-            b.store_out(self.position, b.load_in(world_pos));
+            b.store_out(self.world_pos, b.load_in(world_pos));
+            b.store_out(self.view_pos, b.load_in(view_pos));
             b.store_out(self.normal, b.load_in(normal));
             b.store_out(self.albedo, albedo);
             b.store_out(self.roughness, roughness);
@@ -340,6 +356,7 @@ impl<'a> MaterialBuilder<'a> {
     pub fn constant_fragment(
         &mut self,
         world_pos: spv::Input<spv::Vec3>,
+        view_pos: spv::Input<spv::Vec3>,
         normal: spv::Input<spv::Vec3>,
         constants: &MaterialData,
     ) {
@@ -347,7 +364,8 @@ impl<'a> MaterialBuilder<'a> {
         tmp = (-1.0 / tmp).exp();
         let subsurface = glam::vec4(tmp.x, tmp.y, tmp.z, constants.subsurface.w);
         self.fragment.main(|b| {
-            b.store_out(self.position, b.load_in(world_pos));
+            b.store_out(self.world_pos, b.load_in(world_pos));
+            b.store_out(self.view_pos, b.load_in(view_pos));
             b.store_out(self.normal, b.load_in(normal));
             b.store_out(self.albedo, constants.albedo);
             b.store_out(self.roughness, constants.roughness);
@@ -361,6 +379,7 @@ impl<'a> MaterialBuilder<'a> {
     pub fn textured_or_default_fragment(
         &mut self,
         world_pos: spv::Input<spv::Vec3>,
+        view_pos: spv::Input<spv::Vec3>,
         normal: Either<
             spv::Input<spv::Vec3>,
             (
@@ -414,7 +433,8 @@ impl<'a> MaterialBuilder<'a> {
         let sampler = self.set_fragment_sampler(sampler, Some("u_sampler"));
 
         self.fragment.main(|b| {
-            b.store_out(self.position, b.load_in(world_pos));
+            b.store_out(self.world_pos, b.load_in(world_pos));
+            b.store_out(self.view_pos, b.load_in(view_pos));
             let uv = b.load_in(uv);
             b.store_out(self.uv, uv);
 
@@ -669,7 +689,7 @@ impl<'a> MaterialBuilder<'a> {
         self.build_from_info(
             device,
             gpu::Rasterizer::default(),
-            &[gpu::BlendState::REPLACE; 7],
+            &[gpu::BlendState::REPLACE; 8],
             Some(gpu::DepthState::default()),
         )
     }
@@ -755,9 +775,10 @@ impl Material {
     ) -> Result<Self, gfx::error::ReflectedError> {
         if let Some(normal) = normal {
             let mut builder = MaterialBuilder::new();
-            let (world_pos, uv, t, b, n) = builder.tbn_vertex();
+            let (world_pos, view_pos, uv, t, b, n) = builder.tbn_vertex();
             builder.textured_or_default_fragment(
                 world_pos,
+                view_pos,
                 Right((t, b, n, normal)),
                 uv,
                 Some(albedo),
@@ -771,9 +792,18 @@ impl Material {
             builder.build(device)
         } else {
             let mut builder = MaterialBuilder::new();
-            let (world_pos, normal, uv) = builder.default_vertex();
+            let (world_pos, view_pos, normal, uv) = builder.default_vertex();
             builder.textured_fragment(
-                world_pos, normal, uv, albedo, roughness, metallic, None, sampler, discard
+                world_pos,
+                view_pos, 
+                normal, 
+                uv, 
+                albedo, 
+                roughness, 
+                metallic, 
+                None, 
+                sampler, 
+                discard
             );
             builder.build(device)
         }
@@ -788,8 +818,8 @@ impl Material {
         discard: bool,
     ) -> Result<Self, gfx::error::ReflectedError> {
         let mut builder = MaterialBuilder::new();
-        let (world_pos, normal, _) = builder.default_vertex();
-        builder.uniform_fragment(world_pos, normal, uniform, discard);
+        let (world_pos, view_pos, normal, _) = builder.default_vertex();
+        builder.uniform_fragment(world_pos, view_pos, normal, uniform, discard);
         builder.build(device)
     }
 
@@ -799,8 +829,8 @@ impl Material {
         constants: &super::MaterialData,
     ) -> Result<Self, gfx::error::ReflectedError> {
         let mut builder = MaterialBuilder::new();
-        let (world_pos, normal, _) = builder.default_vertex();
-        builder.constant_fragment(world_pos, normal, constants);
+        let (world_pos, view_pos, normal, _) = builder.default_vertex();
+        builder.constant_fragment(world_pos, view_pos, normal, constants);
         builder.build(device)
     }
 
@@ -821,7 +851,8 @@ impl Material {
         };
         let clear_color = gpu::ClearValue::ColorFloat([0.0; 4]);
         let attachments = &[
-            "position",
+            "world_pos",
+            "view_pos",
             "normal",
             "albedo",
             "roughness",

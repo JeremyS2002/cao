@@ -17,7 +17,7 @@ impl CopyRenderer {
     ) -> Result<Self, gpu::Error> {
         let sampler = device.create_sampler(&gpu::SamplerDesc {
             name: name.map(|n| format!("{}_sampler", n)),
-            ..gpu::SamplerDesc::LINEAR
+            ..gpu::SamplerDesc::NEAREST
         })?;
 
         let n = name.as_ref().map(|n| format!("{}_pipeline", n));

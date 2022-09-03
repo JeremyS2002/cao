@@ -3,8 +3,12 @@ use gfx::prelude::*;
 
 use std::collections::HashMap;
 use std::borrow::Cow;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::cone::GeometryBuffer;
+
+use super::ChainBlurRenderer;
 
 /// Parameters to tweak how bloom is applied
 #[derive(Clone, Copy, Debug)]
@@ -40,12 +44,9 @@ impl BloomParams {
 /// Renders bloom into the output of 
 pub struct BloomRenderer {
     pub prefilter_pipeline: gfx::ReflectedGraphics,
-    pub prefilter_bundles: HashMap<u64, gfx::Bundle>,
-    pub blur_pipeline: gfx::ReflectedGraphics,
+    pub prefiltered: Arc<Mutex<HashMap<u64, (gfx::GTexture2D, gfx::Bundle)>>>,
+    pub blur_renderer: ChainBlurRenderer,
     pub uniform: gfx::Uniform<BloomParams>,
-    pub iterations: usize,
-    pub blur_targets: HashMap<u64, Vec<gfx::GTexture2D>>,
-    pub blur_bundles: HashMap<u64, Vec<gfx::Bundle>>,
     pub intensity: f32,
     pub name: Option<String>,
 }
@@ -54,14 +55,25 @@ impl BloomRenderer {
     pub fn new(
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
-        mut iterations: usize,
         intensity: f32,
         threshold: f32,
-        // buffer: &GeometryBuffer,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
-        iterations = iterations.max(2);
+        let blur_renderer = ChainBlurRenderer::new(
+            device, 
+            name.map(|n| format!("{}_blur_renderer", n)).as_ref().map(|n| &**n),
+        )?;
+        Self::from_blur(encoder, device, intensity, threshold, blur_renderer, name)
+    }
 
+    pub fn from_blur(
+        encoder: &mut gfx::CommandEncoder<'_>,
+        device: &gpu::Device,
+        intensity: f32,
+        threshold: f32,
+        blur_renderer: ChainBlurRenderer,
+        name: Option<&str>,
+    ) -> Result<Self, gpu::Error> {
         let params = BloomParams::new(intensity, threshold, 0.7);
 
         let n = name.as_ref().map(|n| format!("{}_uniform", n));
@@ -72,26 +84,8 @@ impl BloomRenderer {
             n.as_ref().map(|n| &**n),
         )?;
 
-        let [prefilter_pipeline, blur_pipeline] = Self::pipelines(device, name)?;
-
-        Ok(Self {
-            prefilter_pipeline,
-            prefilter_bundles: HashMap::new(),
-            blur_pipeline,
-            blur_targets: HashMap::new(),
-            blur_bundles: HashMap::new(),
-            uniform,
-            iterations,
-            // targets,
-            name: name.map(|n| n.to_string()),
-            intensity,
-        })
-    }
-
-    pub fn pipelines(device: &gpu::Device, name: Option<&str>) -> Result<[gfx::ReflectedGraphics; 2], gpu::Error> {
         let vert_spv = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let prefilter_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/bloom_prefilter.frag.spv");
-        let blur_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/bloom_blur.frag.spv");
 
         let n = name.as_ref().map(|n| format!("{}_prefilter_renderer", n));
         let prefilter_pipeline = match gfx::ReflectedGraphics::from_spv(
@@ -111,82 +105,36 @@ impl BloomRenderer {
             }
         };
 
-        let n = name.as_ref().map(|n| format!("{}_blur_renderer", n));
-        let blur_pipeline = match gfx::ReflectedGraphics::from_spv(
-            device,
-            &vert_spv,
-            None,
-            Some(&blur_spv),
-            gpu::Rasterizer::default(),
-            &[gpu::BlendState::ADD],
-            None,
-            n.as_ref().map(|n| &**n),
-        ) {
-            Ok(g) => g,
-            Err(e) => match e {
-                gfx::error::ReflectedError::Gpu(e) => Err(e)?,
-                e => unreachable!("{}", e),
-            }
-        };
-
-        Ok([prefilter_pipeline, blur_pipeline])
+        Ok(Self {
+            prefilter_pipeline,
+            prefiltered: Arc::default(),
+            blur_renderer,
+            uniform,
+            name: name.map(|n| n.to_string()),
+            intensity,
+        })
     }
 
-    pub fn bloom_pass<'a>(
-        &'a mut self,
+    pub fn pass<'a>(
+        &'a self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
-    ) -> Result<(), gpu::Error> {
-        if self.blur_targets.get(&buffer.id).is_none() {
-            let mut blur_targets = Vec::new();
-            
-            for i in 0..self.iterations {
-                let w = buffer.width >> (i + 1);
-                let h = buffer.height >> (i + 1);
-                if w < 2 || h < 2 { break }
-
-                let n = self.name.as_ref().map(|n| format!("{}_bloom_target_{}", n, i));
-                let t = gfx::GTexture2D::from_formats(
-                    device, 
-                    w, 
-                    h, 
-                    gpu::Samples::S1, 
-                    gpu::TextureUsage::SAMPLED
-                        | gpu::TextureUsage::COLOR_OUTPUT, 
-                    1, 
-                    gfx::alt_formats(gpu::Format::Rgba16Float), 
-                    n.as_ref().map(|n| &**n),
-                )?.unwrap();
-
-                blur_targets.push(t);
-            }
-
-            self.blur_targets.insert(buffer.id, blur_targets);
-        }
-
-        let blur_targets = self.blur_targets.get(&buffer.id).unwrap();
-
-        let first = &blur_targets.get(0).unwrap().view;
-        
-        let mut pass = encoder.graphics_pass_reflected::<()>(
-            device, 
-            &[gfx::Attachment {
-                raw: gpu::Attachment::View(
-                    Cow::Borrowed(first),
-                    gpu::ClearValue::ColorFloat([1.0; 4]),
-                ),
-                load: gpu::LoadOp::DontCare,
-                store: gpu::StoreOp::Store,
-            }], 
-            &[],
-            None,
-            &self.prefilter_pipeline,
-        )?;
-
-        let prefilter_bundle = if let Some(b) = self.prefilter_bundles.get(&buffer.id) {
-            b.clone()
-        } else {
+        iterations: usize,
+    ) -> Result<(), gpu::Error> {  
+        let mut prefiltered_map = self.prefiltered.lock().unwrap();
+        if prefiltered_map.get(&buffer.id).is_none() {
+            let filtered_texture = gfx::GTexture2D::new(
+                device,
+                buffer.width,
+                buffer.height,
+                gpu::Samples::S1,
+                gpu::TextureUsage::COLOR_OUTPUT
+                    | gpu::TextureUsage::SAMPLED,
+                1,
+                buffer.get("output").unwrap().format(),
+                self.name.as_ref().map(|n| format!("{}_filtered_texture_{:?}", n, buffer.id())).as_ref().map(|n| &**n),
+            )?;
             let b = match self.prefilter_pipeline.bundle().unwrap()
                 .set_resource("u_color", buffer.get("output").unwrap())
                 .unwrap()
@@ -201,113 +149,39 @@ impl BloomRenderer {
                         e => unreachable!("{}", e),
                     }
                 };
-            self.prefilter_bundles.insert(buffer.id, b.clone());
-            b
-        };
-            
-        pass.set_bundle_into(prefilter_bundle);
-        pass.draw(0, 3, 0, 1);
-        pass.finish();
-
-        let blur_bundles = {
-            if self.blur_bundles.get(&buffer.id).is_none() {
-                let b = blur_targets.iter()
-                    .map(|t| {
-                        match self.blur_pipeline.bundle().unwrap()
-                            .set_resource("u_color", t)
-                            .unwrap()
-                            .set_resource("u_sampler", &buffer.sampler)
-                            .unwrap()
-                            .build(device) {
-                                Ok(g) => Ok(g),
-                                Err(e) => match e {
-                                    gfx::BundleBuildError::Gpu(e) => Err(e),
-                                    e => unreachable!("{}", e)
-                                }
-                            }
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                self.blur_bundles.insert(buffer.id, b);
-            }
-            self.blur_bundles.get(&buffer.id).unwrap()
-        };
-
-        let len = self.iterations.min(blur_targets.len());
-        for i in 1..len {
-            let target = blur_targets.get(i).unwrap();
-            let mut pass = encoder.graphics_pass_reflected::<()>(
-                device, 
-                &[gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&target.view),
-                        gpu::ClearValue::ColorFloat([0.0; 4]),
-                    ),
-                    load: gpu::LoadOp::Clear,
-                    store: gpu::StoreOp::Store,
-                }], 
-                &[], 
-                None, 
-                &self.blur_pipeline
-            )?;
-            let (width, height) = (target.dimension.0, target.dimension.1);
-            let texel_size = 1.0 / glam::vec2(width as f32, height as f32);
-            pass.push_vec2("texel_size", texel_size.into());
-            pass.push_f32("intensity", 1.0);
-
-            let bundle = blur_bundles.get(i - 1).unwrap();
-            pass.set_bundle_ref(bundle);
-            pass.draw(0, 3, 0, 1);
-            pass.finish();
+            prefiltered_map.insert(buffer.id, (filtered_texture, b));
         }
 
-        for i in (0..(len-1)).rev() {
-            let target = blur_targets.get(i).unwrap();
-            let mut pass = encoder.graphics_pass_reflected::<()>(
-                device, 
-                &[gfx::Attachment {
-                    raw: gpu::Attachment::View(
-                        Cow::Borrowed(&target.view), 
-                        gpu::ClearValue::ColorFloat([0.0; 4])
-                    ),
-                    load: gpu::LoadOp::Load,
-                    store: gpu::StoreOp::Store,
-                }], 
-                &[], 
-                None, 
-                &self.blur_pipeline
-            )?;
-            let (width, height) = (target.dimension.0, target.dimension.1);
-            let texel_size = 1.0 / glam::vec2(width as f32, height as f32);
-            pass.push_vec2("texel_size", texel_size.into());
-            pass.push_f32("intensity", 1.0);
-
-            let bundle = blur_bundles.get(i + 1).unwrap();
-            pass.set_bundle_ref(bundle);
-            pass.draw(0, 3, 0, 1);
-            pass.finish();
-        }
+        let (filtered_texture, prefilter_bundle) = prefiltered_map.get(&buffer.id).unwrap();
         
         let mut pass = encoder.graphics_pass_reflected::<()>(
             device, 
             &[gfx::Attachment {
                 raw: gpu::Attachment::View(
-                    Cow::Borrowed(&buffer.get("output").unwrap().view), 
-                    gpu::ClearValue::ColorFloat([0.0; 4])
+                    Cow::Owned(filtered_texture.view.clone()),
+                    gpu::ClearValue::ColorFloat([1.0; 4]),
                 ),
-                load: gpu::LoadOp::Load,
+                load: gpu::LoadOp::DontCare,
                 store: gpu::StoreOp::Store,
             }], 
-            &[], 
-            None, 
-            &self.blur_pipeline,
+            &[],
+            None,
+            &self.prefilter_pipeline,
         )?;
-        let texel_size = 1.0 / glam::vec2(buffer.width as f32, buffer.height as f32);
-        pass.push_vec2("texel_size", texel_size.into());
-        pass.push_f32("intensity", self.intensity);
-        let bundle = blur_bundles.get(0).unwrap();
-        pass.set_bundle_ref(bundle);
+
+        pass.set_bundle_owned(prefilter_bundle);
         pass.draw(0, 3, 0, 1);
         pass.finish();
+
+        self.blur_renderer.pass(
+            encoder, 
+            device, 
+            &filtered_texture.view, 
+            &buffer.get("output").unwrap().view, 
+            iterations,
+            1.0,
+            false,
+        )?;
 
         Ok(())
     }
@@ -315,9 +189,11 @@ impl BloomRenderer {
     /// To avoid memory use after free issues vulkan objects are kept alive as long as they can be used
     /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
     /// This function drops Descriptor sets cached by self
-    pub fn clean(&mut self) {
-        self.blur_bundles.clear();
-        self.blur_targets.clear();
-        self.prefilter_bundles.clear();
+    pub fn clean(&self) {
+        // self.blur_bundles.clear();
+        // self.blur_targets.clear();
+        // self.prefilter_bundles.clear();
+        self.blur_renderer.clean();
+        self.prefiltered.lock().unwrap().clear();
     }
 }

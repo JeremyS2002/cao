@@ -982,7 +982,7 @@ impl EnvironmentRenderer {
                 .expect("ERROR: EnvironmentRenderer missing flags")
                 .bundle()
                 .unwrap()
-                .set_resource("u_position", buffer.get("position").unwrap())
+                .set_resource("u_position", buffer.get("world_pos").unwrap())
                 .unwrap()
                 .set_resource("u_normal", buffer.get("normal").unwrap())
                 .unwrap()

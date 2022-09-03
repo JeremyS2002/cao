@@ -144,18 +144,18 @@ impl Cone {
 
         let buffer = cone::GeometryBuffer::new(
             &device, 
-            WIDTH, 
-            HEIGHT, 
-            gpu::Samples::S1, 
-            cone::GeometryBufferPrecision::High,
-            cone::GeometryBuffer::ALL_MAPS,
-            None,
+            &cone::GeometryBufferDesc {
+                width: WIDTH,
+                height: HEIGHT,
+                precision: cone::GeometryBufferPrecision::Medium,
+                ..cone::GeometryBufferDesc::ALL
+            }
         )?;
 
         let smaa_renderer = ddd::utils::SMAARenderer::new(
             &mut encoder,
             &device,
-            ddd::utils::SMAAState::MEDIUM,
+            ddd::utils::SMAAState::LOW,
             None,
         )?;
 
@@ -172,28 +172,29 @@ impl Cone {
             None,
         )?;
 
-        let ao_renderer = cone::AORenderer::new(
-            &mut encoder, 
-            &device, 
-            cone::AOParams {
-                kernel_size: 16,
-                radius: 0.5,
-                bias: 0.025,
-                power: 5.0,
-                ..Default::default()
-            }, 
-            None
-        )?;
-
         let solid_renderer = clay::SolidRenderer::new(
             &device,
             None,
+        )?;        
+
+        let ao_renderer = cone::AORenderer::new(
+            &mut encoder, 
+            &device, 
+            // need to be tweaked based on scene geometry
+            cone::AOParams {
+                kernel_size: 8,
+                radius: 1.0,
+                bias: 0.005,
+                power: 5.0,
+                ..Default::default()
+            }, 
+            false,
+            None
         )?;
 
         let bloom_renderer = cone::BloomRenderer::new(
             &mut encoder, 
             &device, 
-            4,
             0.5,
             1.5,
             None,
@@ -621,6 +622,15 @@ impl Cone {
             true,
         )?;
 
+        self.wax_material.pass(
+            &mut encoder,
+            &self.device,
+            &self.buffer,
+            &self.camera,
+            Some((&self.mesh as _, &self.wax_instance)),
+            false,
+        )?;
+
         self.leather_material.pass(
             &mut encoder,
             &self.device,
@@ -639,15 +649,6 @@ impl Cone {
             false,
         )?;
 
-        self.wax_material.pass(
-            &mut encoder,
-            &self.device,
-            &self.buffer,
-            &self.camera,
-            Some((&self.mesh as _, &self.wax_instance)),
-            false,
-        )?;
-
         self.wood_material.pass(
             &mut encoder,
             &self.device,
@@ -660,20 +661,21 @@ impl Cone {
         encoder.write_timestamp_ref(&self.query1, 3, gpu::PipelineStage::BottomOfPipe);
         encoder.write_timestamp_ref(&self.query1, 4, gpu::PipelineStage::TopOfPipe);
 
-        self.ao_renderer.ao_pass(
+        self.ao_renderer.pass(
             &mut encoder, 
             &self.device, 
             &self.buffer, 
-            &self.camera
+            &self.camera,
+            3.0,
         )?;
-
-        encoder.write_timestamp_ref(&self.query1, 5, gpu::PipelineStage::BottomOfPipe);
-        encoder.write_timestamp_ref(&self.query1, 6, gpu::PipelineStage::TopOfPipe);
 
         // encoder.clear_texture(
         //     self.buffer.get("ao").unwrap().whole_slice_ref(), 
         //     gpu::ClearValue::ColorFloat([1.0; 4]),
         // );
+
+        encoder.write_timestamp_ref(&self.query1, 5, gpu::PipelineStage::BottomOfPipe);
+        encoder.write_timestamp_ref(&self.query1, 6, gpu::PipelineStage::TopOfPipe);
 
         self.env_renderer.environment_pass(
             &mut encoder,
@@ -764,10 +766,11 @@ impl Cone {
         encoder.write_timestamp_ref(&self.query1, 11, gpu::PipelineStage::BottomOfPipe);
         encoder.write_timestamp_ref(&self.query1, 12, gpu::PipelineStage::TopOfPipe);
 
-        self.bloom_renderer.bloom_pass(
+        self.bloom_renderer.pass(
             &mut encoder, 
             &self.device, 
-            &self.buffer
+            &self.buffer,
+            4,
         )?;
 
         encoder.write_timestamp_ref(&self.query1, 13, gpu::PipelineStage::BottomOfPipe);
@@ -914,10 +917,11 @@ impl Cone {
         // for debugging
         // try taking a look at the geometry buffers other frames
         // eg &self.antialiased.view -> &self.buffer.get("normal").unwrap().view,
+        // let id = self.buffer.get("ao").unwrap().view.id();
         // self.display_renderer.pass(
         //     &mut encoder,
         //     &self.device,
-        //     &self.shadow.faces[2],
+        //     &self.buffer.get("ao").unwrap().view,
         //     // &self.antialiased.view, 
         //     gfx::Attachment {
         //         raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
@@ -953,7 +957,7 @@ impl Cone {
         let tonemap_duration = self.query2.get_paired_times(0, 2)?[0];
         println!("tonemap : {:?}", tonemap_duration);
 
-        println!("");   
+        println!("");
 
         Ok(())
     }
