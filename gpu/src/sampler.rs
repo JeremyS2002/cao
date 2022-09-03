@@ -45,6 +45,24 @@ pub struct SamplerDesc {
 }
 
 impl SamplerDesc {
+    pub fn new(filter: crate::FilterMode, wrap: crate::WrapMode, name: Option<String>) -> Self {
+        Self {
+            name,
+            wrap_x: wrap,
+            wrap_y: wrap,
+            wrap_z: wrap,
+            mag_filter: filter,
+            min_filter: filter,
+            mipmap_filter: filter,
+            mipmap_bias: 0.0,
+            min_lod: 0.0,
+            max_lod: std::f32::MAX,
+            max_anisotropy: None,
+            compare: None,
+            border: crate::BorderColor::OpaqueBlack,
+        }
+    }
+
     /// A Description with linear sampling and wrap repeat
     pub const LINEAR: Self = Self {
         name: None,
