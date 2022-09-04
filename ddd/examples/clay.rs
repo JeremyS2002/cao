@@ -309,7 +309,7 @@ impl Clay {
 fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_title("3d")
+        .with_title("clay")
         .with_inner_size(PhysicalSize {
             width: WIDTH,
             height: HEIGHT,

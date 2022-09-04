@@ -1155,7 +1155,7 @@ impl Fluid {
 fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_title("fractal")
+        .with_title("fluid")
         .with_inner_size(PhysicalSize {
             width: WIDTH,
             height: HEIGHT,

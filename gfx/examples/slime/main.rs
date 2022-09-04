@@ -460,7 +460,7 @@ fn agents3() -> Vec<Agent> {
 fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_title("Slime")
+        .with_title("slime")
         .with_inner_size(PhysicalSize {
             width: WIDTH,
             height: HEIGHT,
