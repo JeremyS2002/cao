@@ -26,6 +26,62 @@ impl<U: bytemuck::Pod> std::hash::Hash for Storage<U> {
 }
 
 impl<U: bytemuck::Pod> Storage<U> {
+    /// Create a new storage from specific usage of buffer from Vec
+    /// The data on the gpu won't be correct until the encoder is submitted
+    pub fn from_vec_usage<'a>(
+        encoder: &mut crate::CommandEncoder<'a>,
+        device: &gpu::Device,
+        data: Vec<U>,
+        usage: gpu::BufferUsage,
+        name: Option<&str>,
+    ) -> Result<Self, gpu::Error> {
+        let storage_name = if let Some(name) = name {
+            Some(format!("{}_buffer", name))
+        } else {
+            None
+        };
+
+        let buffer = device.create_buffer(&gpu::BufferDesc {
+            size: std::mem::size_of::<U>() as u64 * data.len() as u64,
+            usage: gpu::BufferUsage::COPY_SRC
+                | gpu::BufferUsage::COPY_DST
+                | gpu::BufferUsage::STORAGE
+                | usage,
+            memory: gpu::MemoryType::Device,
+            name: storage_name,
+        })?;
+
+        let length = data.len();
+
+        // max limit for update buffer
+        if std::mem::size_of::<U>() * data.len() >= 65536 {
+            let staging_buffer = device.create_buffer(&gpu::BufferDesc {
+                size: std::mem::size_of::<U>() as u64 * data.len() as u64,
+                usage: gpu::BufferUsage::COPY_SRC,
+                memory: gpu::MemoryType::Host,
+                name: None,
+            })?;
+
+            staging_buffer
+                .slice_ref(..)
+                .write(bytemuck::cast_slice(&data))?;
+
+            encoder.copy_buffer_to_buffer(staging_buffer.into_slice(..), buffer.slice_owned(..));
+        } else {
+            encoder.push_command(crate::encoder::Command::UpdateBuffer {
+                buffer: std::borrow::Cow::Owned(buffer.clone()),
+                offset: 0,
+                data: std::borrow::Cow::Owned(bytemuck::allocation::cast_vec(data)),
+            });
+        }
+
+        Ok(Self {
+            buffer,
+            length,
+            _marker: std::marker::PhantomData,
+        }) 
+    }
+
     /// Create a new storage from specific usage of buffer
     /// The data on the gpu won't be correct until the encoder is submitted
     pub fn from_usage<'a>(
@@ -89,6 +145,17 @@ impl<U: bytemuck::Pod> Storage<U> {
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         Self::from_usage(encoder, device, data, gpu::BufferUsage::empty(), name)
+    }
+
+    /// Create a new storage from Vec
+    /// The data on the gpu will only be correct when the encoder is submitted
+    pub fn from_vec<'a>(
+        encoder: &mut crate::CommandEncoder<'a>,
+        device: &gpu::Device,
+        data: Vec<U>,
+        name: Option<&str>
+    ) -> Result<Self, gpu::Error> {
+        Self::from_vec_usage(encoder, device, data, gpu::BufferUsage::empty(), name)
     }
 
     /// Update the data on the gpu
