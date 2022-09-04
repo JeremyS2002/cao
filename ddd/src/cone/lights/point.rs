@@ -352,16 +352,13 @@ impl PointLightRenderer {
                 .unwrap()
                 .set_resource("u_shadow_data", &shadow.uniform)
                 .unwrap()
-                .set_resource("u_shadow_map", &(&shadow.texture, &buffer.sampler))
+                .set_resource("u_shadow_map", &(&shadow.texture, &shadow.sampler))
                 .unwrap()
                 .set_resource("u_subsurface_data", &subsurface.uniform)
                 .unwrap()
-                .set_combined_texture_sampler_ref(
-                    "u_subsurface_map",
-                    (&subsurface.texture.view, &buffer.sampler),
-                )
+                .set_resource("u_subsurface_map", &(&subsurface.texture, &shadow.sampler))
                 .unwrap()
-                .set_resource("u_subsurface_lut", &subsurface.lut)
+                .set_resource("u_subsurface_lut", &(&subsurface.lut, &shadow.sampler))
                 .unwrap()
                 .build(device) {
                 Ok(b) => b,

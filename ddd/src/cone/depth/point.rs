@@ -223,6 +223,7 @@ pub struct PointDepthMap {
     pub texture: gfx::GTextureCube,
     pub faces: [gpu::TextureView; 6],
     pub uniform: gfx::Uniform<PointDepthData>,
+    pub sampler: gpu::Sampler,
 }
 
 impl std::hash::Hash for PointDepthMap {
@@ -271,11 +272,19 @@ impl PointDepthMap {
             texture.face_view(gfx::CubeFace::PosZ)?,
             texture.face_view(gfx::CubeFace::NegZ)?,
         ];
+
+        let sampler = device.create_sampler(&gpu::SamplerDesc::new(
+            gpu::FilterMode::Linear, 
+            gpu::WrapMode::ClampToEdge, 
+            name.as_ref().map(|n| format!("{}_sampler", n)),
+        ))?;
+
         Ok(PointDepthMap {
             id: unsafe { std::mem::transmute(texture.raw_image()) },
             texture,
             faces,
             uniform,
+            sampler,
         })
     }
 

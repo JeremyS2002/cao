@@ -18,30 +18,8 @@ pub enum GeometryBufferPrecision {
     Ultra,
 }
 
-/// Describes how a texture's dimensions in a geometry buffer should be scaled
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum MapScale {
-    /// Half this textures dimensions
-    Half,
-    /// Quater this textures dimensions
-    Quater,
-    /// Eighth this textures dimensions
-    Eighth,
-}
-
-impl MapScale {
-    /// how many bits to shift to scale the map's dimensions by self
-    pub fn shift(&self) -> usize {
-        match self {
-            MapScale::Half => 1,
-            MapScale::Quater => 2,
-            MapScale::Eighth => 3,
-        }
-    }
-}
-
 #[derive(Clone, PartialEq)]
-pub struct GeometryBufferDesc<'a, F: Fn(&str) -> Option<MapScale>> {
+pub struct GeometryBufferDesc<'a, F: Fn(&str) -> Option<f32>> {
     /// The default width of maps in the geometry buffer
     pub width: u32,
     /// The default height of maps in the geometry buffer
@@ -59,11 +37,27 @@ pub struct GeometryBufferDesc<'a, F: Fn(&str) -> Option<MapScale>> {
     pub name: Option<String>,
 }
 
-fn default_map_scale(_: &str) -> Option<MapScale> {
+fn default_map_scale(_: &str) -> Option<f32> {
     None
 }
 
-impl<'a> GeometryBufferDesc<'a, fn(&str) -> Option<MapScale>> {
+impl<'a> GeometryBufferDesc<'a, fn(&str) -> Option<f32>> {
+    /// Maps required for a simple geometry buffer 
+    /// 
+    /// Doesn't have capabilities for:
+    ///  - ambient occlusion
+    ///  - subsurface materials
+    pub const SIMPLE_MAPS: &'static [(&'static str, u32)] = &[
+        ("world_pos", 3),
+        ("view_pos", 3),
+        ("normal", 3),
+        ("albedo", 4),
+        ("roughness", 1),
+        ("metallic", 1),
+        ("uv", 2),
+        ("output", 4),
+    ];
+
     /// A simple geometry buffer 
     /// 
     /// Doesn't have capabilities for:
@@ -74,19 +68,23 @@ impl<'a> GeometryBufferDesc<'a, fn(&str) -> Option<MapScale>> {
         height: 512,
         samples: gpu::Samples::S1,
         precision: GeometryBufferPrecision::Medium,
-        maps: &[
-            ("world_pos", 3),
-            ("view_pos", 3),
-            ("normal", 3),
-            ("albedo", 4),
-            ("roughness", 1),
-            ("metallic", 1),
-            ("uv", 2),
-            ("output", 4),
-        ],
+        maps: Self::SIMPLE_MAPS,
         map_scale: default_map_scale,
         name: None,
     };
+
+    /// Maps required for a simple geometry buffer + subsurface materials
+    pub const SUBSURFACE_MAPS: &'static [(&'static str, u32)] = &[
+        ("world_pos", 3),
+        ("view_pos", 3),
+        ("normal", 3),
+        ("albedo", 4),
+        ("roughness", 1),
+        ("metallic", 1),
+        ("uv", 2),
+        ("output", 4),
+        ("subsurface", 4),
+    ];
 
     /// Adds subsurface material capabilities to [`Self::SIMPLE`]
     pub const SUBSURFACE: Self = Self {
@@ -94,20 +92,23 @@ impl<'a> GeometryBufferDesc<'a, fn(&str) -> Option<MapScale>> {
         height: 512,
         samples: gpu::Samples::S1,
         precision: GeometryBufferPrecision::Medium,
-        maps: &[
-            ("world_pos", 3),
-            ("view_pos", 3),
-            ("normal", 3),
-            ("albedo", 4),
-            ("roughness", 1),
-            ("metallic", 1),
-            ("uv", 2),
-            ("output", 4),
-            ("subsurface", 4),
-        ],
+        maps: Self::SUBSURFACE_MAPS,
         map_scale: default_map_scale,
         name: None,
     };
+
+    /// Maps required for a simple geometry buffer + ambient occlusion
+    pub const AO_MAPS: &'static [(&'static str, u32)] = &[
+        ("world_pos", 3),
+        ("view_pos", 3),
+        ("normal", 3),
+        ("albedo", 4),
+        ("roughness", 1),
+        ("metallic", 1),
+        ("uv", 2),
+        ("output", 4),
+        ("ao", 1),
+    ];
 
     /// Adds ambient occlusion capabilities to [`Self::SIMPLE`]
     pub const AO: Self = Self {
@@ -115,20 +116,24 @@ impl<'a> GeometryBufferDesc<'a, fn(&str) -> Option<MapScale>> {
         height: 512,
         samples: gpu::Samples::S1,
         precision: GeometryBufferPrecision::Medium,
-        maps: &[
-            ("world_pos", 3),
-            ("view_pos", 3),
-            ("normal", 3),
-            ("albedo", 4),
-            ("roughness", 1),
-            ("metallic", 1),
-            ("uv", 2),
-            ("output", 4),
-            ("ao", 1),
-        ],
+        maps: Self::AO_MAPS,
         map_scale: default_map_scale,
         name: None,
     };
+
+    /// All maps supported
+    pub const ALL_MAPS: &'static [(&'static str, u32)] = &[
+        ("world_pos", 3),
+        ("view_pos", 3),
+        ("normal", 3),
+        ("albedo", 4),
+        ("roughness", 1),
+        ("metallic", 1),
+        ("uv", 2),
+        ("output", 4),
+        ("subsurface", 4),
+        ("ao", 1),
+    ];
 
     /// Has all maps 
     pub const ALL: Self = Self {
@@ -136,18 +141,7 @@ impl<'a> GeometryBufferDesc<'a, fn(&str) -> Option<MapScale>> {
         height: 512,
         samples: gpu::Samples::S1,
         precision: GeometryBufferPrecision::Medium,
-        maps: &[
-            ("world_pos", 3),
-            ("view_pos", 3),
-            ("normal", 3),
-            ("albedo", 4),
-            ("roughness", 1),
-            ("metallic", 1),
-            ("uv", 2),
-            ("output", 4),
-            ("subsurface", 4),
-            ("ao", 1),
-        ],
+        maps: Self::ALL_MAPS,
         map_scale: default_map_scale,
         name: None,
     };
@@ -190,7 +184,7 @@ impl GeometryBuffer {
     /// identicle except one will have ms samples and one will have [`gpu::Samples::S1`] samples
     /// 
     /// bloom indicates if to create bloom textures or not
-    pub fn new<'a, F: Fn(&str) -> Option<MapScale>>(
+    pub fn new<'a, F: Fn(&str) -> Option<f32>>(
         device: &gpu::Device,
         desc: &GeometryBufferDesc<F>,
     ) -> Result<Self, gpu::Error> {
@@ -209,10 +203,10 @@ impl GeometryBuffer {
         };
 
         for (n, num_components) in maps_iter {
-            let shift = if let Some(scale) = (desc.map_scale)(*n) {
-                scale.shift()
+            let mul = if let Some(scale) = (desc.map_scale)(*n) {
+                scale
             } else {
-                0
+                1.0
             };
 
             let format = match *num_components {
@@ -226,8 +220,8 @@ impl GeometryBuffer {
             let tn = desc.name.as_ref().map(|n0| format!("{}_{}", n0, n));
             let t = gfx::GTexture2D::from_formats(
                 device,
-                desc.width >> shift,
-                desc.height >> shift,
+                (desc.width as f32 * mul) as u32,
+                (desc.height as f32 * mul) as u32,
                 gpu::Samples::S1,
                 gpu::TextureUsage::COLOR_OUTPUT
                     | gpu::TextureUsage::SAMPLED
@@ -246,8 +240,8 @@ impl GeometryBuffer {
                     let tn = desc.name.as_ref().map(|n0| format!("{}_{}_ms", n0, n));
                     let t = gfx::GTexture2D::from_formats(
                         device,
-                        desc.width >> shift,
-                        desc.height >> shift,
+                        (desc.width as f32 * mul) as u32,
+                        (desc.height as f32 * mul) as u32,
                         desc.samples,
                         gpu::TextureUsage::COLOR_OUTPUT
                             | gpu::TextureUsage::SAMPLED

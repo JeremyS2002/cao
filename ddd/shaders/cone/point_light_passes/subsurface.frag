@@ -36,7 +36,7 @@ layout(set = 4, binding = 0) uniform SubsurfaceData {
 
 layout(set = 4, binding = 1) uniform samplerCube u_subsurface_map;
 
-layout(set = 4, binding = 2) uniform texture1D u_subsurface_lut;
+layout(set = 4, binding = 2) uniform sampler1D u_subsurface_lut;
 
 layout(push_constant) uniform PushData {
     uint subsurface_samples;
@@ -98,7 +98,7 @@ void main() {
             tmp_depth *= depth.z_far;
             float dist = max(current_depth - tmp_depth, 0.0);
             // subsurface_color += exp(-dist) * subsurface.rgb;
-            subsurf_color += texture(sampler1D(u_subsurface_lut, u_sampler), dist / depth.z_far).r * subsurface.rgb;
+            subsurf_color += texture(u_subsurface_lut, dist / depth.z_far).r * subsurface.rgb;
         }
 
         subsurf_color /= float(i_samples);

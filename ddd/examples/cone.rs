@@ -148,7 +148,13 @@ impl Cone {
                 width: WIDTH,
                 height: HEIGHT,
                 precision: cone::GeometryBufferPrecision::Medium,
-                ..cone::GeometryBufferDesc::ALL
+                samples: gpu::Samples::S1,
+                maps: cone::GeometryBufferDesc::ALL_MAPS,
+                map_scale: |s| match s {
+                    "ao" => Some(0.5),
+                    _ => None
+                },
+                name: None,
             }
         )?;
 
