@@ -158,16 +158,16 @@ impl<'a> Command<'a> {
                 }
                 command_buffer.end_graphics_pass()?;
             }
-            Command::WriteTimeStamp { 
-                query, 
-                index, 
-                pipeline_stage 
+            Command::WriteTimeStamp {
+                query,
+                index,
+                pipeline_stage,
             } => command_buffer.write_timestamp(&*query, *pipeline_stage, *index)?,
-            Command::ResetTimeQuery { query, first_query, query_count } => command_buffer.reset_time_query(
-                &*query, 
-                *first_query, 
-                *query_count
-            )?,
+            Command::ResetTimeQuery {
+                query,
+                first_query,
+                query_count,
+            } => command_buffer.reset_time_query(&*query, *first_query, *query_count)?,
         }
         Ok(())
     }
@@ -542,7 +542,7 @@ impl<'a> Command<'a> {
             Command::PipelineBarrier { .. } => gpu::AccessFlags::empty(),
             Command::ComputePass { .. } => gpu::AccessFlags::empty(),
             Command::WriteTimeStamp { .. } => gpu::AccessFlags::empty(),
-            Command::ResetTimeQuery { .. } => gpu::AccessFlags::empty()
+            Command::ResetTimeQuery { .. } => gpu::AccessFlags::empty(),
         }
     }
 

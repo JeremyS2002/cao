@@ -785,7 +785,8 @@ impl<'a> BundleBuilder<'a> {
         let layout = self.layouts.get(set as usize).unwrap();
 
         let mut binding = 0;
-        let entries = v.iter()
+        let entries = v
+            .iter()
             .map(|e| {
                 if let Some(e) = e {
                     binding += 1;
@@ -832,9 +833,9 @@ impl<'a> BundleBuilder<'a> {
                 set += 1;
                 binding = 0;
                 let desc = gpu::DescriptorSetDesc {
-                    name: name.as_ref().map(|n| {
-                        format!("{}_descriptor_set_{}", n, set)
-                    }),
+                    name: name
+                        .as_ref()
+                        .map(|n| format!("{}_descriptor_set_{}", n, set)),
                     entries: &entries,
                     layout,
                 };

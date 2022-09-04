@@ -1,5 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use crate::cone::*;
 use crate::prelude::*;
@@ -26,12 +28,7 @@ pub struct PointLightData {
 }
 
 impl PointLightData {
-    pub fn new(
-        falloff: f32,
-        position: glam::Vec3,
-        color: glam::Vec3,
-        cutoff: f32,
-    ) -> Self {
+    pub fn new(falloff: f32, position: glam::Vec3, color: glam::Vec3, cutoff: f32) -> Self {
         let radius = if cutoff > 0.0 {
             // solve for when attenuation is less than cutoff
             let m = color.x.max(color.y.max(color.z));
@@ -78,13 +75,13 @@ bitflags::bitflags!(
 pub struct PointLightRenderer {
     /// Pure point light calculation, acts on all pixels
     pub base: Option<gfx::ReflectedGraphics>,
-    pub base_bundles: HashMap<(u64, u64, u64), gfx::Bundle>,
+    pub base_bundles: Arc<Mutex<HashMap<(u64, u64, u64), gfx::Bundle>>>,
     /// point light calculation with shadows, acts on all pixels
     pub shadow: Option<gfx::ReflectedGraphics>,
-    pub shadow_bundles: HashMap<(u64, u64, u64, u64), gfx::Bundle>,
+    pub shadow_bundles: Arc<Mutex<HashMap<(u64, u64, u64, u64), gfx::Bundle>>>,
     /// point light subsurface (must be used with base or shadow), acts on all pixels
     pub subsurface: Option<gfx::ReflectedGraphics>,
-    pub subsurface_bundles: HashMap<(u64, u64, u64, u64), gfx::Bundle>,
+    pub subsurface_bundles: Arc<Mutex<HashMap<(u64, u64, u64, u64), gfx::Bundle>>>,
 }
 
 impl PointLightRenderer {
@@ -93,30 +90,23 @@ impl PointLightRenderer {
         flags: PointLightRendererFlags,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
-
         let bfn = name.as_ref().map(|n| format!("{}_base_pipeline", n));
         let sfn = name.as_ref().map(|n| format!("{}_shadow_pipeline", n));
         let sbfn = name.as_ref().map(|n| format!("{}_subsurface_pipeline", n));
 
         Ok(Self {
             base: if flags.contains(PointLightRendererFlags::BASE) {
-                Some(Self::create_base(
-                    device,
-                    bfn.as_ref().map(|n| &**n),
-                )?)
+                Some(Self::create_base(device, bfn.as_ref().map(|n| &**n))?)
             } else {
                 None
             },
-            base_bundles: HashMap::new(),
+            base_bundles: Arc::default(),
             shadow: if flags.contains(PointLightRendererFlags::SHADOW) {
-                Some(Self::create_shadow(
-                    device,
-                    sfn.as_ref().map(|n| &**n),
-                )?)
+                Some(Self::create_shadow(device, sfn.as_ref().map(|n| &**n))?)
             } else {
                 None
             },
-            shadow_bundles: HashMap::new(),
+            shadow_bundles: Arc::default(),
             subsurface: if flags.contains(PointLightRendererFlags::SUBSURFACE) {
                 Some(Self::create_subsurface(
                     device,
@@ -125,7 +115,7 @@ impl PointLightRenderer {
             } else {
                 None
             },
-            subsurface_bundles: HashMap::new(),
+            subsurface_bundles: Arc::default(),
         })
     }
 
@@ -173,7 +163,6 @@ impl PointLightRenderer {
                 e => unreachable!("{}", e),
             },
         }
-
     }
 
     pub fn create_base(
@@ -207,16 +196,15 @@ impl PointLightRenderer {
 
 impl PointLightRenderer {
     pub fn base_bundle(
-        &mut self,
+        &self,
         device: &gpu::Device,
         buffer: &GeometryBuffer,
         camera: &Camera,
         light: &PointLight,
     ) -> Result<gfx::Bundle, gpu::Error> {
+        let mut bundles = self.base_bundles.lock().unwrap();
         let key = (buffer.id, camera.buffer.id(), light.buffer.id());
-        if let Some(b) = self.base_bundles.get(&key) {
-            Ok(b.clone())
-        } else {
+        if bundles.get(&key).is_none() {
             let b = match self
                 .base
                 .as_ref()
@@ -241,30 +229,31 @@ impl PointLightRenderer {
                 .unwrap()
                 .set_resource("u_camera", camera)
                 .unwrap()
-                .build(device) {
-                    Ok(b) => b,
-                    Err(e) => match e {
-                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                        e => unreachable!("{}", e),
-                    }
-                };
-            self.base_bundles.insert(key, b.clone());
-            Ok(b)
+                .build(device)
+            {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                },
+            };
+            bundles.insert(key, b);
         }
+
+        Ok(bundles.get(&key).unwrap().clone())
     }
 
     pub fn shadow_bundle(
-        &mut self,
+        &self,
         device: &gpu::Device,
         buffer: &GeometryBuffer,
         camera: &Camera,
         light: &PointLight,
         shadow: &PointDepthMap,
     ) -> Result<gfx::Bundle, gpu::Error> {
+        let mut bundles = self.shadow_bundles.lock().unwrap();
         let key = (buffer.id, camera.buffer.id(), light.buffer.id(), shadow.id);
-        if let Some(b) = self.shadow_bundles.get(&key) {
-            Ok(b.clone())
-        } else {
+        if bundles.get(&key).is_none() {
             let b = match self
                 .shadow
                 .as_ref()
@@ -296,20 +285,22 @@ impl PointLightRenderer {
                     (&shadow.texture.view, &buffer.sampler),
                 )
                 .unwrap()
-                .build(device) {
+                .build(device)
+            {
                 Ok(b) => b,
                 Err(e) => match e {
                     gfx::BundleBuildError::Gpu(e) => Err(e)?,
                     e => unreachable!("{}", e),
-                }
+                },
             };
-            self.shadow_bundles.insert(key, b.clone());
-            Ok(b)
+            bundles.insert(key, b);
         }
+
+        Ok(bundles.get(&key).unwrap().clone())
     }
 
     pub fn subsurface_bundle(
-        &mut self,
+        &self,
         device: &gpu::Device,
         buffer: &GeometryBuffer,
         camera: &Camera,
@@ -317,15 +308,14 @@ impl PointLightRenderer {
         shadow: &PointDepthMap,
         subsurface: &PointSubsurfaceMap,
     ) -> Result<gfx::Bundle, gpu::Error> {
+        let mut bundles = self.subsurface_bundles.lock().unwrap();
         let key = (
             buffer.id,
             camera.buffer.id(),
             light.buffer.id(),
             subsurface.id,
         );
-        if let Some(b) = self.subsurface_bundles.get(&key) {
-            Ok(b.clone())
-        } else {
+        if bundles.get(&key).is_none() {
             let b = match self
                 .subsurface
                 .as_ref()
@@ -360,27 +350,29 @@ impl PointLightRenderer {
                 .unwrap()
                 .set_resource("u_subsurface_lut", &(&subsurface.lut, &shadow.sampler))
                 .unwrap()
-                .build(device) {
+                .build(device)
+            {
                 Ok(b) => b,
                 Err(e) => match e {
                     gfx::BundleBuildError::Gpu(e) => Err(e)?,
                     e => unreachable!("{}", e),
-                }
+                },
             };
-            self.subsurface_bundles.insert(key, b.clone());
-            Ok(b)
+            bundles.insert(key, b.clone());
         }
+
+        Ok(bundles.get(&key).unwrap().clone())
     }
 }
 
 // base passes
 impl PointLightRenderer {
     pub fn base_pass<'a>(
-        &mut self,
-        encoder: &mut gfx::CommandEncoder<'_>,
+        &'a self,
+        encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
-        buffer: &GeometryBuffer,
-        camera: &Camera,
+        buffer: &'a GeometryBuffer,
+        camera: &'a Camera,
         lights: impl IntoIterator<Item = &'a PointLight>,
         strength: f32,
         clear: bool,
@@ -389,7 +381,7 @@ impl PointLightRenderer {
             device,
             &[gfx::Attachment {
                 raw: gpu::Attachment::View(
-                    Cow::Owned(buffer.get("output").unwrap().view.clone()),
+                    Cow::Borrowed(&buffer.get("output").unwrap().view),
                     gpu::ClearValue::ColorFloat([0.0; 4]),
                 ),
                 load: if clear {
@@ -402,7 +394,7 @@ impl PointLightRenderer {
             &[],
             Some(gfx::Attachment {
                 raw: gpu::Attachment::View(
-                    Cow::Owned(buffer.depth.view.clone()),
+                    Cow::Borrowed(&buffer.depth.view),
                     gpu::ClearValue::Depth(1.0),
                 ),
                 load: gpu::LoadOp::Load,
@@ -419,7 +411,7 @@ impl PointLightRenderer {
 
         for light in lights {
             let bundle = self.base_bundle(device, buffer, camera, light)?;
-            pass.set_bundle_into(bundle);
+            pass.set_bundle_owned(bundle);
             pass.draw(0, 3, 0, 1);
         }
 
@@ -430,11 +422,11 @@ impl PointLightRenderer {
 // shadow passes
 impl PointLightRenderer {
     pub fn shadow_pass<'a>(
-        &mut self,
-        encoder: &mut gfx::CommandEncoder<'_>,
+        &'a self,
+        encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
-        buffer: &GeometryBuffer,
-        camera: &Camera,
+        buffer: &'a GeometryBuffer,
+        camera: &'a Camera,
         lights: impl IntoIterator<Item = (&'a PointLight, &'a PointDepthMap)>,
         strength: f32,
         samples: u32,
@@ -444,7 +436,7 @@ impl PointLightRenderer {
             device,
             &[gfx::Attachment {
                 raw: gpu::Attachment::View(
-                    Cow::Owned(buffer.get("output").unwrap().view.clone()),
+                    Cow::Borrowed(&buffer.get("output").unwrap().view),
                     gpu::ClearValue::ColorFloat([0.0; 4]),
                 ),
                 load: if clear {
@@ -457,7 +449,7 @@ impl PointLightRenderer {
             &[],
             Some(gfx::Attachment {
                 raw: gpu::Attachment::View(
-                    Cow::Owned(buffer.depth.view.clone()),
+                    Cow::Borrowed(&buffer.depth.view),
                     gpu::ClearValue::Depth(1.0),
                 ),
                 load: gpu::LoadOp::Load,
@@ -475,7 +467,7 @@ impl PointLightRenderer {
 
         for (light, shadow) in lights {
             let bundle = self.shadow_bundle(device, buffer, camera, light, shadow)?;
-            pass.set_bundle_into(bundle);
+            pass.set_bundle_owned(bundle);
             pass.draw(0, 3, 0, 1);
         }
 
@@ -486,11 +478,11 @@ impl PointLightRenderer {
 // subsurface passes
 impl PointLightRenderer {
     pub fn subsurface_pass<'a>(
-        &mut self,
-        encoder: &mut gfx::CommandEncoder<'_>,
+        &'a self,
+        encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
-        buffer: &GeometryBuffer,
-        camera: &Camera,
+        buffer: &'a GeometryBuffer,
+        camera: &'a Camera,
         lights: impl IntoIterator<Item = (&'a PointLight, &'a PointDepthMap, &'a PointSubsurfaceMap)>,
         strength: f32,
         subsurface_samples: u32,
@@ -501,7 +493,7 @@ impl PointLightRenderer {
             device,
             &[gfx::Attachment {
                 raw: gpu::Attachment::View(
-                    Cow::Owned(buffer.get("output").unwrap().view.clone()),
+                    Cow::Borrowed(&buffer.get("output").unwrap().view),
                     gpu::ClearValue::ColorFloat([0.0; 4]),
                 ),
                 load: if clear {
@@ -514,7 +506,7 @@ impl PointLightRenderer {
             &[],
             Some(gfx::Attachment {
                 raw: gpu::Attachment::View(
-                    Cow::Owned(buffer.depth.view.clone()),
+                    Cow::Borrowed(&buffer.depth.view),
                     gpu::ClearValue::Depth(1.0),
                 ),
                 load: gpu::LoadOp::Load,
@@ -534,7 +526,7 @@ impl PointLightRenderer {
         for (light, shadow, subsurface) in lights {
             let bundle =
                 self.subsurface_bundle(device, buffer, camera, light, shadow, subsurface)?;
-            pass.set_bundle_into(bundle);
+            pass.set_bundle_owned(bundle);
             pass.draw(0, 3, 0, 1);
         }
 
@@ -545,8 +537,8 @@ impl PointLightRenderer {
     /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
     /// This function drops Descriptor sets cached by self
     pub fn clean(&mut self) {
-        self.base_bundles.clear();
-        self.shadow_bundles.clear();
-        self.subsurface_bundles.clear();
+        self.base_bundles.lock().unwrap().clear();
+        self.shadow_bundles.lock().unwrap().clear();
+        self.subsurface_bundles.lock().unwrap().clear();
     }
 }

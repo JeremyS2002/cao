@@ -447,9 +447,9 @@ impl<T: specialisation::ShaderTY> Builder<T> {
             match instruction {
                 Instruction::Discard => {
                     discard = true;
-                },
+                }
                 mut i => i.process(&mut builder, &mut s, None, None),
-            }            
+            }
         }
 
         if discard {
@@ -457,7 +457,7 @@ impl<T: specialisation::ShaderTY> Builder<T> {
         } else {
             builder.ret().unwrap();
         }
-        
+
         builder.end_function().unwrap();
 
         builder.module().assemble()

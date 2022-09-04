@@ -84,11 +84,11 @@ impl mesh::Vertex for Vertex {
         tangent_u: Option<glam::Vec3>,
         tangent_v: Option<glam::Vec3>,
     ) -> Self {
-        Self { 
-            pos, 
-            uv, 
-            normal, 
-            tangent_u: tangent_u.unwrap_or(glam::Vec3::ZERO), 
+        Self {
+            pos,
+            uv,
+            normal,
+            tangent_u: tangent_u.unwrap_or(glam::Vec3::ZERO),
             tangent_v: tangent_v.unwrap_or(glam::Vec3::ZERO),
         }
     }

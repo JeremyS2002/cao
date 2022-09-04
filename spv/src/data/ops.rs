@@ -374,12 +374,12 @@ impl_spv_into!(
     Double, Float,
 );
 
-pub trait SpvEq<T: AsPrimitive>: AsPrimitive { }
-pub trait SpvNEq<T: AsPrimitive>: AsPrimitive { }
-pub trait SpvLt<T: AsPrimitive>: AsPrimitive { }
-pub trait SpvGt<T: AsPrimitive>: AsPrimitive { }
-pub trait SpvLe<T: AsPrimitive>: AsPrimitive { }
-pub trait SpvGe<T: AsPrimitive>: AsPrimitive { }
+pub trait SpvEq<T: AsPrimitive>: AsPrimitive {}
+pub trait SpvNEq<T: AsPrimitive>: AsPrimitive {}
+pub trait SpvLt<T: AsPrimitive>: AsPrimitive {}
+pub trait SpvGt<T: AsPrimitive>: AsPrimitive {}
+pub trait SpvLe<T: AsPrimitive>: AsPrimitive {}
+pub trait SpvGe<T: AsPrimitive>: AsPrimitive {}
 
 macro_rules! impl_cmp {
     ($($name:ident, $rust:ident,)*) => {
@@ -406,9 +406,4 @@ macro_rules! impl_cmp {
     };
 }
 
-impl_cmp!(
-    Int, i32,
-    UInt, u32,
-    Float, f32,
-    Double, f64,
-);
+impl_cmp!(Int, i32, UInt, u32, Float, f32, Double, f64,);

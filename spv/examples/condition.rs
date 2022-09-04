@@ -1,7 +1,7 @@
 use spv::prelude::*;
 
 use winit::{
-    event::{Event, WindowEvent, ElementState, MouseButton},
+    event::{ElementState, Event, MouseButton, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -93,7 +93,8 @@ fn main() {
             let bl = b.eq(&col, &0u32);
             b.spv_if(bl, |b| {
                 b.store_out(out_col, b.vec4(&0.0, &1.0, &0.0, &1.0));
-            }).spv_else(|b| {
+            })
+            .spv_else(|b| {
                 b.store_out(out_col, b.vec4(&1.0, &0.0, &0.0, &1.0));
             });
         });
@@ -205,12 +206,13 @@ fn main() {
             Event::MainEventsCleared => {
                 window.request_redraw();
             }
-            Event::WindowEvent { 
-                event: WindowEvent::MouseInput { 
-                    state: ElementState::Released, 
-                    button: MouseButton::Left, 
-                    ..
-                },
+            Event::WindowEvent {
+                event:
+                    WindowEvent::MouseInput {
+                        state: ElementState::Released,
+                        button: MouseButton::Left,
+                        ..
+                    },
                 ..
             } => {
                 set = !set;

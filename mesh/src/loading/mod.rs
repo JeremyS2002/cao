@@ -1,6 +1,5 @@
-
-pub mod obj;
 pub mod error;
+pub mod obj;
 
-pub use obj::*;
 pub use error::*;
+pub use obj::*;

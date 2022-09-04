@@ -58,7 +58,6 @@ fn main() {
         .write(bytemuck::cast_slice(&vertices))
         .unwrap();
 
-
     let data = [1.0, 0.0, 1.0];
     let storage_buffer = device
         .create_buffer(&gpu::BufferDesc {
@@ -106,9 +105,13 @@ fn main() {
         //let u = builder.uniform_struct::<Uniform>(0, 0, Some("u_data"));
 
         let s = builder.storage::<spv::Float>(
-            spv::StorageAccessDesc { read: true, write: false, atomic: false }, 
-            0, 
-            0, 
+            spv::StorageAccessDesc {
+                read: true,
+                write: false,
+                atomic: false,
+            },
+            0,
+            0,
             Some("s_data"),
         );
 

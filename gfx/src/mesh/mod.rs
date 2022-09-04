@@ -207,7 +207,7 @@ impl<V: Vertex> Mesh<V> {
     }
 
     /// Draw self by clone
-    pub fn draw_owned<'a>(&self, pass: &mut dyn crate::GraphicsPass<'a>) {
+    pub fn draw_owned<'a>(self, pass: &mut dyn crate::GraphicsPass<'a>) {
         pass.bind_vertex_buffer(self.vertex_buffer.slice_owned(..), 0);
 
         if let Some((index_buffer, index_count)) = &self.indices {
@@ -218,20 +218,8 @@ impl<V: Vertex> Mesh<V> {
         }
     }
 
-    /// Draw self by taking ownership
-    pub fn draw_into(self, pass: &mut dyn crate::GraphicsPass<'_>) {
-        pass.bind_vertex_buffer(self.vertex_buffer.into_slice(..), 0);
-
-        if let Some((index_buffer, index_count)) = self.indices {
-            pass.bind_index_buffer(index_buffer.into_slice(..), gpu::IndexType::U32);
-            pass.draw_indexed(0, index_count, 0, 1, 0);
-        } else {
-            pass.draw(0, self.vertex_count, 0, 1);
-        }
-    }
-
     /// Draw self by reference
-    /// 
+    ///
     /// The instance buffer needs to be set first
     pub fn draw_instanced_ref<'a>(
         &'a self,
@@ -250,10 +238,10 @@ impl<V: Vertex> Mesh<V> {
     }
 
     /// Draw self by clone
-    /// 
+    ///
     /// The instance buffer needs to be set first
     pub fn draw_instanced_owned<'a>(
-        &self,
+        self,
         pass: &mut dyn crate::GraphicsPass<'a>,
         first_instance: u32,
         instance_count: u32,
@@ -263,25 +251,6 @@ impl<V: Vertex> Mesh<V> {
         if let Some((index_buffer, index_count)) = &self.indices {
             pass.bind_index_buffer(index_buffer.slice_owned(..), gpu::IndexType::U32);
             pass.draw_indexed(0, *index_count, first_instance, instance_count, 0);
-        } else {
-            pass.draw(0, self.vertex_count, first_instance, instance_count);
-        }
-    }
-
-    /// Draw self by taking ownership
-    /// 
-    /// The instance buffer needs to be set first
-    pub fn draw_instanced_into(
-        self,
-        pass: &mut dyn crate::GraphicsPass<'_>,
-        first_instance: u32,
-        instance_count: u32,
-    ) {
-        pass.bind_vertex_buffer(self.vertex_buffer.into_slice(..), 0);
-
-        if let Some((index_buffer, index_count)) = self.indices {
-            pass.bind_index_buffer(index_buffer.into_slice(..), gpu::IndexType::U32);
-            pass.draw_indexed(0, index_count, first_instance, instance_count, 0);
         } else {
             pass.draw(0, self.vertex_count, first_instance, instance_count);
         }

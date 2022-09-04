@@ -117,21 +117,22 @@ impl<'a> MaterialBuilder<'a> {
         }
     }
 
-    /// Sets a camera in the vertex shader and returns the spir-v uniform 
+    /// Sets a camera in the vertex shader and returns the spir-v uniform
     pub fn camera(&mut self) -> spv::Uniform<spv::Struct<CameraData>> {
-        self.vertex.uniform_struct::<CameraData>(0, 0, Some("u_camera"))
+        self.vertex
+            .uniform_struct::<CameraData>(0, 0, Some("u_camera"))
     }
 
     pub fn instances(&mut self) -> spv::Storage<spv::Struct<InstanceData>> {
         self.vertex.storage::<spv::Struct<InstanceData>>(
-            spv::StorageAccessDesc { 
-                read: true, 
-                write: false, 
+            spv::StorageAccessDesc {
+                read: true,
+                write: false,
                 atomic: false,
             },
             1,
             0,
-            Some("u_instances")
+            Some("u_instances"),
         )
     }
 
@@ -139,7 +140,9 @@ impl<'a> MaterialBuilder<'a> {
     ///
     /// The vertex builder can't be used after this function
     /// returns (in_world_pos, in_view_pos, in_normal, in_uv) for the fragment shader
-    pub fn default_vertex(&mut self) -> (
+    pub fn default_vertex(
+        &mut self,
+    ) -> (
         spv::Input<spv::Vec3>,
         spv::Input<spv::Vec3>,
         spv::Input<spv::Vec3>,
@@ -203,7 +206,9 @@ impl<'a> MaterialBuilder<'a> {
     ///
     /// The vertex builder can't be used after this function
     /// returns (in_world_pos, in_view_pos, in_uv, in_t, in_b, in_n) for the fragment shader
-    pub fn tbn_vertex(&mut self) -> (
+    pub fn tbn_vertex(
+        &mut self,
+    ) -> (
         spv::Input<spv::Vec3>,
         spv::Input<spv::Vec3>,
         spv::Input<spv::Vec2>,
@@ -463,10 +468,7 @@ impl<'a> MaterialBuilder<'a> {
                         b.discard();
                     });
                 }
-                b.store_out(
-                    self.albedo,
-                    albedo,
-                );
+                b.store_out(self.albedo, albedo);
             } else {
                 b.store_out(self.albedo, defaults.albedo);
             }
@@ -546,8 +548,7 @@ impl<'a> MaterialBuilder<'a> {
     ) -> spv::Texture<D::Spirv> {
         let binding = self.resources.len() as u32;
         self.resources.push(&texture.0);
-        self.vertex
-            .texture(2, binding, name)
+        self.vertex.texture(2, binding, name)
     }
 
     pub fn set_vertex_d_texture<D: gfx::AsDimension>(
@@ -557,8 +558,7 @@ impl<'a> MaterialBuilder<'a> {
     ) -> spv::DTexture<D::Spirv> {
         let binding = self.resources.len() as u32;
         self.resources.push(&texture.0);
-        self.vertex
-            .d_texture(2, binding, name)
+        self.vertex.d_texture(2, binding, name)
     }
 
     pub fn set_vertex_i_texture<D: gfx::AsDimension>(
@@ -568,8 +568,7 @@ impl<'a> MaterialBuilder<'a> {
     ) -> spv::ITexture<D::Spirv> {
         let binding = self.resources.len() as u32;
         self.resources.push(&texture.0);
-        self.vertex
-            .i_texture(2, binding, name)
+        self.vertex.i_texture(2, binding, name)
     }
 
     pub fn set_vertex_u_texture<D: gfx::AsDimension>(
@@ -579,8 +578,7 @@ impl<'a> MaterialBuilder<'a> {
     ) -> spv::UTexture<D::Spirv> {
         let binding = self.resources.len() as u32;
         self.resources.push(&texture.0);
-        self.vertex
-            .u_texture(2, binding, name)
+        self.vertex.u_texture(2, binding, name)
     }
 
     /// Set a sampler in the vertex shader
@@ -633,8 +631,7 @@ impl<'a> MaterialBuilder<'a> {
     ) -> spv::Texture<D::Spirv> {
         let binding = self.resources.len() as u32;
         self.resources.push(&texture.0);
-        self.fragment
-            .texture(2, binding, name)
+        self.fragment.texture(2, binding, name)
     }
 
     /// Set a texture in the fragment shader
@@ -645,8 +642,7 @@ impl<'a> MaterialBuilder<'a> {
     ) -> spv::DTexture<D::Spirv> {
         let binding = self.resources.len() as u32;
         self.resources.push(&texture.0);
-        self.fragment
-            .d_texture(2, binding, name)
+        self.fragment.d_texture(2, binding, name)
     }
 
     /// Set a texture in the fragment shader
@@ -657,8 +653,7 @@ impl<'a> MaterialBuilder<'a> {
     ) -> spv::ITexture<D::Spirv> {
         let binding = self.resources.len() as u32;
         self.resources.push(&texture.0);
-        self.fragment
-            .i_texture(2, binding, name)
+        self.fragment.i_texture(2, binding, name)
     }
 
     /// Set a texture in the fragment shader
@@ -669,8 +664,7 @@ impl<'a> MaterialBuilder<'a> {
     ) -> spv::UTexture<D::Spirv> {
         let binding = self.resources.len() as u32;
         self.resources.push(&texture.0);
-        self.fragment
-            .u_texture(2, binding, name)
+        self.fragment.u_texture(2, binding, name)
     }
 
     /// Set a sampler in the fragment shader
@@ -732,7 +726,7 @@ impl<'a> MaterialBuilder<'a> {
                     Err(e) => match e {
                         gfx::BundleBuildError::Gpu(e) => Err(e)?,
                         e => unreachable!("{}", e),
-                    }
+                    },
                 }
             } else {
                 None
@@ -743,8 +737,8 @@ impl<'a> MaterialBuilder<'a> {
             None
         };
 
-        Ok(Material { 
-            graphics, 
+        Ok(Material {
+            graphics,
             camera_set_map: Arc::new(Mutex::new(HashMap::new())),
             instance_set_map: Arc::new(Mutex::new(HashMap::new())),
             set,
@@ -762,7 +756,7 @@ pub struct Material {
 
 impl Material {
     /// Create a default material with a single instance
-    /// 
+    ///
     /// if discard then if the albedo alpha channel is 0.0 the fragment will be discarded
     pub fn textured(
         device: &gpu::Device,
@@ -794,16 +788,8 @@ impl Material {
             let mut builder = MaterialBuilder::new();
             let (world_pos, view_pos, normal, uv) = builder.default_vertex();
             builder.textured_fragment(
-                world_pos,
-                view_pos, 
-                normal, 
-                uv, 
-                albedo, 
-                roughness, 
-                metallic, 
-                None, 
-                sampler, 
-                discard
+                world_pos, view_pos, normal, uv, albedo, roughness, metallic, None, sampler,
+                discard,
             );
             builder.build(device)
         }
@@ -835,13 +821,13 @@ impl Material {
     }
 
     /// Draw all the meshes with the material into self
-    pub fn pass<'a, 'b, V: gfx::Vertex>(
+    pub fn pass<'a, V: gfx::Vertex>(
         &'a self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         buffer: &'a super::GeometryBuffer,
         camera: &'a Camera,
-        meshes: impl IntoIterator<Item = (&'b gfx::Mesh<V>, &'b Instances)>,
+        meshes: impl IntoIterator<Item = (&'a gfx::Mesh<V>, &'a Instances)>,
         clear: bool,
     ) -> Result<(), gpu::Error> {
         let load = if clear {
@@ -896,7 +882,7 @@ impl Material {
                     store: gpu::StoreOp::Store,
                 });
             }
-            
+
             (colors, vec![])
         };
 
@@ -927,15 +913,20 @@ impl Material {
         let camera_set = if let Some(s) = camera_set_map.get(&camera.buffer.id()) {
             s.clone()
         } else {
-            let s = match self.graphics.bundle().unwrap()
-                .set_resource("u_camera", camera).unwrap()
-                .build_set(device, 0) {
-                    Ok(s) => s,
-                    Err(e) => match e {
-                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                        e => unreachable!("{}", e),
-                    }
-                };
+            let s = match self
+                .graphics
+                .bundle()
+                .unwrap()
+                .set_resource("u_camera", camera)
+                .unwrap()
+                .build_set(device, 0)
+            {
+                Ok(s) => s,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                },
+            };
             camera_set_map.insert(camera.buffer.id(), s.clone());
             s
         };
@@ -952,20 +943,25 @@ impl Material {
             let instance_set = if let Some(i) = instance_set_map.get(&instances.buffer.id()) {
                 i.clone()
             } else {
-                let s = match self.graphics.bundle().unwrap()
-                    .set_resource("u_instances", instances).unwrap()
-                    .build_set(device, 1) {
-                        Ok(s) => s,
-                        Err(e) => match e {
-                            gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                            e => unreachable!("{}", e),
-                        }
-                    };
+                let s = match self
+                    .graphics
+                    .bundle()
+                    .unwrap()
+                    .set_resource("u_instances", instances)
+                    .unwrap()
+                    .build_set(device, 1)
+                {
+                    Ok(s) => s,
+                    Err(e) => match e {
+                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    },
+                };
                 instance_set_map.insert(instances.buffer.id(), s.clone());
                 s
             };
             pass.bind_descriptor_owned(1, instance_set);
-            pass.draw_instanced_mesh_owned(mesh, 0, instances.length as _);
+            pass.draw_instanced_mesh_ref(mesh, 0, instances.length as _);
         }
 
         Ok(())

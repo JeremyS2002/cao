@@ -3,7 +3,7 @@ use gfx::prelude::*;
 use std::collections::HashMap;
 
 /// Describes the curve in which linear colors are transformed by
-/// 
+///
 /// source <https://www.slideshare.net/ozlael/hable-john-uncharted2-hdr-lighting> slide 142
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -20,12 +20,12 @@ pub struct GlobalToneMapParams {
 impl GlobalToneMapParams {
     /// Parameters to match how film exposes
     /// source <https://www.slideshare.net/ozlael/hable-john-uncharted2-hdr-lighting> slide 143
-    pub const FILMIC: Self = Self { 
-        shoulder: 0.22f32, 
-        linear_strength: 0.3f32, 
-        linear_angle: 0.1f32, 
-        toe_strength: 0.2f32, 
-        toe_numerator: 0.01f32, 
+    pub const FILMIC: Self = Self {
+        shoulder: 0.22f32,
+        linear_strength: 0.3f32,
+        linear_angle: 0.1f32,
+        toe_strength: 0.2f32,
+        toe_numerator: 0.01f32,
         toe_denominator: 0.3f32,
         linear_white: 11.2f32,
     };
@@ -33,20 +33,20 @@ impl GlobalToneMapParams {
 
 impl std::default::Default for GlobalToneMapParams {
     fn default() -> Self {
-        Self { 
-            shoulder: 0.22f32.powf(1.0f32 / 2.2f32), 
-            linear_strength: 0.3f32.powf(1.0f32 / 2.2f32), 
-            linear_angle: 0.1f32.powf(1.0f32 / 2.2f32), 
-            toe_strength: 0.2f32.powf(1.0f32 / 2.2f32), 
-            toe_numerator: 0.01f32.powf(1.0f32 / 2.2f32), 
+        Self {
+            shoulder: 0.22f32.powf(1.0f32 / 2.2f32),
+            linear_strength: 0.3f32.powf(1.0f32 / 2.2f32),
+            linear_angle: 0.1f32.powf(1.0f32 / 2.2f32),
+            toe_strength: 0.2f32.powf(1.0f32 / 2.2f32),
+            toe_numerator: 0.01f32.powf(1.0f32 / 2.2f32),
             toe_denominator: 0.3f32.powf(1.0f32 / 2.2f32),
             linear_white: 11.2f32,
         }
     }
 }
 
-unsafe impl bytemuck::Pod for GlobalToneMapParams { }
-unsafe impl bytemuck::Zeroable for GlobalToneMapParams { }
+unsafe impl bytemuck::Pod for GlobalToneMapParams {}
+unsafe impl bytemuck::Zeroable for GlobalToneMapParams {}
 
 pub struct GlobalToneMapRenderer {
     pub pipeline: gfx::ReflectedGraphics,
@@ -68,18 +68,10 @@ impl GlobalToneMapRenderer {
         })?;
 
         let n = name.as_ref().map(|n| format!("{}_params", n));
-        let params = gfx::Uniform::new(
-            encoder, 
-            device, 
-            params, 
-            n.as_ref().map(|n| &**n),
-        )?;
+        let params = gfx::Uniform::new(encoder, device, params, n.as_ref().map(|n| &**n))?;
 
         let n = name.as_ref().map(|n| format!("{}_pipeline", n));
-        let pipeline = Self::create_pipeline(
-            device, 
-            n.as_ref().map(|n| &**n),
-        )?;
+        let pipeline = Self::create_pipeline(device, n.as_ref().map(|n| &**n))?;
 
         Ok(Self {
             pipeline,
@@ -122,17 +114,12 @@ impl GlobalToneMapRenderer {
         src: &gpu::TextureView,
         target: gfx::Attachment<'a>,
     ) -> Result<(), gpu::Error> {
-        
-        let mut pass = encoder.graphics_pass_reflected::<()>(
-            device,
-            &[target],
-            &[],
-            None,
-            &self.pipeline,
-        )?;
+        let mut pass =
+            encoder.graphics_pass_reflected::<()>(device, &[target], &[], None, &self.pipeline)?;
 
         if self.bundles.get(&src.id()).is_none() {
-            let b = match self.pipeline
+            let b = match self
+                .pipeline
                 .bundle()
                 .unwrap()
                 .set_resource("u_texture", src)
@@ -141,16 +128,17 @@ impl GlobalToneMapRenderer {
                 .unwrap()
                 .set_resource("u", &self.params)
                 .unwrap()
-                .build(device) {
+                .build(device)
+            {
                 Ok(b) => b,
                 Err(e) => match e {
                     gfx::BundleBuildError::Gpu(e) => Err(e)?,
                     e => unreachable!("{}", e),
-                }
+                },
             };
             self.bundles.insert(src.id(), b);
         }
-        let bundle = self.bundles.get(&src.id()).unwrap();
+        let bundle = self.bundles.get(&src.id()).unwrap().clone();
         pass.set_bundle_owned(bundle);
         pass.draw(0, 3, 0, 1);
 
@@ -166,7 +154,7 @@ impl GlobalToneMapRenderer {
 }
 
 /// Describes the curve in which linear colors are transformed by
-/// 
+///
 /// source <https://www.slideshare.net/ozlael/hable-john-uncharted2-hdr-lighting> slide 142
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]

@@ -1,4 +1,3 @@
-
 use crate::Vertex;
 
 /// Calculate the tangent and bitangent fields for each vertex assuming that
@@ -36,8 +35,10 @@ pub fn calc_tangent_indexed<V: Vertex>(vertices: &mut [V], indices: &[u32]) {
         let edge1 = vertices[tri[1] as usize].pos() - vertices[tri[0] as usize].pos();
         let edge2 = vertices[tri[2] as usize].pos() - vertices[tri[1] as usize].pos();
 
-        let duv1 = vertices[tri[1] as usize].uv().unwrap() - vertices[tri[0] as usize].uv().unwrap();
-        let duv2 = vertices[tri[2] as usize].uv().unwrap() - vertices[tri[0] as usize].uv().unwrap();
+        let duv1 =
+            vertices[tri[1] as usize].uv().unwrap() - vertices[tri[0] as usize].uv().unwrap();
+        let duv2 =
+            vertices[tri[2] as usize].uv().unwrap() - vertices[tri[0] as usize].uv().unwrap();
 
         let f = 1.0 / glam::mat2(duv1, duv2).determinant();
 

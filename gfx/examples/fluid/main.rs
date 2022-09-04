@@ -853,7 +853,7 @@ impl Fluid {
             None,
             graphics,
         )?;
-        pass.set_bundle_owned(&bundle);
+        pass.set_bundle_owned(bundle.clone());
         pass.draw_mesh_ref(mesh);
         Ok(())
     }
@@ -1133,7 +1133,7 @@ impl Fluid {
             None,
             &mut self.u.display_stage,
         )?;
-        pass.set_bundle_owned(&self.a.display_bundle);
+        pass.set_bundle_owned(self.a.display_bundle.clone());
         pass.draw_mesh_ref(&self.mesh);
         pass.finish();
 

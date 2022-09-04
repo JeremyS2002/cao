@@ -1,5 +1,5 @@
 //! Environment lighting effects
-//! 
+//!
 //! This module provides utilities for image based lighting (IBL).
 //! IBL provides much more realistic effects especiallly for smooth metallic materials
 //!  
@@ -10,8 +10,8 @@
 //!  - use the environment map to render lighting (see [`EnvironmentRenderer::environment_pass`])
 
 use crate::cone::*;
-use crate::utils::*;
 use crate::prelude::*;
+use crate::utils::*;
 
 use gfx::image;
 use image::ImageBuffer;
@@ -22,6 +22,8 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::hash::Hasher;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 pub type SkyBox = gfx::GTextureCube;
 
@@ -229,18 +231,19 @@ impl<'a> SkyBoxGenerator<'a> {
                 .unwrap()
                 .set_resource("u_output", &texture)
                 .unwrap()
-                .build(device) {
-                    Ok(b) => b,
-                    Err(e) => match e {
-                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                        e => unreachable!("{}", e),
-                    }
-                };
+                .build(device)
+            {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                },
+            };
 
             let mut comp_pass =
                 encoder.compute_pass_reflected_owned(self.rgb_to_rgba.as_ref().unwrap())?;
 
-            comp_pass.set_bundle_into(bundle);
+            comp_pass.set_bundle_owned(bundle);
             comp_pass.push_i32("cols", hdri.width() as _);
             comp_pass.dispatch(hdri.width(), hdri.height(), 1);
             comp_pass.finish();
@@ -302,13 +305,14 @@ impl<'a> SkyBoxGenerator<'a> {
             .unwrap()
             .set_resource("u_sampler", self.sampler.as_ref())
             .unwrap()
-            .build(device) {
-                Ok(b) => b,
-                Err(e) => match e {
-                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
-                }
-            };
+            .build(device)
+        {
+            Ok(b) => b,
+            Err(e) => match e {
+                gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                e => unreachable!("{}", e),
+            },
+        };
 
         let projection = glam::Mat4::perspective_rh(std::f32::consts::FRAC_PI_2, 1.0, 0.1, 10.0);
 
@@ -338,7 +342,7 @@ impl<'a> SkyBoxGenerator<'a> {
                 &self.pipeline,
             )?;
 
-            pass.set_bundle_owned(&bundle);
+            pass.set_bundle_owned(bundle.clone());
             pass.push_mat4("projection", projection.to_cols_array());
             pass.push_mat4("view", views[face as usize].to_cols_array());
             match &self.cube {
@@ -346,7 +350,7 @@ impl<'a> SkyBoxGenerator<'a> {
                     pass.draw_mesh_ref(*c);
                 }
                 Cow::Owned(c) => {
-                    pass.draw_mesh_owned(c);
+                    pass.draw_mesh_owned(c.clone());
                 }
             }
         }
@@ -378,13 +382,9 @@ impl EnvironmentMapGenerator<'static> {
             ..Default::default()
         })?;
         let n = name.map(|n| format!("{}_cube", n));
-        let cube = mesh::cube(
-            encoder, 
-            device, 
-            n.as_ref().map(|n| &**n),
-        )?;
+        let cube = mesh::cube(encoder, device, n.as_ref().map(|n| &**n))?;
         let [diffuse_pipeline, specular_pipeline, brdf_pipeline] = Self::pipelines(device, name)?;
-        
+
         Ok(Self {
             diffuse_pipeline,
             specular_pipeline,
@@ -396,7 +396,10 @@ impl EnvironmentMapGenerator<'static> {
 }
 
 impl<'a> EnvironmentMapGenerator<'a> {
-    pub fn pipelines(device: &gpu::Device, name: Option<&str>) -> Result<[gfx::ReflectedGraphics; 3], gpu::Error> {
+    pub fn pipelines(
+        device: &gpu::Device,
+        name: Option<&str>,
+    ) -> Result<[gfx::ReflectedGraphics; 3], gpu::Error> {
         let cube_push_vertex_spv = gpu::include_spirv!("../../../shaders/cube_push.vert.spv");
         let cube_buffer_vertex_spv = gpu::include_spirv!("../../../shaders/cube_buffer.vert.spv");
         let diffuse_spv =
@@ -494,13 +497,14 @@ impl<'a> EnvironmentMapGenerator<'a> {
             .unwrap()
             .set_resource("u_sampler", self.sampler.as_ref())
             .unwrap()
-            .build(device)  {
-                Ok(b) => b,
-                Err(e) => match e {
-                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
-                }
-            };
+            .build(device)
+        {
+            Ok(b) => b,
+            Err(e) => match e {
+                gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                e => unreachable!("{}", e),
+            },
+        };
 
         let projection = glam::Mat4::perspective_rh(std::f32::consts::FRAC_PI_2, 1.0, 0.1, 10.0);
 
@@ -529,7 +533,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
                 None,
                 &self.diffuse_pipeline,
             )?;
-            pass.set_bundle_owned(&diffuse_bundle);
+            pass.set_bundle_owned(diffuse_bundle.clone());
             pass.push_mat4("projection", projection.to_cols_array());
             pass.push_mat4("view", views[face as usize].to_cols_array());
             match &self.cube {
@@ -537,7 +541,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
                     pass.draw_mesh_ref(*c);
                 }
                 Cow::Owned(c) => {
-                    pass.draw_mesh_owned(c);
+                    pass.draw_mesh_owned(c.clone());
                 }
             }
         }
@@ -586,13 +590,14 @@ impl<'a> EnvironmentMapGenerator<'a> {
             .unwrap()
             .set_resource("u_camera", &camera)
             .unwrap()
-            .build(device) {
-                Ok(b) => b,
-                Err(e) => match e {
-                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
-                }
-            };
+            .build(device)
+        {
+            Ok(b) => b,
+            Err(e) => match e {
+                gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                e => unreachable!("{}", e),
+            },
+        };
 
         for mip in 0..specular_mip_levels {
             for face in gfx::CubeFace::iter() {
@@ -623,7 +628,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
                     None,
                     &self.specular_pipeline,
                 )?;
-                pass.set_bundle_owned(&specular_bundle);
+                pass.set_bundle_owned(specular_bundle.clone());
                 pass.push_f32("roughness", roughness);
                 // pass.push_mat4("projection", projection.to_cols_array());
                 // pass.push_mat4("view", views[face as usize].to_cols_array());
@@ -632,7 +637,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
                         pass.draw_mesh_ref(*c);
                     }
                     Cow::Owned(c) => {
-                        pass.draw_mesh_owned(c);
+                        pass.draw_mesh_owned(c.clone());
                     }
                 }
             }
@@ -713,13 +718,13 @@ pub struct EnvironmentRenderer {
     pub cube: gfx::Mesh<BasicVertex>,
     /// Ambient lighting calculation
     pub ambient: Option<gfx::ReflectedGraphics>,
-    pub ambient_bundles: HashMap<u64, gfx::Bundle>,
+    pub ambient_bundles: Arc<Mutex<HashMap<u64, gfx::Bundle>>>,
     /// Skybox effect behind all geometry
     pub skybox: Option<gfx::ReflectedGraphics>,
-    pub skybox_bundles: HashMap<(u64, u64, u64), gfx::Bundle>,
+    pub skybox_bundles: Arc<Mutex<HashMap<(u64, u64, u64), gfx::Bundle>>>,
     /// Environment map lighting
     pub environment: Option<gfx::ReflectedGraphics>,
-    pub environment_bundles: HashMap<(u64, u64, u64), gfx::Bundle>,
+    pub environment_bundles: Arc<Mutex<HashMap<(u64, u64, u64), gfx::Bundle>>>,
     pub sampler: gpu::Sampler,
 }
 
@@ -741,38 +746,25 @@ impl EnvironmentRenderer {
         let en = name.as_ref().map(|n| format!("{}_environment", n));
 
         Ok(Self {
-            cube: mesh::cube(
-                encoder,
-                device,
-                cn.as_ref().map(|n| &**n),
-            )?,
+            cube: mesh::cube(encoder, device, cn.as_ref().map(|n| &**n))?,
             ambient: if flags.contains(EnvironmentRendererFlags::AMBIENT) {
-                Some(Self::create_ambient(
-                    device,
-                    an.as_ref().map(|n| &**n),
-                )?)
+                Some(Self::create_ambient(device, an.as_ref().map(|n| &**n))?)
             } else {
                 None
             },
-            ambient_bundles: HashMap::new(),
+            ambient_bundles: Arc::default(),
             skybox: if flags.contains(EnvironmentRendererFlags::SKYBOX) {
-                Some(Self::create_skybox(
-                    device,
-                    sn.as_ref().map(|n| &**n),
-                )?)
+                Some(Self::create_skybox(device, sn.as_ref().map(|n| &**n))?)
             } else {
                 None
             },
-            skybox_bundles: HashMap::new(),
+            skybox_bundles: Arc::default(),
             environment: if flags.contains(EnvironmentRendererFlags::ENVIRONMENT) {
-                Some(Self::create_environment(
-                    device,
-                    en.as_ref().map(|n| &**n),
-                )?)
+                Some(Self::create_environment(device, en.as_ref().map(|n| &**n))?)
             } else {
                 None
             },
-            environment_bundles: HashMap::new(),
+            environment_bundles: Arc::default(),
             sampler,
         })
     }
@@ -897,13 +889,12 @@ impl EnvironmentRenderer {
 impl EnvironmentRenderer {
     /// Create and insert or get a bundle referencing the geometry buffer and return it
     pub fn ambient_bundle(
-        &mut self,
+        &self,
         device: &gpu::Device,
         buffer: &GeometryBuffer,
     ) -> Result<gfx::Bundle, gpu::Error> {
-        if let Some(b) = self.ambient_bundles.get(&buffer.id) {
-            Ok(b.clone())
-        } else {
+        let mut bundles = self.ambient_bundles.lock().unwrap();
+        if bundles.get(&buffer.id).is_none() {
             let b = match self
                 .ambient
                 .as_ref()
@@ -916,30 +907,30 @@ impl EnvironmentRenderer {
                 .unwrap()
                 .set_resource("u_sampler", &self.sampler)
                 .unwrap()
-                .build(device) {
-                    Ok(b) => b,
-                    Err(e) => match e {
-                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                        e => unreachable!("{}", e),
-                    }
-                };
-            self.ambient_bundles.insert(buffer.id, b.clone());
-            Ok(b)
+                .build(device)
+            {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                },
+            };
+            bundles.insert(buffer.id, b.clone());
         }
+        Ok(bundles.get(&buffer.id).unwrap().clone())
     }
 
     /// Create and insert or get a bundle referencing the geometry buffer camera and skybox and return it
     pub fn skybox_bundle(
-        &mut self,
+        &self,
         device: &gpu::Device,
         buffer: &GeometryBuffer,
         camera: &Camera,
         skybox: &SkyBox,
     ) -> Result<gfx::Bundle, gpu::Error> {
+        let mut bundles = self.skybox_bundles.lock().unwrap();
         let key = (buffer.id, camera.buffer.id(), skybox.id());
-        if let Some(b) = self.skybox_bundles.get(&key) {
-            Ok(b.clone())
-        } else {
+        if bundles.get(&key).is_none() {
             let b = match self
                 .skybox
                 .as_ref()
@@ -952,30 +943,30 @@ impl EnvironmentRenderer {
                 .unwrap()
                 .set_resource("u_sampler", &self.sampler)
                 .unwrap()
-                .build(device) {
-                    Ok(b) => b,
-                    Err(e) => match e {
-                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                        e => unreachable!("{}", e),
-                    }
-                };
-            self.skybox_bundles.insert(key, b.clone());
-            Ok(b)
+                .build(device)
+            {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                },
+            };
+            bundles.insert(key, b.clone());
         }
+        Ok(bundles.get(&key).unwrap().clone())
     }
 
     /// Create and insert or get a bundle referencing the geometry buffer camera and environment map and return it
     pub fn environment_bundle(
-        &mut self,
+        &self,
         device: &gpu::Device,
         buffer: &GeometryBuffer,
         camera: &Camera,
         environment: &EnvironmentMap,
     ) -> Result<gfx::Bundle, gpu::Error> {
+        let mut bundles = self.environment_bundles.lock().unwrap();
         let key = (buffer.id, camera.buffer.id(), environment.id);
-        if let Some(b) = self.environment_bundles.get(&key) {
-            Ok(b.clone())
-        } else {
+        if bundles.get(&key).is_none() {
             let b = match self
                 .environment
                 .as_ref()
@@ -1006,23 +997,24 @@ impl EnvironmentRenderer {
                 .unwrap()
                 .set_resource("u_brdf_lut", &environment.brdf_lut)
                 .unwrap()
-                .build(device) {
-                    Ok(b) => b,
-                    Err(e) => match e {
-                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                        e => unreachable!("{}", e),
-                    }
-                };
+                .build(device)
+            {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                },
+            };
 
-            self.environment_bundles.insert(key, b.clone());
-            Ok(b)
+            bundles.insert(key, b.clone());
         }
+        Ok(bundles.get(&key).unwrap().clone())
     }
 }
 
 impl EnvironmentRenderer {
     pub fn ambient_pass<'a>(
-        &mut self,
+        &self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
@@ -1061,7 +1053,7 @@ impl EnvironmentRenderer {
         pass.push_f32("strength", strength);
         pass.push_f32("width", buffer.width as _);
         pass.push_f32("height", buffer.height as _);
-        pass.set_bundle_into(bundle);
+        pass.set_bundle_owned(bundle);
         pass.draw(0, 3, 0, 1);
 
         Ok(())
@@ -1070,7 +1062,7 @@ impl EnvironmentRenderer {
 
 impl EnvironmentRenderer {
     pub fn skybox_pass<'a>(
-        &'a mut self,
+        &'a self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
@@ -1110,7 +1102,7 @@ impl EnvironmentRenderer {
         let bundle = self.skybox_bundle(&device, buffer, camera, skybox)?;
 
         pass.push_f32("strength", strength);
-        pass.set_bundle_into(bundle);
+        pass.set_bundle_owned(bundle);
         pass.draw_mesh_ref(&self.cube);
 
         Ok(())
@@ -1119,7 +1111,7 @@ impl EnvironmentRenderer {
 
 impl EnvironmentRenderer {
     pub fn environment_pass(
-        &mut self,
+        &self,
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
         buffer: &GeometryBuffer,
@@ -1158,11 +1150,14 @@ impl EnvironmentRenderer {
 
         let bundle = self.environment_bundle(&device, buffer, camera, environment)?;
 
-        pass.push_f32("max_reflection_lod", environment.specular.texture.mip_levels() as f32);
+        pass.push_f32(
+            "max_reflection_lod",
+            environment.specular.texture.mip_levels() as f32,
+        );
         pass.push_f32("strength", strength);
         pass.push_f32("width", buffer.width as _);
         pass.push_f32("height", buffer.height as _);
-        pass.set_bundle_into(bundle);
+        pass.set_bundle_owned(bundle);
         pass.draw(0, 3, 0, 1);
 
         Ok(())
@@ -1172,8 +1167,8 @@ impl EnvironmentRenderer {
     /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
     /// This function drops Descriptor sets cached by self
     pub fn clean(&mut self) {
-        self.ambient_bundles.clear();
-        self.environment_bundles.clear();
-        self.skybox_bundles.clear();
+        self.ambient_bundles.lock().unwrap().clear();
+        self.environment_bundles.lock().unwrap().clear();
+        self.skybox_bundles.lock().unwrap().clear();
     }
 }

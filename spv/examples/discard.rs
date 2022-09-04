@@ -192,7 +192,7 @@ fn main() {
                     ty: gpu::DescriptorLayoutEntryType::Sampler,
                     stage: gpu::ShaderStages::FRAGMENT,
                     count: std::num::NonZeroU32::new(1).unwrap(),
-                }
+                },
             ],
         })
         .unwrap();
@@ -365,9 +365,7 @@ fn main() {
                     &texture_view,
                     gpu::TextureLayout::ShaderReadOnlyOptimal,
                 ),
-                gpu::DescriptorSetEntry::sampler_ref(
-                    &sampler,
-                )
+                gpu::DescriptorSetEntry::sampler_ref(&sampler),
             ],
         })
         .unwrap();

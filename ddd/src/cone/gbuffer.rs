@@ -6,7 +6,7 @@ use std::collections::HashMap;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum GeometryBufferPrecision {
     /// 8 bit normalized textures
-    /// 
+    ///
     /// NOTE: This removes the ability to perform some post-processing effects
     /// like bloom or tonemapping
     Low,
@@ -29,10 +29,7 @@ pub struct GeometryBufferDesc<'a, F: Fn(&str) -> Option<f32>> {
     /// The precisiion of components of maps in the geometry buffer
     pub precision: GeometryBufferPrecision,
     /// The maps the geometry buffer contiains (name, components, shift)
-    pub maps: &'a [(
-        &'a str,
-        u32,
-    )],
+    pub maps: &'a [(&'a str, u32)],
     pub map_scale: F,
     pub name: Option<String>,
 }
@@ -42,8 +39,8 @@ fn default_map_scale(_: &str) -> Option<f32> {
 }
 
 impl<'a> GeometryBufferDesc<'a, fn(&str) -> Option<f32>> {
-    /// Maps required for a simple geometry buffer 
-    /// 
+    /// Maps required for a simple geometry buffer
+    ///
     /// Doesn't have capabilities for:
     ///  - ambient occlusion
     ///  - subsurface materials
@@ -58,8 +55,8 @@ impl<'a> GeometryBufferDesc<'a, fn(&str) -> Option<f32>> {
         ("output", 4),
     ];
 
-    /// A simple geometry buffer 
-    /// 
+    /// A simple geometry buffer
+    ///
     /// Doesn't have capabilities for:
     ///  - ambient occlusion
     ///  - subsurface materials
@@ -135,7 +132,7 @@ impl<'a> GeometryBufferDesc<'a, fn(&str) -> Option<f32>> {
         ("ao", 1),
     ];
 
-    /// Has all maps 
+    /// Has all maps
     pub const ALL: Self = Self {
         width: 512,
         height: 512,
@@ -154,7 +151,7 @@ pub struct GeometryBuffer {
     pub(crate) name: Option<String>,
     /// HashMap from name to texture
     pub maps: HashMap<String, gfx::GTexture2D>,
-    /// HashMap from name to texture 
+    /// HashMap from name to texture
     /// If created with [`gpu::Samples::S1`] then this will be empty
     pub ms_maps: HashMap<String, gfx::GTexture2D>,
     /// Depth texture
@@ -178,11 +175,11 @@ impl std::fmt::Debug for GeometryBuffer {
 
 impl GeometryBuffer {
     /// Create a new [`GeometryBuffer`]
-    /// 
+    ///
     /// ms indicates to create multisampled textures or not
     /// if ms is true then for each entry in maps two textures will be created
     /// identicle except one will have ms samples and one will have [`gpu::Samples::S1`] samples
-    /// 
+    ///
     /// bloom indicates if to create bloom textures or not
     pub fn new<'a, F: Fn(&str) -> Option<f32>>(
         device: &gpu::Device,
@@ -358,19 +355,35 @@ impl GeometryBuffer {
         }
     }
 
-    pub fn clear_texture_ref<'a>(&'a self, encoder: &mut gfx::CommandEncoder<'a>, name: &str, value: gpu::ClearValue) {
+    pub fn clear_texture_ref<'a>(
+        &'a self,
+        encoder: &mut gfx::CommandEncoder<'a>,
+        name: &str,
+        value: gpu::ClearValue,
+    ) {
         if let Some(t) = self.get(name) {
             encoder.clear_texture(t.texture.whole_slice_ref(), value);
         } else {
-            eprintln!("Called GeometryBuffer::clear_texture(.., {})\nNo entry with that name.", name);
+            eprintln!(
+                "Called GeometryBuffer::clear_texture(.., {})\nNo entry with that name.",
+                name
+            );
         }
     }
 
-    pub fn clear_texture_owned(&self, encoder: &mut gfx::CommandEncoder<'_>, name: &str, value: gpu::ClearValue) {
+    pub fn clear_texture_owned(
+        &self,
+        encoder: &mut gfx::CommandEncoder<'_>,
+        name: &str,
+        value: gpu::ClearValue,
+    ) {
         if let Some(t) = self.get(name) {
             encoder.clear_texture(t.texture.whole_slice_owned(), value);
         } else {
-            eprintln!("Called GeometryBuffer::clear_texture(.., {})\nNo entry with that name.", name);
+            eprintln!(
+                "Called GeometryBuffer::clear_texture(.., {})\nNo entry with that name.",
+                name
+            );
         }
     }
 }

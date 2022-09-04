@@ -493,13 +493,8 @@ impl<'a, 'b, V: crate::Vertex> ReflectedGraphicsPass<'a, 'b, V> {
     }
 
     /// Draw a mesh cloning the mesh's buffers
-    pub fn draw_mesh_owned(&mut self, mesh: &crate::Mesh<V>) {
+    pub fn draw_mesh_owned(&mut self, mesh: crate::Mesh<V>) {
         mesh.draw_owned(self);
-    }
-
-    /// Draw a mesh consuming the mesh
-    pub fn draw_mesh_into(&mut self, mesh: crate::Mesh<V>) {
-        mesh.draw_into(self);
     }
 
     /// Draw a mesh referencing the mesh's buffers
@@ -515,21 +510,11 @@ impl<'a, 'b, V: crate::Vertex> ReflectedGraphicsPass<'a, 'b, V> {
     /// Draw a mesh cloning the mesh's buffers
     pub fn draw_instanced_mesh_owned(
         &mut self,
-        mesh: &crate::Mesh<V>,
-        first_instance: u32,
-        instance_count: u32,
-    ) {
-        mesh.draw_instanced_owned(self, first_instance, instance_count);
-    }
-
-    /// Draw a mesh consuming the mesh
-    pub fn draw_instanced_mesh_into(
-        &mut self,
         mesh: crate::Mesh<V>,
         first_instance: u32,
         instance_count: u32,
     ) {
-        mesh.draw_instanced_into(self, first_instance, instance_count);
+        mesh.draw_instanced_owned(self, first_instance, instance_count);
     }
 
     /// Set a bundle referencing the bundle
@@ -552,7 +537,7 @@ impl<'a, 'b, V: crate::Vertex> ReflectedGraphicsPass<'a, 'b, V> {
     }
 
     /// Set a bundle cloning the bundle data
-    pub fn set_bundle_owned(&mut self, bundle: &Bundle) {
+    pub fn set_bundle_owned(&mut self, bundle: Bundle) {
         #[cfg(feature = "logging")]
         if !self.bundle_needed {
             log::warn!(
@@ -571,25 +556,6 @@ impl<'a, 'b, V: crate::Vertex> ReflectedGraphicsPass<'a, 'b, V> {
             0,
             bundle.descriptor_sets.iter().cloned().collect::<Vec<_>>(),
         );
-    }
-
-    /// Set a bundle consuming its data
-    pub fn set_bundle_into(&mut self, bundle: Bundle) {
-        #[cfg(feature = "logging")]
-        if !self.bundle_needed {
-            log::warn!(
-                "GFX: Attempt to set bundle {:?} on pass without bundle needed",
-                bundle
-            )
-        }
-        #[cfg(feature = "logging")]
-        if self.parent_id != bundle.parent_id {
-            log::warn!(
-                "GFX: Attempt to set bundle {:?} of different parent id than pass",
-                bundle
-            )
-        }
-        self.bind_descriptors_owned(0, bundle.descriptor_sets);
     }
 
     /// Push a single constant by variable name

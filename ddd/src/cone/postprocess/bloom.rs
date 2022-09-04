@@ -1,8 +1,7 @@
-
 use gfx::prelude::*;
 
-use std::collections::HashMap;
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -32,16 +31,16 @@ impl BloomParams {
         let c0 = threshold - knee;
         let c1 = knee * 2.0;
         let c2 = 0.25 / knee;
-        
-        Self { 
+
+        Self {
             curve: glam::vec3(c0, c1, c2),
-            threshold, 
+            threshold,
             intensity,
         }
     }
 }
 
-/// Renders bloom into the output of 
+/// Renders bloom into the output of
 pub struct BloomRenderer {
     pub prefilter_pipeline: gfx::ReflectedGraphics,
     pub prefiltered: Arc<Mutex<HashMap<u64, (gfx::GTexture2D, gfx::Bundle)>>>,
@@ -60,8 +59,10 @@ impl BloomRenderer {
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let blur_renderer = ChainBlurRenderer::new(
-            device, 
-            name.map(|n| format!("{}_blur_renderer", n)).as_ref().map(|n| &**n),
+            device,
+            name.map(|n| format!("{}_blur_renderer", n))
+                .as_ref()
+                .map(|n| &**n),
         )?;
         Self::from_blur(encoder, device, intensity, threshold, blur_renderer, name)
     }
@@ -77,15 +78,11 @@ impl BloomRenderer {
         let params = BloomParams::new(intensity, threshold, 0.7);
 
         let n = name.as_ref().map(|n| format!("{}_uniform", n));
-        let uniform = gfx::Uniform::new(
-            encoder,
-            device,
-            params,
-            n.as_ref().map(|n| &**n),
-        )?;
+        let uniform = gfx::Uniform::new(encoder, device, params, n.as_ref().map(|n| &**n))?;
 
         let vert_spv = gpu::include_spirv!("../../../shaders/screen.vert.spv");
-        let prefilter_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/bloom_prefilter.frag.spv");
+        let prefilter_spv =
+            gpu::include_spirv!("../../../shaders/cone/postprocess/bloom_prefilter.frag.spv");
 
         let n = name.as_ref().map(|n| format!("{}_prefilter_renderer", n));
         let prefilter_pipeline = match gfx::ReflectedGraphics::from_spv(
@@ -102,7 +99,7 @@ impl BloomRenderer {
             Err(e) => match e {
                 gfx::error::ReflectedError::Gpu(e) => Err(e)?,
                 e => unreachable!("{}", e),
-            }
+            },
         };
 
         Ok(Self {
@@ -121,7 +118,7 @@ impl BloomRenderer {
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
         iterations: usize,
-    ) -> Result<(), gpu::Error> {  
+    ) -> Result<(), gpu::Error> {
         let mut prefiltered_map = self.prefiltered.lock().unwrap();
         if prefiltered_map.get(&buffer.id).is_none() {
             let filtered_texture = gfx::GTexture2D::new(
@@ -129,33 +126,40 @@ impl BloomRenderer {
                 buffer.width,
                 buffer.height,
                 gpu::Samples::S1,
-                gpu::TextureUsage::COLOR_OUTPUT
-                    | gpu::TextureUsage::SAMPLED,
+                gpu::TextureUsage::COLOR_OUTPUT | gpu::TextureUsage::SAMPLED,
                 1,
                 buffer.get("output").unwrap().format(),
-                self.name.as_ref().map(|n| format!("{}_filtered_texture_{:?}", n, buffer.id())).as_ref().map(|n| &**n),
+                self.name
+                    .as_ref()
+                    .map(|n| format!("{}_filtered_texture_{:?}", n, buffer.id()))
+                    .as_ref()
+                    .map(|n| &**n),
             )?;
-            let b = match self.prefilter_pipeline.bundle().unwrap()
+            let b = match self
+                .prefilter_pipeline
+                .bundle()
+                .unwrap()
                 .set_resource("u_color", buffer.get("output").unwrap())
                 .unwrap()
                 .set_resource("u_sampler", &buffer.sampler)
                 .unwrap()
                 .set_resource("u_data", &self.uniform)
                 .unwrap()
-                .build(device) {
-                    Ok(g) => g,
-                    Err(e) => match e {
-                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                        e => unreachable!("{}", e),
-                    }
-                };
+                .build(device)
+            {
+                Ok(g) => g,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                },
+            };
             prefiltered_map.insert(buffer.id, (filtered_texture, b));
         }
 
-        let (filtered_texture, prefilter_bundle) = prefiltered_map.get(&buffer.id).unwrap();
-        
+        let (filtered_texture, prefilter_bundle) = prefiltered_map.get(&buffer.id).unwrap().clone();
+
         let mut pass = encoder.graphics_pass_reflected::<()>(
-            device, 
+            device,
             &[gfx::Attachment {
                 raw: gpu::Attachment::View(
                     Cow::Owned(filtered_texture.view.clone()),
@@ -163,7 +167,7 @@ impl BloomRenderer {
                 ),
                 load: gpu::LoadOp::DontCare,
                 store: gpu::StoreOp::Store,
-            }], 
+            }],
             &[],
             None,
             &self.prefilter_pipeline,
@@ -174,10 +178,10 @@ impl BloomRenderer {
         pass.finish();
 
         self.blur_renderer.pass(
-            encoder, 
-            device, 
-            &filtered_texture.view, 
-            &buffer.get("output").unwrap().view, 
+            encoder,
+            device,
+            &filtered_texture.view,
+            &buffer.get("output").unwrap().view,
             iterations,
             1.0,
             false,

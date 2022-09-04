@@ -54,22 +54,22 @@ pub(crate) fn init_image_layout(
                 p_next: ptr::null(),
                 p_inheritance_info: ptr::null(),
                 flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
-            }
+            },
         )
     };
     match result {
         Ok(_) => (),
-        Err(e) => return Err(e.into())
+        Err(e) => return Err(e.into()),
     }
 
     unsafe {
         device.raw.cmd_pipeline_barrier(
-            device.command_buffer, 
-            vk::PipelineStageFlags::TOP_OF_PIPE, 
-            vk::PipelineStageFlags::BOTTOM_OF_PIPE, 
-            vk::DependencyFlags::empty(), 
-            &[], 
-            &[], 
+            device.command_buffer,
+            vk::PipelineStageFlags::TOP_OF_PIPE,
+            vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[],
             &[vk::ImageMemoryBarrier {
                 s_type: vk::StructureType::IMAGE_MEMORY_BARRIER,
                 p_next: ptr::null(),
@@ -87,10 +87,10 @@ pub(crate) fn init_image_layout(
                     base_array_layer: 0,
                     layer_count: texture.dimension().layers(),
                 },
-            }]
+            }],
         );
     }
-    
+
     let result = unsafe { device.raw.end_command_buffer(device.command_buffer) };
     match result {
         Ok(_) => (),
@@ -113,7 +113,10 @@ pub(crate) fn init_image_layout(
         s_type: vk::StructureType::SUBMIT_INFO,
         p_next: ptr::null(),
         wait_semaphore_count: if wait_semaphore.is_some() { 1 } else { 0 },
-        p_wait_semaphores: wait_semaphore.as_ref().map(|s| (&***s)  as _).unwrap_or(ptr::null() as _),
+        p_wait_semaphores: wait_semaphore
+            .as_ref()
+            .map(|s| (&***s) as _)
+            .unwrap_or(ptr::null() as _),
         p_wait_dst_stage_mask: &wait_dst_stage_mask,
         signal_semaphore_count: 1,
         p_signal_semaphores: signal_semaphore as _,
@@ -136,14 +139,11 @@ pub(crate) fn init_image_layout(
 
     semaphores.insert(std::thread::current().id(), Arc::clone(&*device.semaphore));
 
-    let submit_result = unsafe { 
-        device.raw.queue_submit(
-            device.queue, 
-            &[submit_info], 
-            device.fence
-        )
+    let submit_result = unsafe {
+        device
+            .raw
+            .queue_submit(device.queue, &[submit_info], device.fence)
     };
-
 
     match submit_result {
         Ok(_) => (),

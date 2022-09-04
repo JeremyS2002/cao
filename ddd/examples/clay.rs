@@ -1,4 +1,3 @@
-
 use std::borrow::Cow;
 
 use ddd::clay;
@@ -68,36 +67,37 @@ impl Clay {
             swapchain.extent().width,
             swapchain.extent().height,
             gpu::Samples::S1,
-            gpu::TextureUsage::COLOR_OUTPUT
-                | gpu::TextureUsage::SAMPLED,
+            gpu::TextureUsage::COLOR_OUTPUT | gpu::TextureUsage::SAMPLED,
             1,
             gfx::alt_formats(gpu::Format::Rgba8Unorm),
             None,
-        )?.unwrap();
+        )?
+        .unwrap();
 
         let depth = gfx::GTexture2D::from_formats(
             &device,
             swapchain.extent().width,
             swapchain.extent().height,
             gpu::Samples::S1,
-            gpu::TextureUsage::DEPTH_OUTPUT
-                | gpu::TextureUsage::SAMPLED,
+            gpu::TextureUsage::DEPTH_OUTPUT | gpu::TextureUsage::SAMPLED,
             1,
             gfx::alt_formats(gpu::Format::Depth32Float),
             None,
-        )?.unwrap();
+        )?
+        .unwrap();
 
         let mut command_buffer = device.create_command_buffer(None)?;
 
         let mut encoder = gfx::CommandEncoder::new();
 
         let mesh = mesh::load_meshes_from_obj(
-            &mut encoder, 
-            &device, 
-            true, 
+            &mut encoder,
+            &device,
+            true,
             "../resources/models/dragon.obj",
             None,
-        )?.remove(0);
+        )?
+        .remove(0);
 
         let controller = ddd::utils::DebugController::from_flipped_perspective(
             glam::vec3(0.0, 0.0, 2.0),
@@ -121,23 +121,15 @@ impl Clay {
             None,
         )?;
 
-        let display_renderer = ddd::utils::CopyRenderer::new(
-            &device, 
-            None,
-        )?;
+        let display_renderer = ddd::utils::CopyRenderer::new(&device, None)?;
 
         let smooth_renderer = clay::SmoothRenderer::new(&device, None)?;
 
-        let model = glam::Mat4::from_translation(glam::vec3(0.0, -1.5, -5.0)) 
+        let model = glam::Mat4::from_translation(glam::vec3(0.0, -1.5, -5.0))
             * glam::Mat4::from_scale(glam::vec3(2.0, 2.0, 2.0));
 
         let instances = vec![model.into()];
-        let mesh_instance = ddd::utils::Instances::new(
-            &mut encoder,
-            &device,
-            &instances,
-            None,
-        )?;
+        let mesh_instance = ddd::utils::Instances::new(&mut encoder, &device, &instances, None)?;
 
         encoder.submit(&mut command_buffer, true)?;
 
@@ -152,7 +144,7 @@ impl Clay {
 
             controller,
             camera,
-        
+
             mesh,
             mesh_instance,
 
@@ -249,13 +241,13 @@ impl Clay {
             .update_cam_owned(&mut encoder, &mut self.camera);
 
         self.smooth_renderer.pass(
-            &mut encoder, 
-            &self.device, 
+            &mut encoder,
+            &self.device,
             gfx::Attachment {
                 raw: gpu::Attachment::View(
                     Cow::Borrowed(&self.target.view),
                     gpu::ClearValue::ColorFloat([0.1, 0.1, 0.1, 1.0]),
-                ), 
+                ),
                 load: gpu::LoadOp::Clear,
                 store: gpu::StoreOp::Store,
             },
@@ -263,15 +255,11 @@ impl Clay {
                 raw: gpu::Attachment::View(
                     Cow::Borrowed(&self.depth.view),
                     gpu::ClearValue::Depth(1.0),
-                ), 
+                ),
                 load: gpu::LoadOp::Clear,
                 store: gpu::StoreOp::Store,
-            }, 
-            Some((
-                &self.mesh as _,
-                &self.mesh_instance,
-                [0.7, 0.7, 0.7, 1.0],
-            )), 
+            },
+            Some((&self.mesh as _, &self.mesh_instance, [0.7, 0.7, 0.7, 1.0])),
             &self.camera,
         )?;
 
@@ -290,7 +278,7 @@ impl Clay {
         // self.display_renderer.clip(
         //     &mut encoder,
         //     &self.device,
-        //     &self.target.view, 
+        //     &self.target.view,
         //     gfx::Attachment {
         //         raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
         //         load: gpu::LoadOp::Clear,

@@ -79,7 +79,7 @@ impl<U: bytemuck::Pod> Storage<U> {
             buffer,
             length,
             _marker: std::marker::PhantomData,
-        }) 
+        })
     }
 
     /// Create a new storage from specific usage of buffer
@@ -153,7 +153,7 @@ impl<U: bytemuck::Pod> Storage<U> {
         encoder: &mut crate::CommandEncoder<'a>,
         device: &gpu::Device,
         data: Vec<U>,
-        name: Option<&str>
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         Self::from_vec_usage(encoder, device, data, gpu::BufferUsage::empty(), name)
     }

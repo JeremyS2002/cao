@@ -1,4 +1,3 @@
-
 use gfx::prelude::*;
 
 use std::collections::HashMap;
@@ -11,20 +10,14 @@ pub struct CopyRenderer {
 }
 
 impl CopyRenderer {
-    pub fn new(
-        device: &gpu::Device,
-        name: Option<&str>,
-    ) -> Result<Self, gpu::Error> {
+    pub fn new(device: &gpu::Device, name: Option<&str>) -> Result<Self, gpu::Error> {
         let sampler = device.create_sampler(&gpu::SamplerDesc {
             name: name.map(|n| format!("{}_sampler", n)),
             ..gpu::SamplerDesc::NEAREST
         })?;
 
         let n = name.as_ref().map(|n| format!("{}_pipeline", n));
-        let pipeline = Self::create_pipeline(
-            device, 
-            n.as_ref().map(|n| &**n),
-        )?;
+        let pipeline = Self::create_pipeline(device, n.as_ref().map(|n| &**n))?;
 
         Ok(Self {
             pipeline,
@@ -66,32 +59,29 @@ impl CopyRenderer {
         src: &gpu::TextureView,
         target: gfx::Attachment<'a>,
     ) -> Result<(), gpu::Error> {
-        let mut pass = encoder.graphics_pass_reflected::<()>(
-            device,
-            &[target],
-            &[],
-            None,
-            &self.pipeline,
-        )?;
+        let mut pass =
+            encoder.graphics_pass_reflected::<()>(device, &[target], &[], None, &self.pipeline)?;
 
         if self.bundles.get(&src.id()).is_none() {
-            let b = match self.pipeline
+            let b = match self
+                .pipeline
                 .bundle()
                 .unwrap()
                 .set_resource("u_texture", src)
                 .unwrap()
                 .set_resource("u_sampler", &self.sampler)
                 .unwrap()
-                .build(device) {
+                .build(device)
+            {
                 Ok(b) => b,
                 Err(e) => match e {
                     gfx::BundleBuildError::Gpu(e) => Err(e)?,
                     e => unreachable!("{}", e),
-                }
+                },
             };
             self.bundles.insert(src.id(), b);
         }
-        let bundle = self.bundles.get(&src.id()).unwrap();
+        let bundle = self.bundles.get(&src.id()).unwrap().clone();
         pass.set_bundle_owned(bundle);
         pass.draw(0, 3, 0, 1);
 

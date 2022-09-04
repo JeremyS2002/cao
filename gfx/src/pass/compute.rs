@@ -312,7 +312,7 @@ impl<'a, 'b> ReflectedComputePass<'a, 'b> {
     }
 
     /// Set a bundle cloning its data
-    pub fn set_bundle_owned(&mut self, bundle: &Bundle) {
+    pub fn set_bundle_owned(&mut self, bundle: Bundle) {
         #[cfg(feature = "logging")]
         if !self.bundle_needed {
             log::warn!(
@@ -331,25 +331,6 @@ impl<'a, 'b> ReflectedComputePass<'a, 'b> {
             0,
             bundle.descriptor_sets.iter().cloned().collect::<Vec<_>>(),
         );
-    }
-
-    /// Set a bundle consuming its data
-    pub fn set_bundle_into(&mut self, bundle: Bundle) {
-        #[cfg(feature = "logging")]
-        if !self.bundle_needed {
-            log::warn!(
-                "GFX: Attempt to set bundle {:?} on pass without bundle needed",
-                bundle
-            )
-        }
-        #[cfg(feature = "logging")]
-        if self.parent_id != bundle.parent_id {
-            log::warn!(
-                "GFX: Attempt to set bundle {:?} of different parent id than pass",
-                bundle
-            )
-        }
-        self.bind_descriptors_owned(0, bundle.descriptor_sets);
     }
 
     /// Push a single constant by variable name

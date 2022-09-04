@@ -6,7 +6,7 @@
 //!  - [`cone`]: physically inspired deferred rendering
 //!  - [`clay`]: debugging forward renderer
 //!  - [`utils`]: common objects between Cone and Clay
-//! 
+//!
 //! See the module documentation for more information
 
 pub use glam;

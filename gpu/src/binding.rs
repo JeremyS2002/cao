@@ -108,7 +108,7 @@ impl DescriptorLayout {
             Ok(l) => l,
             Err(e) => return Err(e.into()),
         };
-        
+
         let mut shader_stages = crate::ShaderStages::empty();
         for e in desc.entries.as_ref() {
             shader_stages |= e.stage;

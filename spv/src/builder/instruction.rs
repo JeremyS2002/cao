@@ -375,7 +375,7 @@ impl Instruction {
                     break_target,
                     continue_target,
                 );
-            },
+            }
             Instruction::Loop { condition, body } => process_loop(builder, condition, body, s),
             Instruction::Break => builder.branch(break_target.unwrap()).unwrap(),
             Instruction::Continue => builder.branch(continue_target.unwrap()).unwrap(),
@@ -803,7 +803,11 @@ impl Instruction {
             } => {
                 let var = *s.storages.get(*index).unwrap();
                 let res_spv_obj_ty = ty.base_type(builder, s.struct_map);
-                let res_spv_ptr_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, res_spv_obj_ty);
+                let res_spv_ptr_ty = builder.type_pointer(
+                    None,
+                    rspirv::spirv::StorageClass::Uniform,
+                    res_spv_obj_ty,
+                );
                 let obj_idx = PrimitiveVal::Int(0).set_constant(builder).0;
                 //let element_idx = PrimitiveVal::UInt(*element).set_constant(builder).0;
                 let element_var = *s.var_map.get(element).unwrap();
@@ -832,7 +836,11 @@ impl Instruction {
             } => {
                 let var = *s.storages.get(*index).unwrap();
                 let res_spv_obj_ty = f_type.base_type(builder, s.struct_map);
-                let res_spv_ptr_ty = builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, res_spv_obj_ty);
+                let res_spv_ptr_ty = builder.type_pointer(
+                    None,
+                    rspirv::spirv::StorageClass::Uniform,
+                    res_spv_obj_ty,
+                );
                 let obj_idx = PrimitiveVal::UInt(0).set_constant(builder).0;
                 //let element_idx = PrimitiveVal::UInt(*element).set_constant(builder).0;
                 let element_var = *s.var_map.get(element).unwrap();
@@ -956,8 +964,16 @@ impl Instruction {
 
                 s.var_map.insert(*res, res_var);
             }
-            Instruction::Discard => { eprintln!("shouldn't be here") },
-            Instruction::Cmp { op, lhs, rhs, ty, store } => {
+            Instruction::Discard => {
+                eprintln!("shouldn't be here")
+            }
+            Instruction::Cmp {
+                op,
+                lhs,
+                rhs,
+                ty,
+                store,
+            } => {
                 let f = match *op {
                     CmpOp::Eq => match *ty {
                         PrimitiveType::Bool => rspirv::dr::Builder::logical_equal,
@@ -1018,7 +1034,6 @@ impl Instruction {
 
                 s.var_map.insert(*store, res_var);
             }
-            
         }
     }
 }
@@ -1213,7 +1228,7 @@ fn process_if_chain(
         match instruction {
             Instruction::Discard => {
                 discard = true;
-            },
+            }
             mut i => i.process(builder, s, break_target, continue_target),
         }
     }
@@ -1223,7 +1238,7 @@ fn process_if_chain(
     } else {
         builder.branch(end_label).unwrap();
     }
-    
+
     builder.begin_block(Some(false_label)).unwrap();
 
     let discard = process_if_chain(
@@ -1544,7 +1559,8 @@ fn process_mul_assign(
     builder: &mut rspirv::dr::Builder,
     rhs: &(usize, PrimitiveType),
 ) {
-    let (spv_lhs_id, lhs_ty, mut spv_lhs, mut spv_rhs) = get_object_assign(var_map, lhs, builder, rhs);
+    let (spv_lhs_id, lhs_ty, mut spv_lhs, mut spv_rhs) =
+        get_object_assign(var_map, lhs, builder, rhs);
     let f = get_mul_fn_p(rhs, lhs, &mut spv_lhs, &mut spv_rhs);
     let spv_res = f(builder, lhs_ty, None, spv_rhs, spv_lhs).unwrap();
     builder.store(spv_lhs_id, spv_res, None, None).unwrap();

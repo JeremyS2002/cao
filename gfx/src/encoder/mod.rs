@@ -459,38 +459,58 @@ impl<'a> CommandEncoder<'a> {
     }
 
     /// Write a timestamp to the query index when all previous commands in the pipeline stage have completed
-    pub fn write_timestamp_ref(&mut self, query: &'a gpu::TimeQuery, index: u32, pipeline_stage: gpu::PipelineStage) {
-        self.push_command(Command::WriteTimeStamp { 
-            query: Cow::Borrowed(query), 
-            index, 
-            pipeline_stage, 
+    pub fn write_timestamp_ref(
+        &mut self,
+        query: &'a gpu::TimeQuery,
+        index: u32,
+        pipeline_stage: gpu::PipelineStage,
+    ) {
+        self.push_command(Command::WriteTimeStamp {
+            query: Cow::Borrowed(query),
+            index,
+            pipeline_stage,
         })
     }
 
     /// Write a timestamp to the query index when all previous commands in the pipeline stage have completed
-    pub fn write_timestamp_owned(&mut self, query: gpu::TimeQuery, index: u32, pipeline_stage: gpu::PipelineStage) {
-        self.push_command(Command::WriteTimeStamp { 
-            query: Cow::Owned(query), 
-            index, 
-            pipeline_stage, 
+    pub fn write_timestamp_owned(
+        &mut self,
+        query: gpu::TimeQuery,
+        index: u32,
+        pipeline_stage: gpu::PipelineStage,
+    ) {
+        self.push_command(Command::WriteTimeStamp {
+            query: Cow::Owned(query),
+            index,
+            pipeline_stage,
         })
     }
 
     /// Reset the queries from first_query to first_query + query_count (not inclusive)
-    pub fn reset_time_query_ref(&mut self, query: &'a gpu::TimeQuery, first_query: u32, query_count: u32) {
-        self.push_command(Command::ResetTimeQuery { 
-            query: Cow::Borrowed(query), 
-            first_query, 
-            query_count 
+    pub fn reset_time_query_ref(
+        &mut self,
+        query: &'a gpu::TimeQuery,
+        first_query: u32,
+        query_count: u32,
+    ) {
+        self.push_command(Command::ResetTimeQuery {
+            query: Cow::Borrowed(query),
+            first_query,
+            query_count,
         })
     }
 
     /// Reset the queries from first_query to first_query + query_count (not inclusive)
-    pub fn reset_time_query_owned(&mut self, query: gpu::TimeQuery, first_query: u32, query_count: u32) {
-        self.push_command(Command::ResetTimeQuery { 
-            query: Cow::Owned(query), 
-            first_query, 
-            query_count 
+    pub fn reset_time_query_owned(
+        &mut self,
+        query: gpu::TimeQuery,
+        first_query: u32,
+        query_count: u32,
+    ) {
+        self.push_command(Command::ResetTimeQuery {
+            query: Cow::Owned(query),
+            first_query,
+            query_count,
         })
     }
 

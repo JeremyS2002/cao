@@ -46,7 +46,7 @@ impl mesh::Vertex for BasicVertex {
         Self(pos)
     }
 
-    fn set_tangents(&mut self, _: glam::Vec3, _: glam::Vec3) { }
+    fn set_tangents(&mut self, _: glam::Vec3, _: glam::Vec3) {}
 
     fn pos(&self) -> glam::Vec3 {
         self.0

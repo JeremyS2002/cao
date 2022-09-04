@@ -13,7 +13,7 @@ use crate::error::*;
 
 pub(crate) struct RawDevice {
     /// Kinda ugly :(
-    /// 
+    ///
     /// Jusitification:
     ///  - want to be able to re-use framebuffers -> HashMap with key
     ///  - when a texture that is referenced by the framebuffer is destroyed the framebuffer won't be reused again
@@ -212,11 +212,7 @@ impl RawDevice {
     //     self.set_name(query.raw.as_raw(), vk::ObjectType::QUERY_POOL, name)
     // }
 
-    pub fn set_time_query_name(
-        &self,
-        query: &crate::TimeQuery,
-        name: &str,
-    ) -> Result<(), Error> {
+    pub fn set_time_query_name(&self, query: &crate::TimeQuery, name: &str) -> Result<(), Error> {
         self.set_name(query.raw.as_raw(), vk::ObjectType::QUERY_POOL, name)
     }
 }

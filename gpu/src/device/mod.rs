@@ -7,9 +7,9 @@
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::ffi::{c_void, CStr};
+use std::mem::ManuallyDrop as Md;
 use std::ptr;
 use std::sync::Arc;
-use std::mem::ManuallyDrop as Md;
 use std::sync::Mutex;
 
 use ash::extensions::ext;
@@ -54,7 +54,7 @@ pub struct DeviceDesc<'a, F: Fn(&DeviceInfo, &DeviceInfo) -> Ordering> {
 }
 
 /// so you can leak private functions into public interfaces by accident apparently
-/// 
+///
 /// the compiler doesn't check the access specifier when storing a function as a function pointer
 /// which can then be called from external code
 /// (noticed because this function was private but could still be set as the predicate in DeviceDesc::default()

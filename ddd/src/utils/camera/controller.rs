@@ -1,10 +1,10 @@
 //! Controlling cameras
-//! 
+//!
 //! [`CameraController`] provides an interface to controll cameras.
-//! 
+//!
 //! FPS games control very differently to isomorphic games or third person adventures but the cameras are all doing essentially the same thing.
 //! This module provides and interface and some basic implementations of how cameras can be controlled.
-//! 
+//!
 //! [`DebugController`] provides a free cam type interface. Able to move anywhere and look anywhere
 
 use super::CameraData;

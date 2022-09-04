@@ -66,7 +66,7 @@ impl mesh::Vertex for Vertex {
 
 use std::collections::HashMap;
 
-use crate::utils::{Camera, Instances};   
+use crate::utils::{Camera, Instances};
 
 #[macro_export]
 macro_rules! impl_renderer {
@@ -76,7 +76,7 @@ macro_rules! impl_renderer {
             pub pipeline: gfx::ReflectedGraphics,
             pub bundles: HashMap<(u64, u64), gfx::Bundle>,
         }
-        
+
         impl $name {
             pub fn new(device: &gpu::Device, name: Option<&str>) -> Result<Self, gpu::Error> {
                 let pipeline = Self::pipeline(device, name)?;
@@ -85,11 +85,11 @@ macro_rules! impl_renderer {
                     bundles: HashMap::new(),
                 })
             }
-        
+
             pub fn pipeline(device: &gpu::Device, name: Option<&str>) -> Result<gfx::ReflectedGraphics, gpu::Error> {
                 let vert_spv = gpu::include_spirv!($vert);
                 let frag_spv = gpu::include_spirv!($frag);
-                
+
                 let name = name.map(|n| format!("{}_renderer", n));
                 let g = match gfx::ReflectedGraphics::from_spv(
                     device,
@@ -115,10 +115,10 @@ macro_rules! impl_renderer {
                         e => unreachable!("{}", e),
                     }
                 };
-        
+
                 Ok(g)
             }
-        
+
             pub fn bundle(
                 &mut self,
                 device: &gpu::Device,
@@ -140,19 +140,19 @@ macro_rules! impl_renderer {
                             e => unreachable!("{}", e),
                         }
                     };
-                    
+
                     self.bundles.insert((camera.buffer.id(), instance.buffer.id()), b.clone());
                     Ok(b)
                 }
             }
-        
+
             pub fn pass<'a, 'b, V: gfx::Vertex>(
                 &mut self,
                 encoder: &mut gfx::CommandEncoder<'a>,
                 device: &gpu::Device,
                 target: gfx::Attachment<'a>,
                 depth: gfx::Attachment<'a>,
-                meshes: impl IntoIterator<Item=(&'a gfx::Mesh<V>, &'b Instances, [f32; 4])>,
+                meshes: impl IntoIterator<Item=(&'a gfx::Mesh<V>, &'a Instances, [f32; 4])>,
                 camera: &Camera,
             ) -> Result<(), gpu::Error> {
                 let mut pass = encoder.graphics_pass_reflected(
@@ -162,18 +162,18 @@ macro_rules! impl_renderer {
                     Some(depth),
                     &self.pipeline
                 )?;
-        
+
                 for (mesh, instance, color) in meshes.into_iter() {
                     let bundle = self.bundle(device, camera, instance)?;
-        
-                    pass.set_bundle_into(bundle);
+
+                    pass.set_bundle_owned(bundle);
                     pass.push_vec4("u_color", color);
                     //pass.draw_mesh_ref(mesh);
-                    pass.draw_instanced_mesh_owned(mesh, 0, instance.length as _);
+                    pass.draw_instanced_mesh_ref(mesh, 0, instance.length as _);
                 }
-                
+
                 pass.finish();
-        
+
                 Ok(())
             }
 
@@ -187,22 +187,21 @@ macro_rules! impl_renderer {
     };
 }
 
-
 impl_renderer!(
     /// A simple forward renderer for drawing objects in a solid color
-    /// 
+    ///
     /// This can function as a simple shader for transparent objects.
-    /// To do this first draw all non-transparent objects into a [`crate::clay::GeometryBuffer`] 
+    /// To do this first draw all non-transparent objects into a [`crate::clay::GeometryBuffer`]
     /// Then draw transparent objects into the geometry buffers output useing it's depth texture and color with alpha component less than 1.0
     =>
-    SolidRenderer, 
-    "../shaders/clay/solid.vert.spv", 
+    SolidRenderer,
+    "../shaders/clay/solid.vert.spv",
     "../shaders/clay/solid.frag.spv"
 );
 
 impl_renderer!(
     /// A simple forward renderer for debugging objects geometry
-    /// 
+    ///
     /// Brightness is determined by how closely the normal aligns with the view vector
     /// No interpolation is performed on the normals
     =>
@@ -213,7 +212,7 @@ impl_renderer!(
 
 impl_renderer!(
     /// A simple forward renderer for debugging objects geometry
-    /// 
+    ///
     /// Brightness is determined by how closely the normal aligns with the view vector
     /// Normal vectors are interpolated across faces
     =>

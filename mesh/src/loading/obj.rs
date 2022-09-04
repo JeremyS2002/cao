@@ -1,8 +1,7 @@
-
 use crate::Vertex;
 
-use std::convert::TryFrom;
 use super::LoadError;
+use std::convert::TryFrom;
 use std::path::Path;
 
 pub fn load_meshes_from_obj<P: AsRef<Path> + std::fmt::Debug, V: Vertex>(
@@ -12,10 +11,7 @@ pub fn load_meshes_from_obj<P: AsRef<Path> + std::fmt::Debug, V: Vertex>(
     path: P,
     name: Option<&str>,
 ) -> Result<Vec<gfx::Mesh<V>>, LoadError> {
-    let result = tobj::load_obj(
-        path, 
-        &tobj::GPU_LOAD_OPTIONS,
-    );
+    let result = tobj::load_obj(path, &tobj::GPU_LOAD_OPTIONS);
 
     let (models, _) = match result {
         Ok((models, materials)) => (models, materials),
@@ -26,14 +22,15 @@ pub fn load_meshes_from_obj<P: AsRef<Path> + std::fmt::Debug, V: Vertex>(
 
     for model in models {
         if model.mesh.normals.is_empty() {
-            return Err(LoadError::MissingNormals(model.name))
+            return Err(LoadError::MissingNormals(model.name));
         }
 
         if model.mesh.texcoords.is_empty() {
-            return Err(LoadError::MissingUvs(model.name))
+            return Err(LoadError::MissingUvs(model.name));
         }
 
-        let vertices = model.mesh
+        let vertices = model
+            .mesh
             .positions
             .chunks(3)
             .zip(model.mesh.normals.chunks(3))
@@ -64,7 +61,7 @@ pub fn load_meshes_from_obj<P: AsRef<Path> + std::fmt::Debug, V: Vertex>(
             name.as_ref().map(|n| &**n),
         ) {
             Ok(m) => m,
-            Err(e) => return Err(LoadError::Gpu(model.name, e))
+            Err(e) => return Err(LoadError::Gpu(model.name, e)),
         };
 
         meshes.push(mesh);

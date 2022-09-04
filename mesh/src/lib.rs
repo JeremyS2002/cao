@@ -1,13 +1,12 @@
-
 pub mod defaults;
-pub mod tangent;
 #[cfg(feature = "loading")]
 pub mod loading;
+pub mod tangent;
 
 pub use defaults::*;
-pub use tangent::*;
 #[cfg(feature = "loading")]
 pub use loading::*;
+pub use tangent::*;
 
 /// Vertex trait specific to 3D use cases
 pub trait Vertex: gfx::Vertex {
@@ -38,4 +37,3 @@ pub trait Vertex: gfx::Vertex {
     /// Get the tangent in the v direction if any
     fn tangent_v(&self) -> Option<glam::Vec3>;
 }
-

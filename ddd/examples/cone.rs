@@ -1,14 +1,14 @@
 #![feature(vec_into_raw_parts)]
 
-use ddd::cone;
 use ddd::clay;
+use ddd::cone;
 use ddd::glam;
 use ddd::prelude::*;
 use gfx::image;
 
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::BufReader;
-use std::borrow::Cow;
 
 use winit::{
     dpi::PhysicalSize,
@@ -43,7 +43,7 @@ pub struct Cone {
     solid_renderer: clay::SolidRenderer,
     bloom_renderer: cone::BloomRenderer,
     tonemap_renderer: cone::GlobalToneMapRenderer,
-    
+
     antialiased: gfx::GTexture2D,
 
     mesh: gfx::Mesh<cone::Vertex>,
@@ -91,8 +91,7 @@ impl Cone {
 
         let device = instance.create_device(&gpu::DeviceDesc {
             compatible_surfaces: &[&surface],
-            features: gpu::DeviceFeatures::BASE
-                | gpu::DeviceFeatures::GEOMETRY_SHADER,
+            features: gpu::DeviceFeatures::BASE | gpu::DeviceFeatures::GEOMETRY_SHADER,
             ..Default::default()
         })?;
 
@@ -108,21 +107,23 @@ impl Cone {
         println!("loading objects...");
 
         let mesh_small = mesh::load_meshes_from_obj(
-            &mut encoder, 
-            &device, 
-            false, 
+            &mut encoder,
+            &device,
+            false,
             "../resources/models/dragon_small.obj",
             None,
-        )?.remove(0);
+        )?
+        .remove(0);
 
         let mesh = mesh::load_meshes_from_obj(
-            &mut encoder, 
-            &device, 
-            true, 
-            "../resources/models/dragon.obj", 
+            &mut encoder,
+            &device,
+            true,
+            "../resources/models/dragon.obj",
             None,
-        )?.remove(0);
-        
+        )?
+        .remove(0);
+
         let plane = mesh::xz_plane(&mut encoder, &device, None)?;
 
         let cube = mesh::cube(&mut encoder, &device, None)?;
@@ -143,7 +144,7 @@ impl Cone {
         let camera = controller.create_cam(&mut encoder, &device, None)?;
 
         let buffer = cone::GeometryBuffer::new(
-            &device, 
+            &device,
             &cone::GeometryBufferDesc {
                 width: WIDTH,
                 height: HEIGHT,
@@ -152,18 +153,14 @@ impl Cone {
                 maps: cone::GeometryBufferDesc::ALL_MAPS,
                 map_scale: |s| match s {
                     "ao" => Some(0.5),
-                    _ => None
+                    _ => None,
                 },
                 name: None,
-            }
+            },
         )?;
 
-        let smaa_renderer = ddd::utils::SMAARenderer::new(
-            &mut encoder,
-            &device,
-            ddd::utils::SMAAState::LOW,
-            None,
-        )?;
+        let smaa_renderer =
+            ddd::utils::SMAARenderer::new(&mut encoder, &device, ddd::utils::SMAAState::LOW, None)?;
 
         let env_renderer = cone::EnvironmentRenderer::new(
             &mut encoder,
@@ -172,20 +169,14 @@ impl Cone {
             None,
         )?;
 
-        let point_renderer = cone::PointLightRenderer::new(
-            &device,
-            cone::PointLightRendererFlags::all(),
-            None,
-        )?;
+        let point_renderer =
+            cone::PointLightRenderer::new(&device, cone::PointLightRendererFlags::all(), None)?;
 
-        let solid_renderer = clay::SolidRenderer::new(
-            &device,
-            None,
-        )?;        
+        let solid_renderer = clay::SolidRenderer::new(&device, None)?;
 
         let ao_renderer = cone::AORenderer::new(
-            &mut encoder, 
-            &device, 
+            &mut encoder,
+            &device,
             // need to be tweaked based on scene geometry
             cone::AOParams {
                 kernel_size: 8,
@@ -193,18 +184,12 @@ impl Cone {
                 bias: 0.005,
                 power: 5.0,
                 ..Default::default()
-            }, 
+            },
             false,
-            None
-        )?;
-
-        let bloom_renderer = cone::BloomRenderer::new(
-            &mut encoder, 
-            &device, 
-            0.5,
-            1.5,
             None,
         )?;
+
+        let bloom_renderer = cone::BloomRenderer::new(&mut encoder, &device, 0.5, 1.5, None)?;
 
         let tonemap_renderer = cone::GlobalToneMapRenderer::new(
             &mut encoder,
@@ -217,12 +202,12 @@ impl Cone {
             buffer.width(),
             buffer.height(),
             gpu::Samples::S1,
-            gpu::TextureUsage::SAMPLED
-                | gpu::TextureUsage::COLOR_OUTPUT,
+            gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
             1,
             gfx::alt_formats(gpu::Format::Rgba32Float),
             None,
-        )?.unwrap();
+        )?
+        .unwrap();
 
         let sampler = device.create_sampler(&gpu::SamplerDesc {
             wrap_x: gpu::WrapMode::ClampToEdge,
@@ -236,37 +221,24 @@ impl Cone {
 
         let scale = glam::Mat4::from_scale(glam::vec3(2.0, 2.0, 2.0));
 
-        let leather_instance = [(glam::Mat4::from_translation(glam::vec3(-4.5, -1.0, 0.0)) * scale).into()];
-        let leather_instance = ddd::utils::Instances::new(
-            &mut encoder,
-            &device,
-            &leather_instance,
-            None,
-        )?;
+        let leather_instance =
+            [(glam::Mat4::from_translation(glam::vec3(-4.5, -1.0, 0.0)) * scale).into()];
+        let leather_instance =
+            ddd::utils::Instances::new(&mut encoder, &device, &leather_instance, None)?;
 
-        let metal_instance = [(glam::Mat4::from_translation(glam::vec3(-1.5, -1.0, 0.0)) * scale).into()];
-        let metal_instance = ddd::utils::Instances::new(
-            &mut encoder,
-            &device,
-            &metal_instance,
-            None,
-        )?;
+        let metal_instance =
+            [(glam::Mat4::from_translation(glam::vec3(-1.5, -1.0, 0.0)) * scale).into()];
+        let metal_instance =
+            ddd::utils::Instances::new(&mut encoder, &device, &metal_instance, None)?;
 
-        let wax_instance = [(glam::Mat4::from_translation(glam::vec3(1.5, -1.0, 0.0)) * scale).into()];
-        let wax_instance = ddd::utils::Instances::new(
-            &mut encoder,
-            &device,
-            &wax_instance,
-            None,
-        )?;
+        let wax_instance =
+            [(glam::Mat4::from_translation(glam::vec3(1.5, -1.0, 0.0)) * scale).into()];
+        let wax_instance = ddd::utils::Instances::new(&mut encoder, &device, &wax_instance, None)?;
 
-        let chrome_instance = [(glam::Mat4::from_translation(glam::vec3(4.5, -1.0, 0.0)) * scale).into()];
-        let chrome_instance = ddd::utils::Instances::new(
-            &mut encoder,
-            &device,
-            &chrome_instance,
-            None,
-        )?;
+        let chrome_instance =
+            [(glam::Mat4::from_translation(glam::vec3(4.5, -1.0, 0.0)) * scale).into()];
+        let chrome_instance =
+            ddd::utils::Instances::new(&mut encoder, &device, &chrome_instance, None)?;
 
         let wood_instance = [glam::Mat4::from_scale_rotation_translation(
             glam::vec3(7.0, 1.0, 7.0),
@@ -274,12 +246,8 @@ impl Cone {
             glam::vec3(0.0, -1.0, 0.0),
         )
         .into()];
-        let wood_instance = ddd::utils::Instances::new(
-            &mut encoder,
-            &device,
-            &wood_instance,
-            None,
-        )?;
+        let wood_instance =
+            ddd::utils::Instances::new(&mut encoder, &device, &wood_instance, None)?;
 
         println!("loading textures...");
 
@@ -324,7 +292,7 @@ impl Cone {
             &leather_albedo,
             &leather_roughness,
             None,
-            None,//Some(&leather_normal),
+            None, //Some(&leather_normal),
             &sampler,
             false,
         )
@@ -459,37 +427,22 @@ impl Cone {
 
         let skybox = cone::new_skybox(&mut encoder, &device, &hdri, 512)?;
 
-        let env = cone::new_env_map(
-            &mut encoder, 
-            &device, 
-            &skybox, 
-            32,
-            128,
-            512, 
-            2048
-        )?;
+        let env = cone::new_env_map(&mut encoder, &device, &skybox, 32, 128, 512, 2048)?;
 
         let light_pos = glam::vec3(0.0, 2.0, 0.0);
 
         let light = cone::PointLight::new(
             &mut encoder,
             &device,
-            cone::PointLightData::new(
-                0.05,
-                light_pos,
-                [2.5; 3].into(),
-                0.05,
-            ),
+            cone::PointLightData::new(0.05, light_pos, [2.5; 3].into(), 0.05),
             None,
         )?;
 
-        let light_instance = [(glam::Mat4::from_translation(light_pos) * glam::Mat4::from_scale(glam::vec3(0.1, 0.1, 0.1))).into()];
-        let light_instance = ddd::utils::Instances::new(
-            &mut encoder,
-            &device,
-            &light_instance,
-            None,
-        )?;
+        let light_instance = [(glam::Mat4::from_translation(light_pos)
+            * glam::Mat4::from_scale(glam::vec3(0.1, 0.1, 0.1)))
+        .into()];
+        let light_instance =
+            ddd::utils::Instances::new(&mut encoder, &device, &light_instance, None)?;
 
         let shadow = cone::PointDepthMap::new(
             &mut encoder,
@@ -510,17 +463,18 @@ impl Cone {
             None,
         )?;
 
-        let shadow_renderer =
-            cone::PointDepthMapRenderer::new(&device, gpu::CullFace::Front, gpu::FrontFace::Clockwise, None)?;
+        let shadow_renderer = cone::PointDepthMapRenderer::new(
+            &device,
+            gpu::CullFace::Front,
+            gpu::FrontFace::Clockwise,
+            None,
+        )?;
 
         println!("pre-computing lookup tables...");
 
         encoder.submit(&mut command_buffer, true)?;
 
-        let display_renderer = ddd::utils::CopyRenderer::new(
-            &device, 
-            None,
-        )?;
+        let display_renderer = ddd::utils::CopyRenderer::new(&device, None)?;
 
         let query1 = device.create_time_query(16, None)?;
         let query2 = device.create_time_query(2, None)?;
@@ -667,16 +621,11 @@ impl Cone {
         encoder.write_timestamp_ref(&self.query1, 3, gpu::PipelineStage::BottomOfPipe);
         encoder.write_timestamp_ref(&self.query1, 4, gpu::PipelineStage::TopOfPipe);
 
-        self.ao_renderer.pass(
-            &mut encoder, 
-            &self.device, 
-            &self.buffer, 
-            &self.camera,
-            3.0,
-        )?;
+        self.ao_renderer
+            .pass(&mut encoder, &self.device, &self.buffer, &self.camera, 3.0)?;
 
         // encoder.clear_texture(
-        //     self.buffer.get("ao").unwrap().whole_slice_ref(), 
+        //     self.buffer.get("ao").unwrap().whole_slice_ref(),
         //     gpu::ClearValue::ColorFloat([1.0; 4]),
         // );
 
@@ -733,8 +682,8 @@ impl Cone {
         encoder.write_timestamp_ref(&self.query1, 10, gpu::PipelineStage::TopOfPipe);
 
         self.solid_renderer.pass(
-            &mut encoder, 
-            &self.device, 
+            &mut encoder,
+            &self.device,
             gfx::Attachment {
                 raw: gpu::Attachment::View(
                     Cow::Borrowed(&self.buffer.get("output").unwrap().view),
@@ -742,7 +691,7 @@ impl Cone {
                 ),
                 load: gpu::LoadOp::Load,
                 store: gpu::StoreOp::Store,
-            }, 
+            },
             gfx::Attachment {
                 raw: gpu::Attachment::View(
                     Cow::Borrowed(&self.buffer.depth.view),
@@ -750,13 +699,9 @@ impl Cone {
                 ),
                 load: gpu::LoadOp::Load,
                 store: gpu::StoreOp::Store,
-            }, 
-            [(
-                &self.cube as _,
-                &self.light_instance,
-                [2.0, 2.0, 2.0, 1.0],
-            )], 
-            &self.camera
+            },
+            [(&self.cube as _, &self.light_instance, [2.0, 2.0, 2.0, 1.0])],
+            &self.camera,
         )?;
 
         self.env_renderer.skybox_pass(
@@ -772,12 +717,8 @@ impl Cone {
         encoder.write_timestamp_ref(&self.query1, 11, gpu::PipelineStage::BottomOfPipe);
         encoder.write_timestamp_ref(&self.query1, 12, gpu::PipelineStage::TopOfPipe);
 
-        self.bloom_renderer.pass(
-            &mut encoder, 
-            &self.device, 
-            &self.buffer,
-            4,
-        )?;
+        self.bloom_renderer
+            .pass(&mut encoder, &self.device, &self.buffer, 4)?;
 
         encoder.write_timestamp_ref(&self.query1, 13, gpu::PipelineStage::BottomOfPipe);
         encoder.write_timestamp_ref(&self.query1, 14, gpu::PipelineStage::TopOfPipe);
@@ -789,14 +730,14 @@ impl Cone {
             None,
             gfx::Attachment {
                 raw: gpu::Attachment::View(
-                    Cow::Borrowed(&self.antialiased.view), 
-                    gpu::ClearValue::ColorFloat([0.0; 4])
+                    Cow::Borrowed(&self.antialiased.view),
+                    gpu::ClearValue::ColorFloat([0.0; 4]),
                 ),
                 load: gpu::LoadOp::Clear,
                 store: gpu::StoreOp::Store,
             },
         )?;
-        
+
         encoder.write_timestamp_ref(&self.query1, 15, gpu::PipelineStage::BottomOfPipe);
 
         encoder.record(&mut self.offscreen_command, false)?;
@@ -895,12 +836,15 @@ impl Cone {
             self.subsurface.data.strength,
             self.subsurface.data.bias,
         );
-        let light_instances = [(glam::Mat4::from_translation(self.light.data.position) * glam::Mat4::from_scale(glam::vec3(0.1, 0.1, 0.1))).into()];
+        let light_instances = [(glam::Mat4::from_translation(self.light.data.position)
+            * glam::Mat4::from_scale(glam::vec3(0.1, 0.1, 0.1)))
+        .into()];
 
         self.light.update_gpu_ref(&mut encoder);
         self.shadow.update_gpu_ref(&mut encoder);
         self.subsurface.update_gpu_ref(&mut encoder);
-        self.light_instance.update_gpu(&mut encoder, &light_instances)?;
+        self.light_instance
+            .update_gpu(&mut encoder, &light_instances)?;
 
         self.controller
             .update_cam_owned(&mut encoder, &mut self.camera);
@@ -908,16 +852,16 @@ impl Cone {
         encoder.write_timestamp_ref(&self.query2, 0, gpu::PipelineStage::TopOfPipe);
 
         self.tonemap_renderer.pass(
-            &mut encoder, 
-            &self.device, 
+            &mut encoder,
+            &self.device,
             &self.antialiased.view,
             gfx::Attachment {
                 raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
                 load: gpu::LoadOp::DontCare,
                 store: gpu::StoreOp::Store,
-            } ,
+            },
         )?;
-    
+
         encoder.write_timestamp_ref(&self.query2, 1, gpu::PipelineStage::BottomOfPipe);
 
         // for debugging
@@ -928,7 +872,7 @@ impl Cone {
         //     &mut encoder,
         //     &self.device,
         //     &self.buffer.get("ao").unwrap().view,
-        //     // &self.antialiased.view, 
+        //     // &self.antialiased.view,
         //     gfx::Attachment {
         //         raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
         //         load: gpu::LoadOp::Clear,

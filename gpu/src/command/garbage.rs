@@ -1,4 +1,3 @@
-
 use std::sync::Arc;
 
 use ash::vk;
@@ -22,16 +21,16 @@ pub(crate) struct Garbage {
 
 impl std::default::Default for Garbage {
     fn default() -> Self {
-        Self { 
+        Self {
             memory: Vec::new(),
-            textures: Vec::new(), 
-            views: Vec::new(), 
-            buffers: Vec::new(), 
+            textures: Vec::new(),
+            views: Vec::new(),
+            buffers: Vec::new(),
             samplers: Vec::new(),
             descriptor_layouts: Vec::new(),
-            descriptor_pools: Vec::new(), 
-            pipeline_layouts: Vec::new(), 
-            render_passes: Vec::new(), 
+            descriptor_pools: Vec::new(),
+            pipeline_layouts: Vec::new(),
+            render_passes: Vec::new(),
             pipelines: Vec::new(),
             framebuffers: Vec::new(),
             swapchains: Vec::new(),

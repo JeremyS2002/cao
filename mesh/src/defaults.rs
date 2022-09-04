@@ -1,10 +1,9 @@
-
 use crate::Vertex;
 
 use std::collections::HashMap;
 
 /// Create a mesh in the shape of a square plane
-/// 
+///
 /// Centered on the origin side length 2 oriented on the xy axes normal positive z axis
 pub fn xy_plane<V: Vertex>(
     encoder: &mut gfx::CommandEncoder<'_>,
@@ -50,7 +49,7 @@ pub fn xy_plane<V: Vertex>(
 }
 
 /// Create a mesh in the shape of a square plane
-/// 
+///
 /// Centered on the origin side length 2 oriented on the xz axes normal positive y axis
 pub fn xz_plane<V: Vertex>(
     encoder: &mut gfx::CommandEncoder<'_>,
@@ -96,7 +95,7 @@ pub fn xz_plane<V: Vertex>(
 }
 
 /// Create a mesh in the shape of a square plane
-/// 
+///
 /// Centered on the origin side length 2 oriented on the yz axes normal positive x axis
 pub fn yz_plane<V: Vertex>(
     encoder: &mut gfx::CommandEncoder<'_>,
@@ -160,16 +159,8 @@ pub fn ico_sphere<V: Vertex>(
         let u = (t.x / v.sin()).asin();
         //  differentiate t with respecte to u and v to get tu and tv respectivly
         let tu = glam::vec3(-u.sin() * v.sin(), u.cos() * v.sin(), 0.0);
-        let tv = glam::vec3(u.cos() * v.cos(), u.sin() * v.cos(), - v.sin());
-        vertices.push(
-            V::new(
-                t,
-                glam::vec2(u, v),
-                t,
-                Some(tu),
-                Some(tv),
-            )
-        );
+        let tv = glam::vec3(u.cos() * v.cos(), u.sin() * v.cos(), -v.sin());
+        vertices.push(V::new(t, glam::vec2(u, v), t, Some(tu), Some(tv)));
     };
 
     add(&mut vertices, glam::vec3(-1.0, t, 0.0));
@@ -238,7 +229,13 @@ pub fn ico_sphere<V: Vertex>(
     gfx::Mesh::indexed(encoder, device, &vertices, &indices, name)
 }
 
-fn get_middle<V: Vertex>(add: fn(&mut Vec<V>, glam::Vec3) -> (), c: &mut HashMap<u64, u32>, vertices: &mut Vec<V>, mut p1: u32, mut p2: u32) -> u32 {
+fn get_middle<V: Vertex>(
+    add: fn(&mut Vec<V>, glam::Vec3) -> (),
+    c: &mut HashMap<u64, u32>,
+    vertices: &mut Vec<V>,
+    mut p1: u32,
+    mut p2: u32,
+) -> u32 {
     if p2 > p1 {
         std::mem::swap(&mut p1, &mut p2);
     }
@@ -249,7 +246,7 @@ fn get_middle<V: Vertex>(add: fn(&mut Vec<V>, glam::Vec3) -> (), c: &mut HashMap
     } else {
         let v1 = vertices[p1 as usize].pos();
         let v2 = vertices[p2 as usize].pos();
-    
+
         add(vertices, (v1 + v2) / 2.0);
         c.insert(key, vertices.len() as u32 - 1);
         vertices.len() as u32 - 1
@@ -272,42 +269,42 @@ pub fn cube<V: Vertex>(
                 glam::vec2(0.0, 0.0),
                 glam::Vec3::NEG_Z,
                 Some(glam::Vec3::X),
-                Some(glam::Vec3::Y), 
+                Some(glam::Vec3::Y),
             ),
             V::new(
                 glam::vec3(1.0, -1.0, -1.0),
                 glam::vec2(1.0, 0.0),
                 glam::Vec3::NEG_Z,
                 Some(glam::Vec3::X),
-                Some(glam::Vec3::Y), 
+                Some(glam::Vec3::Y),
             ),
             V::new(
                 glam::vec3(1.0, 1.0, -1.0),
                 glam::vec2(1.0, 1.0),
                 glam::Vec3::NEG_Z,
                 Some(glam::Vec3::X),
-                Some(glam::Vec3::Y), 
+                Some(glam::Vec3::Y),
             ),
             V::new(
                 glam::vec3(-1.0, 1.0, -1.0),
                 glam::vec2(0.0, 1.0),
                 glam::Vec3::NEG_Z,
                 Some(glam::Vec3::X),
-                Some(glam::Vec3::Y), 
+                Some(glam::Vec3::Y),
             ),
             V::new(
                 glam::vec3(-1.0, -1.0, -1.0),
                 glam::vec2(0.0, 0.0),
                 glam::Vec3::NEG_Z,
                 Some(glam::Vec3::X),
-                Some(glam::Vec3::Y), 
+                Some(glam::Vec3::Y),
             ),
             V::new(
                 glam::vec3(1.0, 1.0, -1.0),
                 glam::vec2(1.0, 1.0),
                 glam::Vec3::NEG_Z,
                 Some(glam::Vec3::X),
-                Some(glam::Vec3::Y), 
+                Some(glam::Vec3::Y),
             ),
             // front face
             V::new(
@@ -436,7 +433,7 @@ pub fn cube<V: Vertex>(
                 glam::vec2(1.0, 1.0),
                 glam::Vec3::NEG_Y,
                 Some(glam::Vec3::X),
-                Some(glam::Vec3::Z),            
+                Some(glam::Vec3::Z),
             ),
             // left face
             V::new(
@@ -444,42 +441,42 @@ pub fn cube<V: Vertex>(
                 glam::vec2(0.0, 0.0),
                 glam::Vec3::NEG_X,
                 Some(glam::Vec3::Y),
-                Some(glam::Vec3::Z),            
+                Some(glam::Vec3::Z),
             ),
             V::new(
                 glam::vec3(-1.0, -1.0, 1.0),
                 glam::vec2(0.0, 1.0),
                 glam::Vec3::NEG_X,
                 Some(glam::Vec3::Y),
-                Some(glam::Vec3::Z),            
+                Some(glam::Vec3::Z),
             ),
             V::new(
                 glam::vec3(-1.0, 1.0, 1.0),
                 glam::vec2(1.0, 1.0),
                 glam::Vec3::NEG_X,
                 Some(glam::Vec3::Y),
-                Some(glam::Vec3::Z),            
+                Some(glam::Vec3::Z),
             ),
             V::new(
                 glam::vec3(-1.0, 1.0, -1.0),
                 glam::vec2(1.0, 0.0),
                 glam::Vec3::NEG_X,
                 Some(glam::Vec3::Y),
-                Some(glam::Vec3::Z),            
+                Some(glam::Vec3::Z),
             ),
             V::new(
                 glam::vec3(-1.0, -1.0, -1.0),
                 glam::vec2(0.0, 0.0),
                 glam::Vec3::NEG_X,
                 Some(glam::Vec3::Y),
-                Some(glam::Vec3::Z),            
+                Some(glam::Vec3::Z),
             ),
             V::new(
                 glam::vec3(-1.0, 1.0, 1.0),
                 glam::vec2(1.0, 1.0),
                 glam::Vec3::NEG_X,
                 Some(glam::Vec3::Y),
-                Some(glam::Vec3::Z),            
+                Some(glam::Vec3::Z),
             ),
             // right face
             V::new(
@@ -487,42 +484,42 @@ pub fn cube<V: Vertex>(
                 glam::vec2(0.0, 0.0),
                 glam::Vec3::X,
                 Some(glam::Vec3::Y),
-                Some(glam::Vec3::Z),            
+                Some(glam::Vec3::Z),
             ),
             V::new(
                 glam::vec3(1.0, -1.0, 1.0),
                 glam::vec2(0.0, 1.0),
                 glam::Vec3::X,
                 Some(glam::Vec3::Y),
-                Some(glam::Vec3::Z),            
+                Some(glam::Vec3::Z),
             ),
             V::new(
                 glam::vec3(1.0, 1.0, 1.0),
                 glam::vec2(1.0, 1.0),
                 glam::Vec3::X,
                 Some(glam::Vec3::Y),
-                Some(glam::Vec3::Z),            
+                Some(glam::Vec3::Z),
             ),
             V::new(
                 glam::vec3(1.0, 1.0, -1.0),
                 glam::vec2(1.0, 0.0),
                 glam::Vec3::X,
                 Some(glam::Vec3::Y),
-                Some(glam::Vec3::Z),            
+                Some(glam::Vec3::Z),
             ),
             V::new(
                 glam::vec3(1.0, -1.0, -1.0),
                 glam::vec2(0.0, 0.0),
                 glam::Vec3::X,
                 Some(glam::Vec3::Y),
-                Some(glam::Vec3::Z),            
+                Some(glam::Vec3::Z),
             ),
             V::new(
                 glam::vec3(1.0, 1.0, 1.0),
                 glam::vec2(1.0, 1.0),
                 glam::Vec3::X,
                 Some(glam::Vec3::Y),
-                Some(glam::Vec3::Z),            
+                Some(glam::Vec3::Z),
             ),
         ],
         name,

@@ -207,11 +207,7 @@ impl ReflectedGraphics {
             .transpose()?;
 
         let (descriptor_set_layouts, descriptor_set_types) =
-            super::spirv_raw::combine_descriptor_set_layouts(
-                device,
-                descriptor_set_layouts,
-                name,
-            )?;
+            super::spirv_raw::combine_descriptor_set_layouts(device, descriptor_set_layouts, name)?;
 
         let pipeline_layout = device.create_pipeline_layout(&gpu::PipelineLayoutDesc {
             name: name.as_ref().map(|n| format!("{}_pipeline_layout", n)),

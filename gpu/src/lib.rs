@@ -112,12 +112,12 @@ mod ffi;
 pub mod format;
 pub mod pass;
 pub mod pipeline;
+pub mod query;
 pub mod sampler;
 pub mod shader;
 pub mod surface;
 pub mod swapchain;
 pub mod texture;
-pub mod query;
 
 pub use binding::*;
 pub use buffer::*;
@@ -129,12 +129,12 @@ use ffi::*;
 pub use format::*;
 pub use pass::*;
 pub use pipeline::*;
+pub use query::*;
 pub use sampler::*;
 pub use shader::*;
 pub use surface::*;
 pub use swapchain::*;
 pub use texture::*;
-pub use query::*;
 
 /// Makes `&[u8]` into `&[u32]` ensuring correct alignment
 ///
@@ -263,7 +263,7 @@ impl Instance {
     ///
     /// This is the entry point to the api and will be the first object created
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkInstance.html>
-    /// 
+    ///
     /// Panics if VK_LAYER_KHRONOS_validation is unavailable
     /// use [`Instance::no_validation`] to create an instance without validation for realease builds
     pub fn new(desc: &InstanceDesc<'_>) -> Result<Self, Error> {

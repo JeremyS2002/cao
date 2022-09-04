@@ -101,7 +101,9 @@ where
     T1: Borrow<crate::TextureSlice<'a>>,
 {
     if let Some(mem) = &texture.borrow().texture.memory {
-        garbage.textures.push(Arc::clone(&*(texture.borrow().texture.raw)));
+        garbage
+            .textures
+            .push(Arc::clone(&*(texture.borrow().texture.raw)));
         garbage.memory.push(Arc::clone(mem));
     }
 
@@ -159,11 +161,15 @@ where
     T2: Borrow<crate::TextureSlice<'a>>,
 {
     if let Some(mem) = &src.borrow().texture.memory {
-        garbage.textures.push(Arc::clone(&*(src.borrow().texture.raw)));
+        garbage
+            .textures
+            .push(Arc::clone(&*(src.borrow().texture.raw)));
         garbage.memory.push(Arc::clone(mem));
     }
     if let Some(mem) = &dst.borrow().texture.memory {
-        garbage.textures.push(Arc::clone(&*(dst.borrow().texture.raw)));
+        garbage
+            .textures
+            .push(Arc::clone(&*(dst.borrow().texture.raw)));
         garbage.memory.push(Arc::clone(mem));
     }
 
@@ -227,10 +233,18 @@ where
     B1: Borrow<crate::BufferSlice<'a>>,
     B2: Borrow<crate::BufferSlice<'a>>,
 {
-    garbage.buffers.push(Arc::clone(&*(src.borrow().buffer.raw)));
-    garbage.memory.push(Arc::clone(&*src.borrow().buffer.memory));
-    garbage.buffers.push(Arc::clone(&*(dst.borrow().buffer.raw)));
-    garbage.memory.push(Arc::clone(&*dst.borrow().buffer.memory));
+    garbage
+        .buffers
+        .push(Arc::clone(&*(src.borrow().buffer.raw)));
+    garbage
+        .memory
+        .push(Arc::clone(&*src.borrow().buffer.memory));
+    garbage
+        .buffers
+        .push(Arc::clone(&*(dst.borrow().buffer.raw)));
+    garbage
+        .memory
+        .push(Arc::clone(&*dst.borrow().buffer.memory));
 
     #[cfg(feature = "logging")]
     log::trace!(
@@ -266,11 +280,15 @@ where
     T: Borrow<crate::TextureSlice<'a>>,
 {
     if let Some(mem) = &src.borrow().texture.memory {
-        garbage.textures.push(Arc::clone(&*src.borrow().texture.raw));
+        garbage
+            .textures
+            .push(Arc::clone(&*src.borrow().texture.raw));
         garbage.memory.push(Arc::clone(mem));
     }
     garbage.buffers.push(Arc::clone(&*dst.borrow().buffer.raw));
-    garbage.memory.push(Arc::clone(&*dst.borrow().buffer.memory));
+    garbage
+        .memory
+        .push(Arc::clone(&*dst.borrow().buffer.memory));
 
     #[cfg(feature = "logging")]
     log::trace!(
@@ -320,9 +338,13 @@ where
     T: Borrow<crate::TextureSlice<'a>>,
 {
     garbage.buffers.push(Arc::clone(&*src.borrow().buffer.raw));
-    garbage.memory.push(Arc::clone(&*src.borrow().buffer.memory));
+    garbage
+        .memory
+        .push(Arc::clone(&*src.borrow().buffer.memory));
     if let Some(mem) = &dst.borrow().texture.memory {
-        garbage.textures.push(Arc::clone(&*dst.borrow().texture.raw));
+        garbage
+            .textures
+            .push(Arc::clone(&*dst.borrow().texture.raw));
         garbage.memory.push(Arc::clone(mem));
     }
 
@@ -375,11 +397,15 @@ where
     T2: Borrow<crate::TextureSlice<'a>>,
 {
     if let Some(mem) = &src.borrow().texture.memory {
-        garbage.textures.push(Arc::clone(&*src.borrow().texture.raw));
+        garbage
+            .textures
+            .push(Arc::clone(&*src.borrow().texture.raw));
         garbage.memory.push(Arc::clone(mem));
     }
     if let Some(mem) = &dst.borrow().texture.memory {
-        garbage.textures.push(Arc::clone(&*dst.borrow().texture.raw));
+        garbage
+            .textures
+            .push(Arc::clone(&*dst.borrow().texture.raw));
         garbage.memory.push(Arc::clone(mem));
     }
 
@@ -442,11 +468,15 @@ where
     T2: Borrow<crate::TextureSlice<'a>>,
 {
     if let Some(mem) = &src.borrow().texture.memory {
-        garbage.textures.push(Arc::clone(&*src.borrow().texture.raw));
+        garbage
+            .textures
+            .push(Arc::clone(&*src.borrow().texture.raw));
         garbage.memory.push(Arc::clone(mem));
     }
     if let Some(mem) = &dst.borrow().texture.memory {
-        garbage.textures.push(Arc::clone(&*dst.borrow().texture.raw));
+        garbage
+            .textures
+            .push(Arc::clone(&*dst.borrow().texture.raw));
         garbage.memory.push(Arc::clone(mem));
     }
 
@@ -569,7 +599,7 @@ pub(crate) fn begin_compute_pass(
     command_buffer: vk::CommandBuffer,
     device: &crate::RawDevice,
     pipeline: &crate::ComputePipeline,
-    garbage: &mut super::Garbage
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error> {
     garbage.pipelines.push(Arc::clone(&pipeline.raw));
 
@@ -609,7 +639,9 @@ where
         garbage,
     )?;
 
-    garbage.pipeline_layouts.push(Arc::clone(&pipeline.layout.raw));
+    garbage
+        .pipeline_layouts
+        .push(Arc::clone(&pipeline.layout.raw));
     garbage.pipelines.push(Arc::clone(&pipeline.raw));
 
     unsafe {
@@ -723,8 +755,16 @@ where
         .map(|v| {
             match v.borrow() {
                 crate::Attachment::Swapchain(s, _) => {
-                    let wait_semaphore = **s.inner.acquire_complete_semaphores.get(s.wait_semaphore).unwrap();
-                    let signal_semaphore = **s.inner.rendering_complete_semaphores.get(s.signal_semaphore).unwrap();
+                    let wait_semaphore = **s
+                        .inner
+                        .acquire_complete_semaphores
+                        .get(s.wait_semaphore)
+                        .unwrap();
+                    let signal_semaphore = **s
+                        .inner
+                        .rendering_complete_semaphores
+                        .get(s.signal_semaphore)
+                        .unwrap();
                     swapchain = Some((wait_semaphore, signal_semaphore));
                     s.drawn.set(true);
                     extent.width = s.view.extent.width;
@@ -916,8 +956,12 @@ pub(crate) fn bind_index_buffer<'a, B>(
 where
     B: Borrow<crate::BufferSlice<'a>>,
 {
-    garbage.buffers.push(Arc::clone(&*buffer.borrow().buffer.raw));
-    garbage.memory.push(Arc::clone(&*buffer.borrow().buffer.memory));
+    garbage
+        .buffers
+        .push(Arc::clone(&*buffer.borrow().buffer.raw));
+    garbage
+        .memory
+        .push(Arc::clone(&*buffer.borrow().buffer.memory));
 
     #[cfg(feature = "logging")]
     log::trace!("GPU: cmd_bind_index_buffer {:?}", buffer.borrow());
@@ -957,26 +1001,31 @@ where
 {
     #[cfg(feature = "logging")]
     log::trace!("GPU: cmd_set_descriptors");
-    let descriptor_sets = groups.iter().map(|g| {
-        let set: &'_ crate::DescriptorSet = g.borrow();
-        for buffer in &*set.buffers {
-            garbage.buffers.push(Arc::clone(&*buffer.buffer.raw));
-            garbage.memory.push(Arc::clone(&*buffer.buffer.memory));
-        }
-        for texture in &*set.textures {
-            garbage.textures.push(Arc::clone(&*texture.0.texture.raw));
-            garbage.views.push(Arc::clone(&*texture.0.raw));
-            if let Some(mem) = &texture.0.texture.memory {
-                garbage.memory.push(Arc::clone(mem));
+    let descriptor_sets = groups
+        .iter()
+        .map(|g| {
+            let set: &'_ crate::DescriptorSet = g.borrow();
+            for buffer in &*set.buffers {
+                garbage.buffers.push(Arc::clone(&*buffer.buffer.raw));
+                garbage.memory.push(Arc::clone(&*buffer.buffer.memory));
             }
-        }
-        for sampler in &*set.samplers {
-            garbage.samplers.push(Arc::clone(&*sampler.raw));
-        }
-        garbage.descriptor_layouts.push(Arc::clone(&*g.borrow().layout));
-        garbage.descriptor_pools.push(Arc::clone(&*g.borrow().pool));
-        **g.borrow().set
-    }).collect::<Vec<_>>();
+            for texture in &*set.textures {
+                garbage.textures.push(Arc::clone(&*texture.0.texture.raw));
+                garbage.views.push(Arc::clone(&*texture.0.raw));
+                if let Some(mem) = &texture.0.texture.memory {
+                    garbage.memory.push(Arc::clone(mem));
+                }
+            }
+            for sampler in &*set.samplers {
+                garbage.samplers.push(Arc::clone(&*sampler.raw));
+            }
+            garbage
+                .descriptor_layouts
+                .push(Arc::clone(&*g.borrow().layout));
+            garbage.descriptor_pools.push(Arc::clone(&*g.borrow().pool));
+            **g.borrow().set
+        })
+        .collect::<Vec<_>>();
     unsafe {
         device.cmd_bind_descriptor_sets(
             command_buffer,
@@ -1018,17 +1067,10 @@ pub(crate) fn write_timestamp(
     query: &crate::TimeQuery,
     pipeline_stage: crate::PipelineStage,
     index: u32,
-    garbage: &mut super::Garbage
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error> {
     garbage.queries.push(Arc::clone(&query.raw));
-    unsafe {
-        device.cmd_write_timestamp(
-            command_buffer, 
-            pipeline_stage.into(), 
-            **query.raw, 
-            index
-        )
-    }
+    unsafe { device.cmd_write_timestamp(command_buffer, pipeline_stage.into(), **query.raw, index) }
 
     Ok(device.check_errors()?)
 }
@@ -1039,12 +1081,10 @@ pub(crate) fn reset_time_query(
     query: &crate::TimeQuery,
     first_query: u32,
     query_count: u32,
-    garbage: &mut super::Garbage
+    garbage: &mut super::Garbage,
 ) -> Result<(), crate::Error> {
     garbage.queries.push(Arc::clone(&query.raw));
-    unsafe {
-        device.cmd_reset_query_pool(command_buffer, **query.raw, first_query, query_count)
-    }
+    unsafe { device.cmd_reset_query_pool(command_buffer, **query.raw, first_query, query_count) }
     Ok(device.check_errors()?)
 }
 

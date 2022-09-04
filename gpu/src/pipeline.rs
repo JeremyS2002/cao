@@ -349,16 +349,23 @@ impl GraphicsPipeline {
         let depth_state: Option<vk::PipelineDepthStencilStateCreateInfo> =
             desc.depth_stencil.map(|s| s.into());
 
+        let scissors = desc
+            .viewports
+            .iter()
+            .map(|v| vk::Rect2D {
+                offset: vk::Offset2D { x: 0, y: 0 },
+                extent: vk::Extent2D {
+                    width: v.width as _,
+                    height: v.height,
+                },
+            })
+            .collect::<Vec<_>>();
 
-        let scissors = desc.viewports.iter().map(|v| vk::Rect2D {
-            offset: vk::Offset2D { x: 0, y: 0 },
-            extent: vk::Extent2D {
-                width: v.width as _,
-                height: v.height,
-            },
-        }).collect::<Vec<_>>();
-
-        let viewports = desc.viewports.iter().map(|v| (*v).into()).collect::<Vec<_>>();
+        let viewports = desc
+            .viewports
+            .iter()
+            .map(|v| (*v).into())
+            .collect::<Vec<_>>();
 
         let viewport_state = vk::PipelineViewportStateCreateInfo {
             s_type: vk::StructureType::PIPELINE_VIEWPORT_STATE_CREATE_INFO,
