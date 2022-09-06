@@ -11,6 +11,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 
 /// Describes how SMAA (Subpixel morphological antialiasing) should be performed
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub struct SMAAState {
     /// How edges are detected defaults to Luma
     pub edge: SMAAEdgeMethod,
@@ -194,6 +195,7 @@ impl Default for SMAAState {
 }
 
 /// Methods for how edges are detected
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
 pub enum SMAAEdgeMethod {
     /// Use depth infomation to detect edges
     /// This is the least accurate but fastest and will miss chroma only aliasing

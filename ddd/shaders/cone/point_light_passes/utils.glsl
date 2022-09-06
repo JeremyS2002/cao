@@ -67,7 +67,7 @@ struct PointDepthData {
     float bias;
 };
 
-vec3 sampleOffsetDirections[53] = vec3[]
+vec3 sampleOffsetDirections[64] = vec3[]
 (
     vec3( 0,  0,  0),
     vec3(   0,    0,  0.5),
@@ -121,7 +121,18 @@ vec3 sampleOffsetDirections[53] = vec3[]
     vec3(-1,  1, -1),
     vec3(-1, -1,  0),
     vec3(-1, -1,  1),
-    vec3(-1, -1, -1)
+    vec3(-1, -1, -1),
+    vec3(0, 1, -0.5),
+    vec3(0, 1, 0.5),
+    vec3(0, -1, -0.5),
+    vec3(0, 1, 0.5),
+    vec3(0, -0.5, 1),
+    vec3(0, 0.5, 1),
+    vec3(0, -0.5, -1),
+    vec3(0, 0.5, 1),
+    vec3(1, 0.5, 0),
+    vec3(1, -0.5, 0),
+    vec3(-1, 0.5, 0)
 );
 
 float point_shadow_calc(

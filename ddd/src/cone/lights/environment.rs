@@ -35,15 +35,15 @@ pub type SkyBox = gfx::GTextureCube;
 /// let g = SkyBoxGenerator::new(..)?;
 /// let skybox = g.generate_from_image(..)?;
 /// ```
-pub fn new_skybox<'a>(
-    encoder: &mut gfx::CommandEncoder<'a>,
+pub fn new_skybox(
+    encoder: &mut gfx::CommandEncoder<'_>,
     device: &gpu::Device,
-    hdri: &'a ImageBuffer<Rgb<f32>, Vec<f32>>,
+    hdri: ImageBuffer<Rgb<f32>, Vec<f32>>,
     resolution: u32,
 ) -> Result<SkyBox, gpu::Error> {
     let mut generator = SkyBoxGenerator::new(encoder, device)?;
 
-    generator.generate_from_hdri(encoder, device, &hdri, resolution, resolution)
+    generator.generate_from_hdri(encoder, device, hdri, resolution, resolution)
 }
 
 /// Create a new [`EnvironmentMap`]
@@ -159,7 +159,7 @@ impl<'a> SkyBoxGenerator<'a> {
         &mut self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
-        hdri: &'a ImageBuffer<Rgb<f32>, Vec<f32>>,
+        hdri: ImageBuffer<Rgb<f32>, Vec<f32>>,
         width: u32,
         height: u32,
     ) -> Result<SkyBox, gpu::Error> {
@@ -196,7 +196,7 @@ impl<'a> SkyBoxGenerator<'a> {
             let texture = gfx::Texture2D::from_image(
                 encoder,
                 device,
-                hdri,
+                &hdri,
                 gpu::TextureUsage::SAMPLED,
                 1,
                 None,
@@ -215,7 +215,7 @@ impl<'a> SkyBoxGenerator<'a> {
                 None,
             )?;
 
-            let storage = gfx::Storage::new(encoder, device, &hdri, None)?;
+            let storage = gfx::Storage::from_vec(encoder, device, hdri.to_vec(), None)?;
 
             if self.rgb_to_rgba.is_none() {
                 self.rgb_to_rgba = Some(Self::rgb_to_rgba(device)?);

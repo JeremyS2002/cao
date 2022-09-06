@@ -15,3 +15,5 @@ pub mod clay;
 pub mod cone;
 pub mod prelude;
 pub mod utils;
+
+pub use utils::*;

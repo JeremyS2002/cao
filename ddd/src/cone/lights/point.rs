@@ -367,6 +367,10 @@ impl PointLightRenderer {
 
 // base passes
 impl PointLightRenderer {
+    /// Add the lights contributions to the output map of the geometry buffer including shadow and subsurface
+    /// 
+    /// strength multiplies the lights contibution per pixel
+    /// clear specifies if to clear the geometry buffers output map or not
     pub fn base_pass<'a>(
         &'a self,
         encoder: &mut gfx::CommandEncoder<'a>,
@@ -421,6 +425,11 @@ impl PointLightRenderer {
 
 // shadow passes
 impl PointLightRenderer {
+    /// Add the lights contributions to the output map of the geometry buffer including shadow
+    /// 
+    /// strength multiplies the lights contibution per pixel
+    /// shadow samples is the number of shadow map reads for calculating shadow contribution (max 64)
+    /// clear specifies if to clear the geometry buffers output map or not
     pub fn shadow_pass<'a>(
         &'a self,
         encoder: &mut gfx::CommandEncoder<'a>,
@@ -461,7 +470,7 @@ impl PointLightRenderer {
         )?;
 
         pass.push_f32("strength", strength);
-        pass.push_u32("samples", samples);
+        pass.push_u32("samples", samples.min(64));
         pass.push_f32("width", buffer.width as _);
         pass.push_f32("height", buffer.height as _);
 
@@ -477,6 +486,12 @@ impl PointLightRenderer {
 
 // subsurface passes
 impl PointLightRenderer {
+    /// Add the lights contributions to the output map of the geometry buffer including shadow and subsurface
+    /// 
+    /// strength multiplies the lights contibution per pixel
+    /// subsurface samples is the number of shadow map reads for calculating subsurface contribution (max 64)
+    /// shadow samples is the number of shadow map reads for calculating shadow contribution (max 64)
+    /// clear specifies if to clear the geometry buffers output map or not
     pub fn subsurface_pass<'a>(
         &'a self,
         encoder: &mut gfx::CommandEncoder<'a>,
@@ -518,8 +533,8 @@ impl PointLightRenderer {
         )?;
 
         pass.push_f32("strength", strength);
-        pass.push_u32("subsurface_samples", subsurface_samples);
-        pass.push_u32("shadow_samples", shadow_samples);
+        pass.push_u32("subsurface_samples", subsurface_samples.min(64));
+        pass.push_u32("shadow_samples", shadow_samples.min(64));
         pass.push_f32("width", buffer.width as _);
         pass.push_f32("height", buffer.height as _);
 

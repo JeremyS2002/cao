@@ -11,7 +11,7 @@ use crate::utils::Camera;
 use super::GaussBlurRenderer;
 
 /// Parameters to tweak how ambient occlusion is calculated
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(C)]
 pub struct AOParams {
     /// random sample vectors to sample depth values from use ..Default::default() for default random values
@@ -467,6 +467,15 @@ impl AORenderer {
             .pass(encoder, device, src, dst, true, blur_radius)?;
 
         Ok(())
+    }
+
+    pub fn update_params(
+        &mut self, 
+        encoder: &mut gfx::CommandEncoder<'_>,
+        params: AOParams,
+    ) {
+        self.uniform.data = params;
+        self.uniform.update_gpu_owned(encoder)
     }
 
     /// To avoid memory use after free issues vulkan objects are kept alive as long as they can be used

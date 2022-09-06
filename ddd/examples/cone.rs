@@ -425,7 +425,7 @@ impl Cone {
         let hdri = image::ImageBuffer::<image::Rgb<f32>, _>::from_vec(meta.width, meta.height, buf)
             .unwrap();
 
-        let skybox = cone::new_skybox(&mut encoder, &device, &hdri, 512)?;
+        let skybox = cone::new_skybox(&mut encoder, &device, hdri, 512)?;
 
         let env = cone::new_env_map(&mut encoder, &device, &skybox, 32, 128, 512, 2048)?;
 
