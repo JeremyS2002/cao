@@ -373,35 +373,33 @@ impl DescriptorSet {
         let mut write = Vec::new();
         let mut i = 0;
         for list in &descriptors {
-            let mut j = 0;
             let buffer = match desc.layout.entries[i].ty {
                 crate::DescriptorLayoutEntryType::UniformBuffer => true,
                 crate::DescriptorLayoutEntryType::StorageBuffer { .. } => true,
                 _ => false,
             };
-            for d in list {
-                write.push(vk::WriteDescriptorSet {
-                    s_type: vk::StructureType::WRITE_DESCRIPTOR_SET,
-                    p_next: ptr::null(),
-                    dst_set: set,
-                    dst_binding: i as u32,
-                    dst_array_element: j,
-                    descriptor_type: desc.layout.entries[i].ty.into(),
-                    descriptor_count: 1,
-                    p_buffer_info: if buffer {
-                        unsafe { &d.buffer }
-                    } else {
-                        ptr::null()
-                    },
-                    p_image_info: if !buffer {
-                        unsafe { &d.image }
-                    } else {
-                        ptr::null()
-                    },
-                    p_texel_buffer_view: ptr::null(),
-                });
-                j += 1;
-            }
+
+            let w = vk::WriteDescriptorSet {
+                s_type: vk::StructureType::WRITE_DESCRIPTOR_SET,
+                p_next: ptr::null(),
+                dst_set: set,
+                dst_binding: i as u32,
+                dst_array_element: 0,
+                descriptor_type: desc.layout.entries[i].ty.into(),
+                descriptor_count: list.len() as u32,
+                p_buffer_info: if buffer {
+                    unsafe { &list[0].buffer }
+                } else {
+                    ptr::null()
+                },
+                p_image_info: if !buffer {
+                    unsafe { &list[0].image }
+                } else {
+                    ptr::null()
+                },
+                p_texel_buffer_view: ptr::null(),
+            };
+            write.push(w);
             i += 1;
         }
 
@@ -427,14 +425,10 @@ impl DescriptorSet {
                             },
                         }])
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::UniformBuffer with type not Buffer")
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::UniformBuffer {{ count: {}, .. }} with type {:?} (not Buffer)", count.get(), e)
                     }
                 } else {
                     if let crate::DescriptorSetEntry::BufferArray(b) = e {
-                        if count.get() > b.len() as u32 {
-                            panic!("ERROR: Attempt to write BufferArray of len {} to DescriptorLayoutEntry of len {}", b.len(), count.get());
-                        }
-
                         let mut i = 0;
                         Ok(b.iter()
                             .map_while(|s| {
@@ -453,7 +447,7 @@ impl DescriptorSet {
                             })
                             .collect::<_>())
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::UniformBuffer with type not Buffer");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::UniformBuffer {{ count: {}, .. }} with type{:?} (not BufferArray)", count.get(), e);
                     }
                 }
             }
@@ -468,14 +462,10 @@ impl DescriptorSet {
                             },
                         }])
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::StorageBuffer with type not Buffer")
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::StorageBuffer {{ count: {}, .. }} with type {:?} (not Buffer)", count.get(), e)
                     }
                 } else {
                     if let crate::DescriptorSetEntry::BufferArray(b) = e {
-                        if count.get() > b.len() as u32 {
-                            panic!("ERROR: Attempt to write BufferArray of len {} to DescriptorLayoutEntry of len {}", b.len(), count.get());
-                        }
-
                         let mut i = 0;
                         Ok(b.iter()
                             .map_while(|s| {
@@ -494,7 +484,7 @@ impl DescriptorSet {
                             })
                             .collect::<_>())
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::StorageBuffer with type not Buffer")
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::StorageBuffer {{ count: {}, .. }} with type {:?} (not BufferArray)", count.get(), e)
                     }
                 }
             }
@@ -509,14 +499,10 @@ impl DescriptorSet {
                             },
                         }])
                     } else {
-                        panic!("ERROR: Attempt to write ")
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::SampledTexture {{ count: {}, .. }} with type {:?} (not Texture)", count.get(), e)
                     }
                 } else {
                     if let crate::DescriptorSetEntry::TextureArray(b) = e {
-                        if count.get() > b.len() as u32 {
-                            panic!("ERROR: Attempt to write TextureArray of len {} to DescriptorLayoutEntry of len {}", b.len(), count.get());
-                        }
-
                         let mut i = 0;
                         Ok(b.iter()
                             .map_while(|(v, lo)| {
@@ -535,7 +521,7 @@ impl DescriptorSet {
                             })
                             .collect::<_>())
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::SampledTexture with type not texture");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::SampledTexture {{ count: {}, .. }} with type {:?} (not TextureArray)", count.get(), e);
                     }
                 }
             }
@@ -550,14 +536,10 @@ impl DescriptorSet {
                             },
                         }])
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::StorageTexture with type not texture");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::StorageTexture {{ count: {}, .. }} with type {:?} (not Texture)", count.get(), e);
                     }
                 } else {
                     if let crate::DescriptorSetEntry::TextureArray(b) = e {
-                        if count.get() > b.len() as u32 {
-                            panic!("ERROR: Attempt to write TextureArray of len {} to DescriptorLayoutEntry of len {}", b.len(), count.get());
-                        }
-
                         let mut i = 0;
                         Ok(b.iter()
                             .map_while(|(v, lo)| {
@@ -576,7 +558,7 @@ impl DescriptorSet {
                             })
                             .collect::<_>())
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::StorageTexture with type not texture");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::StorageTexture {{ count: {}, .. }} with type {:?} (not TextureArray)", count.get(), e);
                     }
                 }
             }
@@ -591,14 +573,10 @@ impl DescriptorSet {
                             },
                         }])
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::CombinedTextureSampler with type not combined");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::CombinedTextureSampler {{ count: {}, .. }} with type {:?} (not CombinedTextureSampler)", count.get(), e);
                     }
                 } else {
                     if let crate::DescriptorSetEntry::CombinedTextureSamplerArray(a) = e {
-                        if count.get() > a.len() as u32 {
-                            panic!("ERROR: Attempt to write CombinedTextureSamplerArray of len {} to DescriptorLayoutEntry of len {}", a.len(), count.get());
-                        }
-
                         let mut i = 0;
                         Ok(a.iter()
                             .map_while(|(v, lo, s)| {
@@ -617,7 +595,7 @@ impl DescriptorSet {
                             })
                             .collect::<_>())
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::CombinedTextureSampler with type not combined");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::CombinedTextureSampler {{ count: {}, .. }} with type {:?} (not CombinedTextureSamplerArray)", count.get(), e);
                     }
                 }
             }
@@ -632,14 +610,10 @@ impl DescriptorSet {
                             },
                         }])
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::Sampler with type not sampler");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::Sampler {{ count: {}, .. }} with type {:?} (not Sampler)", count.get(), e);
                     }
                 } else {
                     if let crate::DescriptorSetEntry::SamplerArray(s) = e {
-                        if count.get() > s.len() as u32 {
-                            panic!("ERROR: Attempt to write SamplerArray of len {} to DescriptorLayoutEntry of len {}", s.len(), count.get());
-                        }
-
                         let mut i = 0;
                         Ok(s.iter()
                             .map_while(|s| {
@@ -658,7 +632,7 @@ impl DescriptorSet {
                             })
                             .collect::<_>())
                     } else {
-                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::Sampler with type not sampler");
+                        panic!("ERROR: Attempt to write to DescriptorLayoutEntryType::Sampler {{ count: {}, .. }} with type {:?} (not SamplerArray)", count.get(), e);
                     }
                 }
             }
