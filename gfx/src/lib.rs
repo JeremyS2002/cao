@@ -1,3 +1,5 @@
+#![feature(vec_into_raw_parts)]
+
 //! Built on top of [`gpu`] to simplify various things
 //!
 

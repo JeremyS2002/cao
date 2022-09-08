@@ -3,18 +3,20 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::hash::Hasher;
+use std::sync::Arc;
 
 use super::bundle::BundleBuilder;
 use super::error;
 
 /// Reflected compute pipeline
+#[derive(Clone)]
 pub struct ReflectedCompute {
     pub(crate) id: u64,
     pub(crate) pipeline: gpu::ComputePipeline,
 
     pub(crate) descriptor_set_names: Option<HashMap<String, (usize, usize)>>,
-    pub(crate) descriptor_set_types: Option<Vec<Vec<(gpu::DescriptorLayoutEntryType, u32)>>>,
-    pub(crate) descriptor_set_layouts: Option<Vec<gpu::DescriptorLayout>>,
+    pub(crate) descriptor_set_types: Option<Arc<[Vec<(gpu::DescriptorLayoutEntryType, u32)>]>>,
+    pub(crate) descriptor_set_layouts: Option<Arc<[gpu::DescriptorLayout]>>,
 
     pub(crate) push_constant_names: Option<HashMap<String, (u32, gpu::ShaderStages, TypeId)>>,
 }
@@ -83,7 +85,7 @@ impl ReflectedCompute {
             id: hasher.finish(),
             pipeline,
             descriptor_set_layouts: if bundle_needed {
-                Some(descriptor_set_layouts)
+                Some(descriptor_set_layouts.into())
             } else {
                 None
             },
@@ -93,7 +95,7 @@ impl ReflectedCompute {
                 None
             },
             descriptor_set_types: if bundle_needed {
-                Some(descriptor_set_types)
+                Some(descriptor_set_types.into())
             } else {
                 None
             },

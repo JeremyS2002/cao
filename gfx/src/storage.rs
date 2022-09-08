@@ -55,6 +55,7 @@ impl<U: bytemuck::Pod> Storage<U> {
 
         // max limit for update buffer
         if std::mem::size_of::<U>() * data.len() >= 65536 {
+            println!("staging buffer");
             let staging_buffer = device.create_buffer(&gpu::BufferDesc {
                 size: std::mem::size_of::<U>() as u64 * data.len() as u64,
                 usage: gpu::BufferUsage::COPY_SRC,
@@ -67,12 +68,16 @@ impl<U: bytemuck::Pod> Storage<U> {
                 .write(bytemuck::cast_slice(&data))?;
 
             encoder.copy_buffer_to_buffer(staging_buffer.into_slice(..), buffer.slice_owned(..));
+            println!("done");
         } else {
+            let (ptr, len, cap) = data.into_raw_parts();
+            let t = unsafe { Vec::from_raw_parts(ptr as *mut u8, len * 4, cap * 4) };
             encoder.push_command(crate::encoder::Command::UpdateBuffer {
                 buffer: std::borrow::Cow::Owned(buffer.clone()),
                 offset: 0,
-                data: std::borrow::Cow::Owned(bytemuck::allocation::cast_vec(data)),
+                data: std::borrow::Cow::Owned(t),
             });
+            println!("done");
         }
 
         Ok(Self {
