@@ -172,7 +172,16 @@ impl DebugController {
         flip_y: bool,
     ) -> Self {
         let projection = glam::Mat4::perspective_rh(fovy, aspect, znear, z_far);
-        Self::new(position, pitch, yaw, speed, sensitivity, flip_y, projection, z_far)
+        Self::new(
+            position,
+            pitch,
+            yaw,
+            speed,
+            sensitivity,
+            flip_y,
+            projection,
+            z_far,
+        )
     }
 
     /// Create a new camera with a flipped perspective projection that makes y look up
@@ -199,7 +208,16 @@ impl DebugController {
             glam::vec4(0.0, 0.0, z_far / nmf, -1.0),
             glam::vec4(0.0, 0.0, znear * z_far / nmf, 0.0),
         );
-        Self::new(position, pitch, yaw, speed, sensitivity, flip_y, projection, z_far)
+        Self::new(
+            position,
+            pitch,
+            yaw,
+            speed,
+            sensitivity,
+            flip_y,
+            projection,
+            z_far,
+        )
     }
 
     /// Create a new camera with an orthographic projection
@@ -218,7 +236,16 @@ impl DebugController {
         flip_y: bool,
     ) -> Self {
         let projection = glam::Mat4::orthographic_rh(left, right, bottom, top, znear, z_far);
-        Self::new(position, pitch, yaw, speed, sensitivity, flip_y, projection, z_far)
+        Self::new(
+            position,
+            pitch,
+            yaw,
+            speed,
+            sensitivity,
+            flip_y,
+            projection,
+            z_far,
+        )
     }
 
     /// Create a new camera with a flipped orthographic projection that makes y look up
@@ -248,7 +275,16 @@ impl DebugController {
             glam::vec4(0.0, 0.0, -1.0 / fmn, 0.0),
             glam::vec4(-(rpl / rml), -(tpb / tmb), -(znear / fmn), 1.0),
         );
-        Self::new(position, pitch, yaw, speed, sensitivity, flip_y, projection, z_far)
+        Self::new(
+            position,
+            pitch,
+            yaw,
+            speed,
+            sensitivity,
+            flip_y,
+            projection,
+            z_far,
+        )
     }
 }
 

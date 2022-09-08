@@ -469,11 +469,7 @@ impl AORenderer {
         Ok(())
     }
 
-    pub fn update_params(
-        &mut self, 
-        encoder: &mut gfx::CommandEncoder<'_>,
-        params: AOParams,
-    ) {
+    pub fn update_params(&mut self, encoder: &mut gfx::CommandEncoder<'_>, params: AOParams) {
         self.uniform.data = params;
         self.uniform.update_gpu_owned(encoder)
     }

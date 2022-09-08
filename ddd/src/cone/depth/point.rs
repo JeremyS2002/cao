@@ -613,13 +613,8 @@ impl PointDepthMaps {
         height: u32,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
-        let storage = gfx::Storage::from_vec(
-            encoder, 
-            device, 
-            data.clone(), 
-            name
-        )?;
-        
+        let storage = gfx::Storage::from_vec(encoder, device, data.clone(), name)?;
+
         let texture = gfx::GTextureCubeArray::from_formats(
             device,
             width,
@@ -634,14 +629,18 @@ impl PointDepthMaps {
                 .map(|n| &**n),
         )?
         .unwrap();
-        let faces = (0..data.len()).map(|i| Ok([
-            texture.face_view(i as u32, gfx::CubeFace::PosX)?,
-            texture.face_view(i as u32, gfx::CubeFace::NegX)?,
-            texture.face_view(i as u32, gfx::CubeFace::PosY)?,
-            texture.face_view(i as u32, gfx::CubeFace::NegY)?,
-            texture.face_view(i as u32, gfx::CubeFace::PosZ)?,
-            texture.face_view(i as u32, gfx::CubeFace::NegZ)?,
-        ])).collect::<Result<Vec<_>, gpu::Error>>()?;
+        let faces = (0..data.len())
+            .map(|i| {
+                Ok([
+                    texture.face_view(i as u32, gfx::CubeFace::PosX)?,
+                    texture.face_view(i as u32, gfx::CubeFace::NegX)?,
+                    texture.face_view(i as u32, gfx::CubeFace::PosY)?,
+                    texture.face_view(i as u32, gfx::CubeFace::NegY)?,
+                    texture.face_view(i as u32, gfx::CubeFace::PosZ)?,
+                    texture.face_view(i as u32, gfx::CubeFace::NegZ)?,
+                ])
+            })
+            .collect::<Result<Vec<_>, gpu::Error>>()?;
 
         let sampler = device.create_sampler(&gpu::SamplerDesc::new(
             gpu::FilterMode::Linear,
@@ -708,15 +707,10 @@ impl PointSubsurfaceMaps {
                 v.push((-0.5 * dist).exp());
                 dist += incr;
             }
-            lut.write_raw_image(
-                encoder, 
-                device, 
-                &v, 
-                layer,
-            )?;
+            lut.write_raw_image(encoder, device, &v, layer)?;
             layer += 1;
         }
-        
+
         Ok(Self { depth, lut })
     }
 }

@@ -1520,7 +1520,12 @@ impl GTextureCubeArray {
     }
 
     /// Slice the texture based on a face and mip level by reference
-    pub fn face_mip_slice_ref<'a>(&'a self, index: u32, face: CubeFace, mip: u32) -> gpu::TextureSlice<'a> {
+    pub fn face_mip_slice_ref<'a>(
+        &'a self,
+        index: u32,
+        face: CubeFace,
+        mip: u32,
+    ) -> gpu::TextureSlice<'a> {
         self.texture.slice_ref(&gpu::TextureSliceDesc {
             offset: gpu::Offset3D::ZERO,
             extent: self.dimension().into(),
@@ -1532,7 +1537,12 @@ impl GTextureCubeArray {
     }
 
     /// Slice the texture based on a face and mip level by reference
-    pub fn face_mip_slice_owned<'a>(&self, index: u32, face: CubeFace, mip: u32) -> gpu::TextureSlice<'a> {
+    pub fn face_mip_slice_owned<'a>(
+        &self,
+        index: u32,
+        face: CubeFace,
+        mip: u32,
+    ) -> gpu::TextureSlice<'a> {
         self.texture.slice_owned(&gpu::TextureSliceDesc {
             offset: gpu::Offset3D::ZERO,
             extent: self.dimension().into(),
@@ -1558,7 +1568,12 @@ impl GTextureCubeArray {
     }
 
     /// Create a view into the texture at the specific face and mip level
-    pub fn face_mip_view(&self, index: u32, face: CubeFace, mip: u32) -> Result<gpu::TextureView, gpu::Error> {
+    pub fn face_mip_view(
+        &self,
+        index: u32,
+        face: CubeFace,
+        mip: u32,
+    ) -> Result<gpu::TextureView, gpu::Error> {
         let w = self.dimension.0;
         let h = self.dimension.1;
         self.create_view(&gpu::TextureViewDesc {

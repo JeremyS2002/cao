@@ -209,11 +209,7 @@ impl GeometryBuffer {
 
         for (n, num_components) in maps_iter {
             let (usage, scale) = (desc.map_features)(*n);
-            let mul = if let Some(scale) = scale {
-                scale
-            } else {
-                1.0
-            };
+            let mul = if let Some(scale) = scale { scale } else { 1.0 };
 
             let usage = usage.unwrap_or(gpu::TextureUsage::empty());
 

@@ -50,7 +50,7 @@ unsafe impl spv::AsSpvStruct for CameraData {
         fields: &[
             spv::DataType::Primitive(spv::PrimitiveType::Mat4),
             spv::DataType::Primitive(spv::PrimitiveType::Mat4),
-            spv::DataType::Primitive(spv::PrimitiveType::Vec4),            
+            spv::DataType::Primitive(spv::PrimitiveType::Vec4),
             spv::DataType::Primitive(spv::PrimitiveType::Float),
         ],
     };

@@ -67,7 +67,7 @@ bitflags::bitflags!(
 /// If you scene has few lights that all effect most pixels then this will probably be more efficient, but if your
 /// scene has many lights that each only effect a small number of pixels then it will probably be more efficient to
 /// pack all of your lights into one [`PointLights`] and render then with [`PointLightsRenderer`]
-/// 
+///
 /// ## Types of passes
 /// - Base pass just performs lighting calculations for the geometry so no shadows
 /// - Shadow pass performs lighting caclulations with pcf shadow mapping
@@ -173,7 +173,8 @@ impl PointLightRenderer {
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/screen.vert.spv");
-        let frag = gpu::include_spirv!("../../../shaders/cone/point_light_passes/single_base.frag.spv");
+        let frag =
+            gpu::include_spirv!("../../../shaders/cone/point_light_passes/single_base.frag.spv");
         Self::create_pipeline(device, &vert, &frag, name)
     }
 
@@ -182,7 +183,8 @@ impl PointLightRenderer {
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/screen.vert.spv");
-        let frag = gpu::include_spirv!("../../../shaders/cone/point_light_passes/single_shadow.frag.spv");
+        let frag =
+            gpu::include_spirv!("../../../shaders/cone/point_light_passes/single_shadow.frag.spv");
         Self::create_pipeline(device, &vert, &frag, name)
     }
 
@@ -191,8 +193,9 @@ impl PointLightRenderer {
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/screen.vert.spv");
-        let frag =
-            gpu::include_spirv!("../../../shaders/cone/point_light_passes/single_subsurface.frag.spv");
+        let frag = gpu::include_spirv!(
+            "../../../shaders/cone/point_light_passes/single_subsurface.frag.spv"
+        );
         Self::create_pipeline(device, &vert, &frag, name)
     }
 }
@@ -248,9 +251,9 @@ impl PointLightRenderer {
     }
 
     /// Add the lights contributions to the output map of the geometry buffer including shadow and subsurface
-    /// 
+    ///
     /// Each light in the iterator will be drawn as a fullscreen pass under a separate draw call
-    /// 
+    ///
     /// strength multiplies the lights contibution per pixel
     /// clear specifies if to clear the geometry buffers output map or not
     pub fn base_pass<'a>(
@@ -364,9 +367,9 @@ impl PointLightRenderer {
     }
 
     /// Add the lights contributions to the output map of the geometry buffer including shadow
-    /// 
+    ///
     /// Each light in the iterator will be drawn as a fullscreen pass under a separate draw call
-    /// 
+    ///
     /// strength multiplies the lights contibution per pixel
     /// shadow samples is the number of shadow map reads for calculating shadow contribution (max 64)
     /// clear specifies if to clear the geometry buffers output map or not
@@ -492,9 +495,9 @@ impl PointLightRenderer {
     }
 
     /// Add the lights contributions to the output map of the geometry buffer including shadow and subsurface
-    /// 
+    ///
     /// Each light in the iterator will be drawn as a fullscreen pass under a separate draw call
-    /// 
+    ///
     /// strength multiplies the lights contibution per pixel
     /// subsurface samples is the number of shadow map reads for calculating subsurface contribution (max 64)
     /// shadow samples is the number of shadow map reads for calculating shadow contribution (max 64)
@@ -570,9 +573,9 @@ impl PointLightRenderer {
 ///
 /// This implements a tiled rendering approach, aach [`PointLights`] draw will be preprocessed
 /// and lights will be assigned to tiles over the screen so that multiple lights can be drawn more efficiently than otherwise
-/// 
+///
 /// If your scene has many lights but each pixel will only have meaningful contributions from a few lights then
-/// this will be more efficient, but if your scene has few lights that all effect most pixels then it's probably more 
+/// this will be more efficient, but if your scene has few lights that all effect most pixels then it's probably more
 /// efficient to use multiple [`PointLight`]s and render them with [`PointLightRenderer`]
 ///
 /// ## Types of passes
@@ -607,16 +610,16 @@ pub struct PointLightsRenderer {
 }
 
 impl PointLightsRenderer {
-    pub fn new(
-        device: &gpu::Device,
-        name: Option<&str>,
-    ) -> Result<Self, gpu::Error> {
-        let depth_calc_spv = gpu::include_spirv!("../../../shaders/cone/point_light_passes/depth_calc.comp.spv");
+    pub fn new(device: &gpu::Device, name: Option<&str>) -> Result<Self, gpu::Error> {
+        let depth_calc_spv =
+            gpu::include_spirv!("../../../shaders/cone/point_light_passes/depth_calc.comp.spv");
 
         let depth_calc = match gfx::ReflectedCompute::new(
-            device, 
-            &depth_calc_spv, 
-            name.map(|n| format!("{}_depth_calc", n)).as_ref().map(|n| &**n)
+            device,
+            &depth_calc_spv,
+            name.map(|n| format!("{}_depth_calc", n))
+                .as_ref()
+                .map(|n| &**n),
         ) {
             Ok(p) => p,
             Err(e) => match e {
@@ -625,12 +628,15 @@ impl PointLightsRenderer {
             },
         };
 
-        let tile_assign_spv = gpu::include_spirv!("../../../shaders/cone/point_light_passes/tile_assign.comp.spv");
+        let tile_assign_spv =
+            gpu::include_spirv!("../../../shaders/cone/point_light_passes/tile_assign.comp.spv");
 
         let tile_assign = match gfx::ReflectedCompute::new(
-            device, 
-            &tile_assign_spv, 
-            name.map(|n| format!("{}_tile_assign", n)).as_ref().map(|n| &**n)
+            device,
+            &tile_assign_spv,
+            name.map(|n| format!("{}_tile_assign", n))
+                .as_ref()
+                .map(|n| &**n),
         ) {
             Ok(p) => p,
             Err(e) => match e {
@@ -639,12 +645,15 @@ impl PointLightsRenderer {
             },
         };
 
-        let base_spv = gpu::include_spirv!("../../../shaders/cone/point_light_passes/tile_base.comp.spv");
+        let base_spv =
+            gpu::include_spirv!("../../../shaders/cone/point_light_passes/tile_base.comp.spv");
 
         let base = match gfx::ReflectedCompute::new(
-            device, 
-            &base_spv, 
-            name.map(|n| format!("{}_base_pass", n)).as_ref().map(|n| &**n)
+            device,
+            &base_spv,
+            name.map(|n| format!("{}_base_pass", n))
+                .as_ref()
+                .map(|n| &**n),
         ) {
             Ok(p) => p,
             Err(e) => match e {
@@ -691,16 +700,25 @@ impl PointLightsRenderer {
         let mut tile_map = self.tile_map.lock().unwrap();
         if tile_map.get(&(tile_tex_width, tile_tex_height)).is_none() {
             let d = gfx::GTexture2D::from_formats(
-                device, 
-                tile_tex_width, 
-                tile_tex_height, 
-                gpu::Samples::S1, 
-                gpu::TextureUsage::STORAGE
-                    | gpu::TextureUsage::SAMPLED, 
-                1, 
-                gfx::alt_formats(gpu::Format::Rg32Float), 
-                self.name.as_ref().map(|n| format!("{}_depth_texture_width_{}_height_{}", n, tile_tex_width, tile_tex_height)).as_ref().map(|n| &**n)
-            )?.unwrap();
+                device,
+                tile_tex_width,
+                tile_tex_height,
+                gpu::Samples::S1,
+                gpu::TextureUsage::STORAGE | gpu::TextureUsage::SAMPLED,
+                1,
+                gfx::alt_formats(gpu::Format::Rg32Float),
+                self.name
+                    .as_ref()
+                    .map(|n| {
+                        format!(
+                            "{}_depth_texture_width_{}_height_{}",
+                            n, tile_tex_width, tile_tex_height
+                        )
+                    })
+                    .as_ref()
+                    .map(|n| &**n),
+            )?
+            .unwrap();
 
             let l = gfx::GTexture2D::from_formats(
                 device,
@@ -710,16 +728,31 @@ impl PointLightsRenderer {
                 gpu::TextureUsage::STORAGE,
                 1,
                 gfx::alt_formats(gpu::Format::R32Uint),
-                self.name.as_ref().map(|n| format!("{}_length_texture_width_{}_height_{}", n, tile_tex_width, tile_tex_height)).as_ref().map(|n| &**n)
-            )?.unwrap();
+                self.name
+                    .as_ref()
+                    .map(|n| {
+                        format!(
+                            "{}_length_texture_width_{}_height_{}",
+                            n, tile_tex_width, tile_tex_height
+                        )
+                    })
+                    .as_ref()
+                    .map(|n| &**n),
+            )?
+            .unwrap();
             tile_map.insert((tile_tex_width, tile_tex_height), (d, l));
         }
-        let (depth_texture, length_texture) = tile_map.get(&(tile_tex_width, tile_tex_height)).unwrap();
-        
+        let (depth_texture, length_texture) =
+            tile_map.get(&(tile_tex_width, tile_tex_height)).unwrap();
+
         // get / create depth calc bundle
         let mut depth_calc_bundles = self.depth_calc_bundles.lock().unwrap();
-        if depth_calc_bundles.get(&(depth_texture.id(), buffer.id())).is_none() {
-            let b = match self.depth_calc
+        if depth_calc_bundles
+            .get(&(depth_texture.id(), buffer.id()))
+            .is_none()
+        {
+            let b = match self
+                .depth_calc
                 .bundle()
                 .unwrap()
                 .set_resource("u_position", buffer.get("view_pos").unwrap())
@@ -728,19 +761,24 @@ impl PointLightsRenderer {
                 .unwrap()
                 .set_resource("u_camera", camera)
                 .unwrap()
-                .build(device) {
-                    Ok(b) => b,
-                    Err(e) => match e {
-                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                        e => unreachable!("{}", e),
-                    },
-                };
+                .build(device)
+            {
+                Ok(b) => b,
+                Err(e) => match e {
+                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                    e => unreachable!("{}", e),
+                },
+            };
             depth_calc_bundles.insert((depth_texture.id(), buffer.id()), b);
         }
-        let bundle = depth_calc_bundles.get(&(depth_texture.id(), buffer.id())).unwrap();
-        
+        let bundle = depth_calc_bundles
+            .get(&(depth_texture.id(), buffer.id()))
+            .unwrap();
+
         // compute pass to get min / max depth and store into texture
-        let mut pass = encoder.compute_pass_reflected_ref(&self.depth_calc).unwrap();
+        let mut pass = encoder
+            .compute_pass_reflected_ref(&self.depth_calc)
+            .unwrap();
         pass.set_bundle_owned(bundle.clone());
         pass.push_u32("width", buffer.width);
         pass.push_u32("height", buffer.height);
@@ -750,24 +788,49 @@ impl PointLightsRenderer {
         for light in lights {
             // get / create light indices storage
             let mut indices_map = self.indices_map.lock().unwrap();
-            if indices_map.get(&(tile_tex_width, tile_tex_height, light.length)).is_none() {
-                let data = vec![0u32; tile_tex_width as usize * tile_tex_height as usize * light.length];
+            if indices_map
+                .get(&(tile_tex_width, tile_tex_height, light.length))
+                .is_none()
+            {
+                let data =
+                    vec![0u32; tile_tex_width as usize * tile_tex_height as usize * light.length];
                 // TODO uninitialized Storage
                 let storage = gfx::Storage::from_vec(
-                    encoder, 
-                    device, 
-                    data, 
-                    self.name.as_ref().map(|n| format!("{}_light_indices_{}_lights_tile_width_{}_tile_height_{}", n, light.length, tile_tex_width, tile_tex_height)).as_ref().map(|n| &**n)
+                    encoder,
+                    device,
+                    data,
+                    self.name
+                        .as_ref()
+                        .map(|n| {
+                            format!(
+                                "{}_light_indices_{}_lights_tile_width_{}_tile_height_{}",
+                                n, light.length, tile_tex_width, tile_tex_height
+                            )
+                        })
+                        .as_ref()
+                        .map(|n| &**n),
                 )?;
                 indices_map.insert((tile_tex_width, tile_tex_height, light.length), storage);
             }
 
-            let light_indices = indices_map.get(&(tile_tex_width, tile_tex_height, light.length)).unwrap();
+            let light_indices = indices_map
+                .get(&(tile_tex_width, tile_tex_height, light.length))
+                .unwrap();
 
             // get / create bundle for assign pipeline
             let mut assign_bundles = self.tile_assign_bundles.lock().unwrap();
-            if assign_bundles.get(&(depth_texture.id(), camera.buffer.id(), light_indices.id(), length_texture.id(), light.id())).is_none() {
-                let b = match self.tile_assign
+            if assign_bundles
+                .get(&(
+                    depth_texture.id(),
+                    camera.buffer.id(),
+                    light_indices.id(),
+                    length_texture.id(),
+                    light.id(),
+                ))
+                .is_none()
+            {
+                let b = match self
+                    .tile_assign
                     .bundle()
                     .unwrap()
                     .set_resource("in_depth", depth_texture)
@@ -780,16 +843,34 @@ impl PointLightsRenderer {
                     .unwrap()
                     .set_resource("u_lights", light)
                     .unwrap()
-                    .build(device)  {
-                        Ok(b) => b,
-                        Err(e) => match e {
-                            gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                            e => unreachable!("{}", e),
-                        },
-                    };
-                assign_bundles.insert((depth_texture.id(), camera.buffer.id(), light_indices.id(), length_texture.id(), light.id()), b);
+                    .build(device)
+                {
+                    Ok(b) => b,
+                    Err(e) => match e {
+                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    },
+                };
+                assign_bundles.insert(
+                    (
+                        depth_texture.id(),
+                        camera.buffer.id(),
+                        light_indices.id(),
+                        length_texture.id(),
+                        light.id(),
+                    ),
+                    b,
+                );
             }
-            let bundle = assign_bundles.get(&(depth_texture.id(), camera.buffer.id(), light_indices.id(), length_texture.id(), light.id())).unwrap();
+            let bundle = assign_bundles
+                .get(&(
+                    depth_texture.id(),
+                    camera.buffer.id(),
+                    light_indices.id(),
+                    length_texture.id(),
+                    light.id(),
+                ))
+                .unwrap();
 
             // compute pass to assign lights to tiles
             let mut pass = encoder.compute_pass_reflected_ref(&self.tile_assign)?;
@@ -799,8 +880,18 @@ impl PointLightsRenderer {
 
             // get / create bundle for base pipeline
             let mut base_bundles = self.base_bundles.lock().unwrap();
-            if base_bundles.get(&(buffer.id, camera.buffer.id(), light.id(), light_indices.id(), length_texture.id())).is_none() {
-                let b = match self.base 
+            if base_bundles
+                .get(&(
+                    buffer.id,
+                    camera.buffer.id(),
+                    light.id(),
+                    light_indices.id(),
+                    length_texture.id(),
+                ))
+                .is_none()
+            {
+                let b = match self
+                    .base
                     .bundle()
                     .unwrap()
                     .set_resource("in_lengths", length_texture)
@@ -825,16 +916,34 @@ impl PointLightsRenderer {
                     .unwrap()
                     .set_resource("u_camera", camera)
                     .unwrap()
-                    .build(device)  {
-                        Ok(b) => b,
-                        Err(e) => match e {
-                            gfx::BundleBuildError::Gpu(e) => Err(e)?,
-                            e => unreachable!("{}", e),
-                        }
-                    };
-                base_bundles.insert((buffer.id, camera.buffer.id(), light.id(), light_indices.id(), length_texture.id()), b);
+                    .build(device)
+                {
+                    Ok(b) => b,
+                    Err(e) => match e {
+                        gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    },
+                };
+                base_bundles.insert(
+                    (
+                        buffer.id,
+                        camera.buffer.id(),
+                        light.id(),
+                        light_indices.id(),
+                        length_texture.id(),
+                    ),
+                    b,
+                );
             }
-            let bundle = base_bundles.get(&(buffer.id, camera.buffer.id(), light.id(), light_indices.id(), length_texture.id())).unwrap();
+            let bundle = base_bundles
+                .get(&(
+                    buffer.id,
+                    camera.buffer.id(),
+                    light.id(),
+                    light_indices.id(),
+                    length_texture.id(),
+                ))
+                .unwrap();
 
             // compute pass to render light contributions
             let mut pass = encoder.compute_pass_reflected_ref(&self.base)?;
@@ -850,7 +959,7 @@ impl PointLightsRenderer {
             pass.dispatch(tile_tex_width, tile_tex_height, 1);
             pass.finish();
         }
-        
+
         Ok(())
     }
 

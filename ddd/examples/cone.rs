@@ -433,12 +433,7 @@ impl Cone {
         let light_pos = glam::vec3(0.0, 2.0, 0.0);
 
         let light_data = cone::PointLightData::new(0.05, light_pos, [2.5; 3].into(), 0.05);
-        let light = cone::PointLight::new(
-            &mut encoder,
-            &device,
-            light_data,
-            None,
-        )?;
+        let light = cone::PointLight::new(&mut encoder, &device, light_data, None)?;
 
         let light_instance = [(glam::Mat4::from_translation(light_pos)
             * glam::Mat4::from_scale(glam::vec3(0.1, 0.1, 0.1)))

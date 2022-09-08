@@ -1,5 +1,5 @@
 use winit::{
-    event::{Event, WindowEvent, KeyboardInput, ElementState, VirtualKeyCode},
+    event::{ElementState, Event, KeyboardInput, VirtualKeyCode, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     window::WindowBuilder,
 };
@@ -44,15 +44,9 @@ fn main() {
         .unwrap();
 
     let vertices = vec![
-        Vertex {
-            pos: [0.0, -0.5],
-        },
-        Vertex {
-            pos: [-0.5, 0.5],
-        },
-        Vertex {
-            pos: [0.5, 0.5],
-        },
+        Vertex { pos: [0.0, -0.5] },
+        Vertex { pos: [-0.5, 0.5] },
+        Vertex { pos: [0.5, 0.5] },
     ];
 
     let vertex_buffer = device
@@ -103,59 +97,65 @@ fn main() {
         })
         .unwrap();
 
-    let descriptor_layout = device.create_descriptor_layout(&gpu::DescriptorLayoutDesc {
-        name: None,
-        entries: &[
-            gpu::DescriptorLayoutEntry {
+    let descriptor_layout = device
+        .create_descriptor_layout(&gpu::DescriptorLayoutDesc {
+            name: None,
+            entries: &[gpu::DescriptorLayoutEntry {
                 ty: gpu::DescriptorLayoutEntryType::UniformBuffer,
                 stage: gpu::ShaderStages::FRAGMENT,
                 count: std::num::NonZeroU32::new(2).unwrap(),
-            }
-        ],
-    }).unwrap();
+            }],
+        })
+        .unwrap();
 
-    let buffer1 = device.create_buffer(&gpu::BufferDesc {
-        name: None,
-        size: std::mem::size_of::<[f32; 4]>() as u64,
-        usage: gpu::BufferUsage::UNIFORM,
-        memory: gpu::MemoryType::Host,
-    }).unwrap();
+    let buffer1 = device
+        .create_buffer(&gpu::BufferDesc {
+            name: None,
+            size: std::mem::size_of::<[f32; 4]>() as u64,
+            usage: gpu::BufferUsage::UNIFORM,
+            memory: gpu::MemoryType::Host,
+        })
+        .unwrap();
 
-    buffer1.slice_ref(..).write(bytemuck::cast_slice(&[1.0f32, 0.0, 0.0, 0.0])).unwrap();
+    buffer1
+        .slice_ref(..)
+        .write(bytemuck::cast_slice(&[1.0f32, 0.0, 0.0, 0.0]))
+        .unwrap();
 
-    let buffer2 = device.create_buffer(&gpu::BufferDesc {
-        name: None,
-        size: std::mem::size_of::<[f32; 4]>() as u64,
-        usage: gpu::BufferUsage::UNIFORM,
-        memory: gpu::MemoryType::Host,
-    }).unwrap();
+    let buffer2 = device
+        .create_buffer(&gpu::BufferDesc {
+            name: None,
+            size: std::mem::size_of::<[f32; 4]>() as u64,
+            usage: gpu::BufferUsage::UNIFORM,
+            memory: gpu::MemoryType::Host,
+        })
+        .unwrap();
 
-    buffer2.slice_ref(..).write(bytemuck::cast_slice(&[0.0f32, 1.0, 0.0, 1.0])).unwrap();
+    buffer2
+        .slice_ref(..)
+        .write(bytemuck::cast_slice(&[0.0f32, 1.0, 0.0, 1.0]))
+        .unwrap();
 
-    let descriptor_set = device.create_descriptor_set(&gpu::DescriptorSetDesc {
-        name: None,
-        layout: &descriptor_layout,
-        entries: &[
-            gpu::DescriptorSetEntry::buffer_array_ref(&[
+    let descriptor_set = device
+        .create_descriptor_set(&gpu::DescriptorSetDesc {
+            name: None,
+            layout: &descriptor_layout,
+            entries: &[gpu::DescriptorSetEntry::buffer_array_ref(&[
                 buffer1.slice_ref(..),
                 buffer2.slice_ref(..),
-            ])
-        ],
-    }).unwrap();
+            ])],
+        })
+        .unwrap();
 
     let layout = device
         .create_pipeline_layout(&gpu::PipelineLayoutDesc {
             name: None,
-            descriptor_sets: &[
-                &descriptor_layout
-            ],
-            push_constants: &[
-                gpu::PushConstantRange {
-                    stage: gpu::ShaderStages::FRAGMENT,
-                    offset: 0,
-                    size: std::mem::size_of::<u32>() as _,
-                }
-            ],
+            descriptor_sets: &[&descriptor_layout],
+            push_constants: &[gpu::PushConstantRange {
+                stage: gpu::ShaderStages::FRAGMENT,
+                offset: 0,
+                size: std::mem::size_of::<u32>() as _,
+            }],
         })
         .unwrap();
 
@@ -223,15 +223,17 @@ fn main() {
             } => {
                 resized = true;
             }
-            Event::WindowEvent { 
-                event: WindowEvent::KeyboardInput { 
-                    input: KeyboardInput {
-                        state,
-                        virtual_keycode: Some(keycode),
+            Event::WindowEvent {
+                event:
+                    WindowEvent::KeyboardInput {
+                        input:
+                            KeyboardInput {
+                                state,
+                                virtual_keycode: Some(keycode),
+                                ..
+                            },
                         ..
                     },
-                    ..
-                },
                 ..
             } => {
                 if state == ElementState::Released && keycode == VirtualKeyCode::Space {
@@ -296,19 +298,23 @@ fn main() {
                     )
                     .unwrap();
 
-                command_buffer.bind_descriptor(
-                    0, 
-                    &descriptor_set, 
-                    gpu::PipelineBindPoint::Graphics, 
-                    &layout
-                ).unwrap();
+                command_buffer
+                    .bind_descriptor(
+                        0,
+                        &descriptor_set,
+                        gpu::PipelineBindPoint::Graphics,
+                        &layout,
+                    )
+                    .unwrap();
 
-                command_buffer.push_constants(
-                    0, 
-                    bytemuck::bytes_of(&index), 
-                    gpu::ShaderStages::FRAGMENT, 
-                    &layout,
-                ).unwrap();
+                command_buffer
+                    .push_constants(
+                        0,
+                        bytemuck::bytes_of(&index),
+                        gpu::ShaderStages::FRAGMENT,
+                        &layout,
+                    )
+                    .unwrap();
 
                 command_buffer
                     .bind_vertex_buffer(vertex_buffer.slice_ref(..), 0)
