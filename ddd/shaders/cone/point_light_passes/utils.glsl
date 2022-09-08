@@ -174,3 +174,39 @@ float point_shadow_calc(
 
     return shadow;
 }
+
+float multi_point_shadow_calc(
+    PointDepthData depth,
+    vec3 world_pos,
+    vec3 normal,
+    samplerCubeArray shadow_map,
+    float cube,
+    int samples
+) {
+    vec3 shadow_pos = vec3(depth.pos_x, depth.pos_y, depth.pos_z);
+    vec3 to_shadow = world_pos - shadow_pos;
+    float current_depth2 = dot(to_shadow, to_shadow);
+    vec3 shadow_sample = to_shadow;
+    shadow_sample.y *= -1.0;
+
+    float z_far2 = depth.z_far * depth.z_far;
+
+    if (current_depth2 >= z_far2) {
+        return 0.0;
+    }
+
+    float shadow = 0.0;
+    float bias = max(depth.bias * (1.0 - dot(normal, to_shadow)), depth.bias);
+    float disk_radius = depth.strength * (1.0 + (current_depth2 / (z_far2)));
+    for (int i = 0; i < samples; i++) {
+        float tmp_depth = texture(shadow_map, vec4(shadow_sample + sampleOffsetDirections[i] * disk_radius, cube)).r;
+        tmp_depth *= depth.z_far;
+        tmp_depth *= tmp_depth;
+        if (current_depth2 - bias >= tmp_depth)
+            shadow += 1.0;
+    }
+
+    shadow /= float(samples);
+
+    return shadow;
+}

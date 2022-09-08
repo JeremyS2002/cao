@@ -63,15 +63,18 @@ void main() {
         int(shadow_samples)
     );
 
-    vec3 lighting_color = point_light_calc(
-        u_light_data.light,
-        u_camera.position.xyz,
-        world_pos,
-        normal,
-        albedo.rgb,
-        roughness,
-        metallic
-    );
+    vec3 lighting_color = vec3(0.0);
+    if (shadow != 1.0) {
+        lighting_color = point_light_calc(
+            u_light_data.light,
+            u_camera.position.xyz,
+            world_pos,
+            normal,
+            albedo.rgb,
+            roughness,
+            metallic
+        );
+    }
 
     if (subsurface.a != 0.0) {
         PointDepthData depth = u_subsurface_data.depth;

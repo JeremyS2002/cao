@@ -5,6 +5,8 @@ single_subsurface.frag
 depth_calc.comp
 tile_assign.comp
 tile_base.comp
+tile_shadow.comp
+tile_subsurface.comp
 '
 
 for file in $files

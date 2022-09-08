@@ -545,7 +545,7 @@ impl Cone {
         encoder.reset_time_query_ref(&self.query1, 0, 16);
         encoder.write_timestamp_ref(&self.query1, 0, gpu::PipelineStage::TopOfPipe);
 
-        self.shadow_renderer.pass(
+        self.shadow_renderer.single_pass(
             &mut encoder,
             &self.device,
             &self.shadow,
@@ -559,7 +559,7 @@ impl Cone {
             true,
         )?;
 
-        self.shadow_renderer.pass(
+        self.shadow_renderer.single_pass(
             &mut encoder,
             &self.device,
             &self.subsurface,

@@ -1,0 +1,110 @@
+#version 450
+
+#include "utils.glsl"
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(set = 0, binding = 0) readonly buffer Tiles {
+    uint light_indices[];
+} u_tiles;
+
+layout(set = 0, binding = 1, r32ui) uniform readonly uimage2D in_lengths;
+
+layout(set = 1, binding = 0) readonly buffer Lights {
+    PointLightData lights[];
+} u_lights;
+
+layout(set = 2, binding = 0, rgba32f) uniform readonly image2D u_position;
+layout(set = 2, binding = 1, rgba32f) uniform readonly image2D u_normal;
+layout(set = 2, binding = 2, rgba32f) uniform readonly image2D u_albedo;
+layout(set = 2, binding = 3, r32f) uniform readonly image2D u_roughness;
+layout(set = 2, binding = 4, r32f) uniform readonly image2D u_metallic;
+layout(set = 2, binding = 5, rgba32f) uniform readonly image2D u_subsurface;
+layout(set = 2, binding = 6, rgba32f) uniform image2D u_output;
+
+layout(set = 3, binding = 0) uniform CameraData {
+    mat4 projection;
+    mat4 view;
+    vec4 position;
+    float z_far;
+} u_camera;
+
+layout(set = 4, binding = 0) readonly buffer ShadowData {
+    PointDepthData depth[];
+} u_shadow_data;
+
+layout(set = 4, binding = 1) uniform samplerCubeArray u_shadow_maps;
+
+layout(push_constant) uniform PushData {
+    float strength;
+    int clear;
+    uint width;
+    uint height;
+    uint samples;
+};
+
+void main() {
+    // outside bounds of texture
+    if (gl_GlobalInvocationID.x > width || gl_GlobalInvocationID.y > height) {
+        return;
+    }
+
+    vec3 world_pos = imageLoad(u_position, ivec2(gl_GlobalInvocationID.xy)).xyz;
+    vec3 normal = imageLoad(u_normal, ivec2(gl_GlobalInvocationID.xy)).xyz;
+    vec4 albedo = imageLoad(u_albedo, ivec2(gl_GlobalInvocationID.xy));
+    float roughness = imageLoad(u_roughness, ivec2(gl_GlobalInvocationID.xy)).x;
+    float metallic = imageLoad(u_metallic, ivec2(gl_GlobalInvocationID.xy)).x;
+
+    // if the color texture has an alpha channel value of 0 then 
+    // the geometry buffer hasn't been written to at this pixel 
+    // and it's just empty sky so don't do any lighting
+    if (albedo.a == 0.0) {
+        return;
+    }
+
+    vec3 result = vec3(0.0);
+
+    uint work_group_invocation_id = gl_WorkGroupID.z * gl_NumWorkGroups.x * gl_NumWorkGroups.y +
+        gl_WorkGroupID.y * gl_NumWorkGroups.x +
+        gl_WorkGroupID.x;
+    uint base_index = work_group_invocation_id * u_lights.lights.length();
+    uint num_lights = imageLoad(in_lengths, ivec2(gl_WorkGroupID.xy)).r;
+
+    for (int i = 0; i < num_lights; i++) {
+        uint light_index = u_tiles.light_indices[base_index + i];
+
+        PointDepthData shadow_data = u_shadow_data.depth[light_index];
+        float shadow = multi_point_shadow_calc(
+            shadow_data,
+            world_pos,
+            normal,
+            u_shadow_maps,
+            float(i),
+            int(samples)
+        );
+
+        if (shadow == 1.0) {
+            continue;
+        }
+
+        PointLightData light = u_lights.lights[light_index];
+        result += (1.0 - shadow) * point_light_calc(
+            light,
+            u_camera.position.xyz,
+            world_pos,
+            normal,
+            albedo.rgb,
+            roughness,
+            metallic
+        );
+    }
+
+    result *= strength;
+
+    if (clear == 0) {
+        vec4 prev = imageLoad(u_output, ivec2(gl_GlobalInvocationID.xy));
+        result += prev.xyz;
+    } 
+
+    imageStore(u_output, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1.0));
+}
