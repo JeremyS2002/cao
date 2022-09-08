@@ -33,7 +33,8 @@ layout(set = 1, binding = 2) uniform Data {
 layout(set = 2, binding = 0) uniform Camera {
     mat4 projection;
     mat4 view;
-    vec3 position;
+    vec4 position;
+    float z_far;
 } u_camera;
 
 layout(push_constant) uniform PushData {

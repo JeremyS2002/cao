@@ -151,10 +151,11 @@ impl Cone {
                 precision: cone::GeometryBufferPrecision::Medium,
                 samples: gpu::Samples::S1,
                 maps: cone::GeometryBufferDesc::ALL_MAPS,
-                map_scale: |s| match s {
-                    "ao" => Some(0.5),
-                    _ => None,
+                map_features: |s| match s {
+                    "ao" => (None, Some(0.5)),
+                    _ => (None, None),
                 },
+                depth_usage: gpu::TextureUsage::empty(),
                 name: None,
             },
         )?;
@@ -431,10 +432,11 @@ impl Cone {
 
         let light_pos = glam::vec3(0.0, 2.0, 0.0);
 
+        let light_data = cone::PointLightData::new(0.05, light_pos, [2.5; 3].into(), 0.05);
         let light = cone::PointLight::new(
             &mut encoder,
             &device,
-            cone::PointLightData::new(0.05, light_pos, [2.5; 3].into(), 0.05),
+            light_data,
             None,
         )?;
 
@@ -866,13 +868,10 @@ impl Cone {
 
         // for debugging
         // try taking a look at the geometry buffers other frames
-        // eg &self.antialiased.view -> &self.buffer.get("normal").unwrap().view,
-        // let id = self.buffer.get("ao").unwrap().view.id();
         // self.display_renderer.pass(
         //     &mut encoder,
         //     &self.device,
-        //     &self.buffer.get("ao").unwrap().view,
-        //     // &self.antialiased.view,
+        //     &self.lights_renderer.tmp(),
         //     gfx::Attachment {
         //         raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
         //         load: gpu::LoadOp::Clear,

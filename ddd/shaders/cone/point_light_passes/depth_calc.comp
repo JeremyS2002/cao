@@ -1,0 +1,53 @@
+#version 450
+
+shared uint min_depth;
+shared uint max_depth;
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+// pixel position in view space
+layout(set = 0, binding = 0, rgba32f) uniform readonly image2D u_position;
+
+layout (set = 1, binding = 0, rg32f) uniform writeonly image2D out_depth;
+
+layout(set = 2, binding = 0) uniform Camera {
+    mat4 projection;
+    mat4 view;
+    vec4 position;
+    float z_far;
+} u_camera;
+
+layout(push_constant) uniform PushData {
+    uint width;
+    uint height;
+};
+
+void main() {
+    if (gl_LocalInvocationIndex == 0) {
+        atomicExchange(min_depth, 0xFFFFFFFF);
+        atomicExchange(max_depth, 0);
+    }
+
+    barrier();
+
+    // if inside image bounds
+    if (gl_GlobalInvocationID.x < width && gl_GlobalInvocationID.y < height) {
+        vec4 view_pos = imageLoad(u_position, ivec2(gl_GlobalInvocationID.xy));
+        // view space has +ve z facing behind the camera so multiply by -1 to get positive values
+        float depth = (-view_pos.z) / u_camera.z_far;
+
+        uint udepth = uint(depth * float(0xFFFFFFFF));
+
+        atomicMin(min_depth, udepth);
+        atomicMax(max_depth, udepth);
+    }
+
+    barrier();
+
+    if (gl_LocalInvocationIndex == 0) {
+        float min_d = float(min_depth) / float(0xFFFFFFFF);
+        float max_d = float(max_depth) / float(0xFFFFFFFF);
+
+        imageStore(out_depth, ivec2(gl_WorkGroupID.xy), vec4(min_d, max_d, 0.0, 0.0));
+    }
+}

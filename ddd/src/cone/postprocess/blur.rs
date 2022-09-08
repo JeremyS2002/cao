@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GaussBlurRenderer {
     pub pipeline: gfx::ReflectedGraphics,
     pub targets: Arc<Mutex<HashMap<(u32, u32, gpu::Format), gfx::GTexture2D>>>,
@@ -15,18 +15,18 @@ pub struct GaussBlurRenderer {
     name: Option<String>,
 }
 
-impl std::clone::Clone for GaussBlurRenderer {
-    fn clone(&self) -> Self {
-        Self {
-            pipeline: self.pipeline.clone(),
-            bundles: Arc::clone(&self.bundles),
-            targets: Arc::clone(&self.targets),
-            sampler: self.sampler.clone(),
-            split: self.split,
-            name: self.name.clone(),
-        }
-    }
-}
+// impl std::clone::Clone for GaussBlurRenderer {
+//     fn clone(&self) -> Self {
+//         Self {
+//             pipeline: self.pipeline.clone(),
+//             bundles: Arc::clone(&self.bundles),
+//             targets: Arc::clone(&self.targets),
+//             sampler: self.sampler.clone(),
+//             split: self.split,
+//             name: self.name.clone(),
+//         }
+//     }
+// }
 
 impl GaussBlurRenderer {
     pub fn new(device: &gpu::Device, split: bool, name: Option<&str>) -> Result<Self, gpu::Error> {

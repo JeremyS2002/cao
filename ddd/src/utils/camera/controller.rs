@@ -77,6 +77,7 @@ pub struct DebugController {
     pub sensitivity: f32,
     pub flip_y: bool,
     pub projection: glam::Mat4,
+    pub z_far: f32,
 }
 
 impl Default for DebugController {
@@ -108,6 +109,7 @@ impl DebugController {
         sensitivity: f32,
         flip_y: bool,
         projection: glam::Mat4,
+        z_far: f32,
     ) -> Self {
         Self {
             position,
@@ -120,6 +122,7 @@ impl DebugController {
             sensitivity,
             projection,
             flip_y,
+            z_far,
         }
     }
 
@@ -131,6 +134,7 @@ impl DebugController {
         sensitivity: f32,
         flip_y: bool,
         projection: glam::Mat4,
+        z_far: f32,
     ) -> Self {
         let forward = glam::Vec3::new(
             yaw.cos() * pitch.cos(),
@@ -150,6 +154,7 @@ impl DebugController {
             sensitivity,
             flip_y,
             projection,
+            z_far,
         )
     }
 
@@ -163,11 +168,11 @@ impl DebugController {
         fovy: f32,
         aspect: f32,
         znear: f32,
-        zfar: f32,
+        z_far: f32,
         flip_y: bool,
     ) -> Self {
-        let projection = glam::Mat4::perspective_rh(fovy, aspect, znear, zfar);
-        Self::new(position, pitch, yaw, speed, sensitivity, flip_y, projection)
+        let projection = glam::Mat4::perspective_rh(fovy, aspect, znear, z_far);
+        Self::new(position, pitch, yaw, speed, sensitivity, flip_y, projection, z_far)
     }
 
     /// Create a new camera with a flipped perspective projection that makes y look up
@@ -181,20 +186,20 @@ impl DebugController {
         fovy: f32,
         aspect: f32,
         znear: f32,
-        zfar: f32,
+        z_far: f32,
         flip_y: bool,
     ) -> Self {
         let t = (fovy / 2.0).tan();
         let sy = 1.0 / t;
         let sx = sy / aspect;
-        let nmf = znear - zfar;
+        let nmf = znear - z_far;
         let projection = glam::Mat4::from_cols(
             glam::vec4(sx, 0.0, 0.0, 0.0),
             glam::vec4(0.0, -sy, 0.0, 0.0),
-            glam::vec4(0.0, 0.0, zfar / nmf, -1.0),
-            glam::vec4(0.0, 0.0, znear * zfar / nmf, 0.0),
+            glam::vec4(0.0, 0.0, z_far / nmf, -1.0),
+            glam::vec4(0.0, 0.0, znear * z_far / nmf, 0.0),
         );
-        Self::new(position, pitch, yaw, speed, sensitivity, flip_y, projection)
+        Self::new(position, pitch, yaw, speed, sensitivity, flip_y, projection, z_far)
     }
 
     /// Create a new camera with an orthographic projection
@@ -209,11 +214,11 @@ impl DebugController {
         bottom: f32,
         top: f32,
         znear: f32,
-        zfar: f32,
+        z_far: f32,
         flip_y: bool,
     ) -> Self {
-        let projection = glam::Mat4::orthographic_rh(left, right, bottom, top, znear, zfar);
-        Self::new(position, pitch, yaw, speed, sensitivity, flip_y, projection)
+        let projection = glam::Mat4::orthographic_rh(left, right, bottom, top, znear, z_far);
+        Self::new(position, pitch, yaw, speed, sensitivity, flip_y, projection, z_far)
     }
 
     /// Create a new camera with a flipped orthographic projection that makes y look up
@@ -229,21 +234,21 @@ impl DebugController {
         bottom: f32,
         top: f32,
         znear: f32,
-        zfar: f32,
+        z_far: f32,
         flip_y: bool,
     ) -> Self {
         let rml = right - left;
         let rpl = right + left;
         let tmb = top - bottom;
         let tpb = top + bottom;
-        let fmn = zfar - znear;
+        let fmn = z_far - znear;
         let projection = glam::Mat4::from_cols(
             glam::vec4(2.0 / rml, 0.0, 0.0, 0.0),
             glam::vec4(0.0, -2.0 / tmb, 0.0, 0.0),
             glam::vec4(0.0, 0.0, -1.0 / fmn, 0.0),
             glam::vec4(-(rpl / rml), -(tpb / tmb), -(znear / fmn), 1.0),
         );
-        Self::new(position, pitch, yaw, speed, sensitivity, flip_y, projection)
+        Self::new(position, pitch, yaw, speed, sensitivity, flip_y, projection, z_far)
     }
 }
 
@@ -281,8 +286,9 @@ impl CameraController for DebugController {
             glam::Mat4::look_at_rh(self.position, self.position + self.forward, self.world_up);
         super::CameraData {
             view,
+            z_far: self.z_far,
             projection: self.projection,
-            position: self.position,
+            position: glam::vec4(self.position.x, self.position.y, self.position.z, 1.0),
         }
     }
 }

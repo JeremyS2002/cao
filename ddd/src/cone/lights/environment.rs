@@ -506,7 +506,8 @@ impl<'a> EnvironmentMapGenerator<'a> {
             },
         };
 
-        let projection = glam::Mat4::perspective_rh(std::f32::consts::FRAC_PI_2, 1.0, 0.1, 10.0);
+        let z_far = 10.0;
+        let projection = glam::Mat4::perspective_rh(std::f32::consts::FRAC_PI_2, 1.0, 0.1, z_far);
 
         let views = [
             glam::Mat4::look_at_rh(glam::Vec3::ZERO, -glam::Vec3::X, glam::Vec3::Y),
@@ -573,7 +574,8 @@ impl<'a> EnvironmentMapGenerator<'a> {
             CameraData {
                 projection,
                 view: views[0],
-                position: glam::Vec3::ZERO,
+                z_far,
+                position: glam::vec4(0.0, 0.0, 0.0, 1.0),
             },
             None,
         )?;
@@ -714,6 +716,7 @@ bitflags::bitflags!(
 );
 
 /// Renders [`Skybox`] and [`Environment`] to the output of a GeometryBuffer
+#[derive(Clone)]
 pub struct EnvironmentRenderer {
     pub cube: gfx::Mesh<BasicVertex>,
     /// Ambient lighting calculation

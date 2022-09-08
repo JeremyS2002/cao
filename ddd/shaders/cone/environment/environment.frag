@@ -18,7 +18,8 @@ layout(set = 0, binding = 7) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform CameraData {
     mat4 projection;
     mat4 view;
-    vec3 position;
+    vec4 position;
+    float z_far;
 } u_camera;
 
 layout(set = 2, binding = 0) uniform textureCube u_diffuse;
@@ -40,7 +41,7 @@ void main() {
     float roughness = texture(sampler2D(u_roughness, u_sampler), in_uv).x;
     float ao = texture(sampler2D(u_ao, u_sampler), in_uv).x;
 
-    vec3 view = normalize(u_camera.position - position);
+    vec3 view = normalize(u_camera.position.xyz - position);
     vec3 ref = reflect(-view, normal);
     ref.y *= -1.0; // correct for vulkan coordinates
 

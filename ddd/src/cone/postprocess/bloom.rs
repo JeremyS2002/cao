@@ -41,6 +41,7 @@ impl BloomParams {
 }
 
 /// Renders bloom into the output of
+#[derive(Debug, Clone)]
 pub struct BloomRenderer {
     pub prefilter_pipeline: gfx::ReflectedGraphics,
     pub prefiltered: Arc<Mutex<HashMap<u64, (gfx::GTexture2D, gfx::Bundle)>>>,

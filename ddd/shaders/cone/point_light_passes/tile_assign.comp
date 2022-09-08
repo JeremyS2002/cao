@@ -1,0 +1,142 @@
+#version 450
+
+#define TILE_SIZE 16
+
+struct PointLightData {
+    float falloff;
+    
+    float position_x;
+    float position_y;
+    float position_z;
+    
+    float color_r;
+    float color_g;
+    float color_b;
+
+    float radius;
+};
+
+layout(local_size_x = 1, local_size_y = 1) in;
+
+layout(set = 0, binding = 0, rg32f) uniform readonly image2D in_depth;
+
+layout(set = 1, binding = 0) uniform Camera {
+    mat4 projection;
+    mat4 view;
+    vec4 position;
+    float z_far;
+} u_camera;
+
+layout(set = 2, binding = 0) writeonly buffer Tiles {
+    uint light_indices[];
+} u_tiles;
+
+layout(set = 2, binding = 1, r32ui) uniform writeonly uimage2D out_lengths;
+
+layout(set = 3, binding = 0) readonly buffer Lights {
+    PointLightData lights[];
+} u_lights;
+
+layout(push_constant) uniform PushData {
+    uint width;
+    uint height;
+};
+
+// create standard plane equation ((r-a).n=0) from three points,
+// except it is simplified for the case where the first point is the origin
+// so r.n=0 returns r as a vec4 with r.w = 0.0
+vec4 create_plane(vec4 b, vec4 c) {
+    return vec4(normalize(cross(b.xyz, c.xyz)), 0.0);
+}
+
+// plane equation n.p - d = 0 iff p is in the plane
+// each frustrum_planes[i] = vec4(n.x, n.y, n.z, d);
+// the planes normals should point out of the frustrum
+bool frustrum_intersects_sphere(vec4 frustrum_planes[6], vec3 pos, float radius) {
+    // assume it intersects
+    bool intersects = true;
+    for (uint i = 0; i < 6; i++) {
+        // dist = n.p - d
+        // if dist == 0 then point is on the plane
+        // if dist < 0 then point is on negative side of plane
+        // if dist > 0 then point is on positive side of plane
+        float dist = dot(frustrum_planes[i], vec4(pos, -1.0));
+        // if dist > radius then out side this plane so outside frustrum
+        intersects = intersects && (dist <= radius);
+    }
+    return intersects;
+}
+
+void main() {
+    vec2 depths = imageLoad(in_depth, ivec2(gl_GlobalInvocationID.xy)).xy;
+    float min_depth = depths.x;
+    float max_depth = depths.y;
+
+    mat4 projection = u_camera.projection;
+    mat4 inv_projection = inverse(projection);
+
+    // center of a tile in screen pixels
+    uint n_horizontal_tiles = gl_GlobalInvocationID.x;
+    uint n_vertical_tiles = gl_GlobalInvocationID.y;
+
+    // window width and height in viewport coordinates
+    float ww = float(TILE_SIZE * n_horizontal_tiles);
+    float wh = float(TILE_SIZE * n_vertical_tiles);
+
+    // tile rectangle in viewport space
+    uint px_min = TILE_SIZE * gl_GlobalInvocationID.x;
+    uint py_min = TILE_SIZE * gl_GlobalInvocationID.y;
+    uint px_max = TILE_SIZE * (gl_GlobalInvocationID.x + 1);
+    uint py_max = TILE_SIZE * (gl_GlobalInvocationID.y + 1);
+
+    // scale to clip space
+    float left    = 2.0 * (float(px_min) / ww) - 1.0;
+    float right   = 2.0 * (float(px_max) / ww) - 1.0;
+    float top     = 2.0 * (float(wh - py_min) / wh) - 1.0;
+    float bottom  = 2.0 * (float(wh - py_max) / wh) - 1.0;
+
+    // corners in clip space
+    vec4 frustrum_corners_cs[4];
+    frustrum_corners_cs[0] = vec4(left, top, 1.0, 1.0);
+    frustrum_corners_cs[1] = vec4(right, top, 1.0, 1.0);
+    frustrum_corners_cs[2] = vec4(right, bottom, 1.0, 1.0);
+    frustrum_corners_cs[3] = vec4(left, bottom, 1.0, 1.0);
+
+    // corners in view space
+    vec4 frustrum_corners_vs[4];
+    frustrum_corners_vs[0] = inv_projection * frustrum_corners_cs[0];
+    frustrum_corners_vs[1] = inv_projection * frustrum_corners_cs[1];
+    frustrum_corners_vs[2] = inv_projection * frustrum_corners_cs[2];
+    frustrum_corners_vs[3] = inv_projection * frustrum_corners_cs[3];
+
+    // planes
+    vec4 frustrum_planes[6];
+    frustrum_planes[0] = create_plane(frustrum_corners_vs[0], frustrum_corners_vs[1]);
+    frustrum_planes[1] = create_plane(frustrum_corners_vs[1], frustrum_corners_vs[2]);
+    frustrum_planes[2] = create_plane(frustrum_corners_vs[2], frustrum_corners_vs[3]);
+    frustrum_planes[3] = create_plane(frustrum_corners_vs[3], frustrum_corners_vs[0]);
+    frustrum_planes[4] = vec4(0.0, 0.0, -1.0, max_depth);
+    frustrum_planes[5] = vec4(0.0, 0.0, 1.0, -min_depth);
+
+    uint num_lights = 0;
+    uint global_invocation_id = gl_GlobalInvocationID.z * gl_NumWorkGroups.x * gl_NumWorkGroups.y +
+        gl_GlobalInvocationID.y * gl_NumWorkGroups.x +
+        gl_GlobalInvocationID.x;
+    uint base_index = global_invocation_id * u_lights.lights.length();
+    for (uint i = 0; i < u_lights.lights.length(); i++) {
+        vec3 world_position = vec3(
+            u_lights.lights[i].position_x,
+            u_lights.lights[i].position_y,
+            u_lights.lights[i].position_z
+        );
+        vec4 view_position = u_camera.view * vec4(world_position, 1.0);
+        // view matrix doesn't scale, only rotate and move so radius remains unchanged
+        float radius = u_lights.lights[i].radius;
+
+        if (frustrum_intersects_sphere(frustrum_planes, view_position.xyz, radius)) {
+            u_tiles.light_indices[base_index + num_lights] = i;
+            num_lights += 1;
+        }
+    }
+    imageStore(out_lengths, ivec2(gl_GlobalInvocationID.xy), uvec4(num_lights, 0, 0, 0));
+}

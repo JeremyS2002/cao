@@ -1,6 +1,8 @@
 use gfx::prelude::*;
 
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 /// Describes the curve in which linear colors are transformed by
 ///
@@ -48,9 +50,10 @@ impl std::default::Default for GlobalToneMapParams {
 unsafe impl bytemuck::Pod for GlobalToneMapParams {}
 unsafe impl bytemuck::Zeroable for GlobalToneMapParams {}
 
+#[derive(Debug, Clone)]
 pub struct GlobalToneMapRenderer {
     pub pipeline: gfx::ReflectedGraphics,
-    pub bundles: HashMap<u64, gfx::Bundle>,
+    pub bundles: Arc<Mutex<HashMap<u64, gfx::Bundle>>>,
     pub params: gfx::Uniform<GlobalToneMapParams>,
     pub sampler: gpu::Sampler,
 }
@@ -75,7 +78,7 @@ impl GlobalToneMapRenderer {
 
         Ok(Self {
             pipeline,
-            bundles: HashMap::new(),
+            bundles: Arc::default(),
             params,
             sampler,
         })
@@ -117,7 +120,8 @@ impl GlobalToneMapRenderer {
         let mut pass =
             encoder.graphics_pass_reflected::<()>(device, &[target], &[], None, &self.pipeline)?;
 
-        if self.bundles.get(&src.id()).is_none() {
+        let mut bundles = self.bundles.lock().unwrap();
+        if bundles.get(&src.id()).is_none() {
             let b = match self
                 .pipeline
                 .bundle()
@@ -136,9 +140,9 @@ impl GlobalToneMapRenderer {
                     e => unreachable!("{}", e),
                 },
             };
-            self.bundles.insert(src.id(), b);
+            bundles.insert(src.id(), b);
         }
-        let bundle = self.bundles.get(&src.id()).unwrap().clone();
+        let bundle = bundles.get(&src.id()).unwrap().clone();
         pass.set_bundle_owned(bundle);
         pass.draw(0, 3, 0, 1);
 
@@ -149,7 +153,7 @@ impl GlobalToneMapRenderer {
     /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
     /// This function drops Descriptor sets cached by self
     pub fn clean(&mut self) {
-        self.bundles.clear();
+        self.bundles.lock().unwrap().clear();
     }
 }
 

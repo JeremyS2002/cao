@@ -19,7 +19,7 @@ pub enum GeometryBufferPrecision {
 }
 
 #[derive(Clone, PartialEq)]
-pub struct GeometryBufferDesc<'a, F: Fn(&str) -> Option<f32>> {
+pub struct GeometryBufferDesc<'a, F: Fn(&str) -> (Option<gpu::TextureUsage>, Option<f32>)> {
     /// The default width of maps in the geometry buffer
     pub width: u32,
     /// The default height of maps in the geometry buffer
@@ -30,15 +30,19 @@ pub struct GeometryBufferDesc<'a, F: Fn(&str) -> Option<f32>> {
     pub precision: GeometryBufferPrecision,
     /// The maps the geometry buffer contiains (name, components, shift)
     pub maps: &'a [(&'a str, u32)],
-    pub map_scale: F,
+    /// Extra infomation specific to one map
+    pub map_features: F,
+    /// Additional texture usage for the depth buffer
+    pub depth_usage: gpu::TextureUsage,
+    /// Name of the GeometryBuffer
     pub name: Option<String>,
 }
 
-fn default_map_scale(_: &str) -> Option<f32> {
-    None
+fn default_map_features(_: &str) -> (Option<gpu::TextureUsage>, Option<f32>) {
+    (None, None)
 }
 
-impl<'a> GeometryBufferDesc<'a, fn(&str) -> Option<f32>> {
+impl<'a> GeometryBufferDesc<'a, fn(&str) -> (Option<gpu::TextureUsage>, Option<f32>)> {
     /// Maps required for a simple geometry buffer
     ///
     /// Doesn't have capabilities for:
@@ -66,7 +70,8 @@ impl<'a> GeometryBufferDesc<'a, fn(&str) -> Option<f32>> {
         samples: gpu::Samples::S1,
         precision: GeometryBufferPrecision::Medium,
         maps: Self::SIMPLE_MAPS,
-        map_scale: default_map_scale,
+        map_features: default_map_features,
+        depth_usage: gpu::TextureUsage::empty(),
         name: None,
     };
 
@@ -90,7 +95,8 @@ impl<'a> GeometryBufferDesc<'a, fn(&str) -> Option<f32>> {
         samples: gpu::Samples::S1,
         precision: GeometryBufferPrecision::Medium,
         maps: Self::SUBSURFACE_MAPS,
-        map_scale: default_map_scale,
+        map_features: default_map_features,
+        depth_usage: gpu::TextureUsage::empty(),
         name: None,
     };
 
@@ -114,7 +120,8 @@ impl<'a> GeometryBufferDesc<'a, fn(&str) -> Option<f32>> {
         samples: gpu::Samples::S1,
         precision: GeometryBufferPrecision::Medium,
         maps: Self::AO_MAPS,
-        map_scale: default_map_scale,
+        map_features: default_map_features,
+        depth_usage: gpu::TextureUsage::empty(),
         name: None,
     };
 
@@ -139,7 +146,8 @@ impl<'a> GeometryBufferDesc<'a, fn(&str) -> Option<f32>> {
         samples: gpu::Samples::S1,
         precision: GeometryBufferPrecision::Medium,
         maps: Self::ALL_MAPS,
-        map_scale: default_map_scale,
+        map_features: default_map_features,
+        depth_usage: gpu::TextureUsage::empty(),
         name: None,
     };
 }
@@ -181,7 +189,7 @@ impl GeometryBuffer {
     /// identicle except one will have ms samples and one will have [`gpu::Samples::S1`] samples
     ///
     /// bloom indicates if to create bloom textures or not
-    pub fn new<'a, F: Fn(&str) -> Option<f32>>(
+    pub fn new<'a, F: Fn(&str) -> (Option<gpu::TextureUsage>, Option<f32>)>(
         device: &gpu::Device,
         desc: &GeometryBufferDesc<F>,
     ) -> Result<Self, gpu::Error> {
@@ -200,11 +208,14 @@ impl GeometryBuffer {
         };
 
         for (n, num_components) in maps_iter {
-            let mul = if let Some(scale) = (desc.map_scale)(*n) {
+            let (usage, scale) = (desc.map_features)(*n);
+            let mul = if let Some(scale) = scale {
                 scale
             } else {
                 1.0
             };
+
+            let usage = usage.unwrap_or(gpu::TextureUsage::empty());
 
             let format = match *num_components {
                 1 => r,
@@ -223,7 +234,9 @@ impl GeometryBuffer {
                 gpu::TextureUsage::COLOR_OUTPUT
                     | gpu::TextureUsage::SAMPLED
                     | gpu::TextureUsage::COPY_SRC
-                    | gpu::TextureUsage::COPY_DST,
+                    | gpu::TextureUsage::COPY_DST
+                    | gpu::TextureUsage::STORAGE
+                    | usage,
                 1,
                 gfx::alt_formats(format),
                 tn.as_ref().map(|n| &**n),
@@ -263,7 +276,8 @@ impl GeometryBuffer {
             gpu::TextureUsage::DEPTH_OUTPUT
                 | gpu::TextureUsage::SAMPLED
                 | gpu::TextureUsage::COPY_SRC
-                | gpu::TextureUsage::COPY_DST,
+                | gpu::TextureUsage::COPY_DST
+                | desc.depth_usage,
             1,
             gpu::Format::Depth32Float,
             dn.as_ref().map(|n| &**n),
@@ -279,7 +293,8 @@ impl GeometryBuffer {
                 gpu::TextureUsage::DEPTH_OUTPUT
                     | gpu::TextureUsage::SAMPLED
                     | gpu::TextureUsage::COPY_SRC
-                    | gpu::TextureUsage::COPY_DST,
+                    | gpu::TextureUsage::COPY_DST
+                    | desc.depth_usage,
                 1,
                 gpu::Format::Depth32Float,
                 dn.as_ref().map(|n| &**n),

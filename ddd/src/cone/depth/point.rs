@@ -8,7 +8,7 @@ use std::{borrow::Cow, collections::HashMap};
 
 /// projection + view matrices and strength for point shadow
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct PointDepthData {
     /// one view matrix for each face in the shadow map
     pub views: [glam::Mat4; 6],
@@ -594,9 +594,145 @@ impl PointDepthMapRenderer {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct PointDepthMaps {
-    pub texture: gfx::GTexture2DArray,
-    pub storages: gfx::Storage<PointDepthData>,
+    pub(crate) id: u64,
+    pub texture: gfx::GTextureCubeArray,
+    pub faces: Vec<[gpu::TextureView; 6]>,
+    pub data: Vec<PointDepthData>,
+    pub storage: gfx::Storage<PointDepthData>,
+    pub sampler: gpu::Sampler,
+}
+
+impl PointDepthMaps {
+    pub fn new(
+        encoder: &mut gfx::CommandEncoder<'_>,
+        device: &gpu::Device,
+        data: Vec<PointDepthData>,
+        width: u32,
+        height: u32,
+        name: Option<&str>,
+    ) -> Result<Self, gpu::Error> {
+        let storage = gfx::Storage::from_vec(
+            encoder, 
+            device, 
+            data.clone(), 
+            name
+        )?;
+        
+        let texture = gfx::GTextureCubeArray::from_formats(
+            device,
+            width,
+            height,
+            data.len() as _,
+            gpu::TextureUsage::SAMPLED | gpu::TextureUsage::DEPTH_OUTPUT,
+            1,
+            gfx::alt_formats(gpu::Format::Depth32Float),
+            name.as_ref()
+                .map(|n| format!("{}_texture", n))
+                .as_ref()
+                .map(|n| &**n),
+        )?
+        .unwrap();
+        let faces = (0..data.len()).map(|i| Ok([
+            texture.face_view(i as u32, gfx::CubeFace::PosX)?,
+            texture.face_view(i as u32, gfx::CubeFace::NegX)?,
+            texture.face_view(i as u32, gfx::CubeFace::PosY)?,
+            texture.face_view(i as u32, gfx::CubeFace::NegY)?,
+            texture.face_view(i as u32, gfx::CubeFace::PosZ)?,
+            texture.face_view(i as u32, gfx::CubeFace::NegZ)?,
+        ])).collect::<Result<Vec<_>, gpu::Error>>()?;
+
+        let sampler = device.create_sampler(&gpu::SamplerDesc::new(
+            gpu::FilterMode::Linear,
+            gpu::WrapMode::ClampToEdge,
+            name.as_ref().map(|n| format!("{}_sampler", n)),
+        ))?;
+
+        Ok(Self {
+            id: unsafe { std::mem::transmute(texture.raw_image()) },
+            texture,
+            faces,
+            storage,
+            sampler,
+            data,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PointSubsurfaceMaps {
+    pub depth: PointDepthMaps,
+    pub lut: gfx::GTexture1DArray,
+}
+
+impl PointSubsurfaceMaps {
+    /// Creata new subsurface map from depth data
+    pub fn new(
+        encoder: &mut gfx::CommandEncoder<'_>,
+        device: &gpu::Device,
+        data: Vec<PointDepthData>,
+        depth_width: u32,
+        depth_height: u32,
+        lut_width: u32,
+        name: Option<&str>,
+    ) -> Result<Self, gpu::Error> {
+        let depth = PointDepthMaps::new(encoder, device, data, depth_width, depth_height, name)?;
+        Self::from_depth(encoder, device, depth, lut_width)
+    }
+
+    /// Create a subsurface map from a depth map
+    pub fn from_depth(
+        encoder: &mut gfx::CommandEncoder<'_>,
+        device: &gpu::Device,
+        depth: PointDepthMaps,
+        lut_width: u32,
+    ) -> Result<Self, gpu::Error> {
+        let lut = gfx::GTexture1DArray::new(
+            device,
+            lut_width,
+            depth.data.len() as _,
+            gpu::TextureUsage::SAMPLED,
+            1,
+            gpu::Format::R32Float,
+            None,
+        )?;
+
+        // make lut for 0 dist to max dist
+        let mut layer = 0;
+        for d in &depth.data {
+            let mut v = Vec::with_capacity(lut_width as usize);
+            let incr = d.z_far / lut_width as f32;
+            let mut dist = 0.0f32;
+            for _ in 0..lut_width {
+                v.push((-0.5 * dist).exp());
+                dist += incr;
+            }
+            lut.write_raw_image(
+                encoder, 
+                device, 
+                &v, 
+                layer,
+            )?;
+            layer += 1;
+        }
+        
+        Ok(Self { depth, lut })
+    }
+}
+
+impl std::ops::Deref for PointSubsurfaceMaps {
+    type Target = PointDepthMaps;
+
+    fn deref(&self) -> &Self::Target {
+        &self.depth
+    }
+}
+
+impl std::ops::DerefMut for PointSubsurfaceMaps {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.depth
+    }
 }
 
 pub struct PointDepthMapsRenderer {

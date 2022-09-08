@@ -35,7 +35,9 @@ pub struct CameraData {
     /// view matrix, transforms world space to camera space
     pub view: glam::Mat4,
     /// position, used for some lighting calculations
-    pub position: glam::Vec3,
+    pub position: glam::Vec4,
+    /// far plane of the projection matrix
+    pub z_far: f32,
 }
 
 unsafe impl bytemuck::Pod for CameraData {}
@@ -44,15 +46,16 @@ unsafe impl bytemuck::Zeroable for CameraData {}
 unsafe impl spv::AsSpvStruct for CameraData {
     const DESC: spv::StructDesc = spv::StructDesc {
         name: "CameraData",
-        names: &["projection", "view", "position"],
+        names: &["projection", "view", "position", "z_far"],
         fields: &[
             spv::DataType::Primitive(spv::PrimitiveType::Mat4),
             spv::DataType::Primitive(spv::PrimitiveType::Mat4),
-            spv::DataType::Primitive(spv::PrimitiveType::Vec3),
+            spv::DataType::Primitive(spv::PrimitiveType::Vec4),            
+            spv::DataType::Primitive(spv::PrimitiveType::Float),
         ],
     };
 
     fn fields<'a>(&'a self) -> Vec<&'a dyn spv::AsData> {
-        vec![&self.projection, &self.view, &self.position]
+        vec![&self.projection, &self.view, &self.position, &self.z_far]
     }
 }

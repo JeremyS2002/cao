@@ -1,4 +1,4 @@
-#![feature(maybe_uninit_uninit_array, maybe_uninit_array_assume_init)]
+#![feature(maybe_uninit_uninit_array, maybe_uninit_array_assume_init, int_roundings)]
 
 //! DDD (3D) rendering library
 //!

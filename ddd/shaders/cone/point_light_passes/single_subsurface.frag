@@ -17,7 +17,8 @@ layout(set = 0, binding = 6) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform CameraData {
     mat4 projection;
     mat4 view;
-    vec3 position;
+    vec4 position;
+    float z_far;
 } u_camera;
 
 layout(set = 2, binding = 0) uniform LightData {
@@ -64,7 +65,7 @@ void main() {
 
     vec3 lighting_color = point_light_calc(
         u_light_data.light,
-        u_camera.position,
+        u_camera.position.xyz,
         world_pos,
         normal,
         albedo.rgb,

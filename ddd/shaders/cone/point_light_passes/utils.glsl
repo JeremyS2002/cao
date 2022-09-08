@@ -27,6 +27,11 @@ vec3 point_light_calc(
 
     vec3 view = normalize(view_pos - world_pos);
     vec3 to_light = light_pos - world_pos;
+
+    if (length(to_light) > light.radius) {
+        return vec3(0.0);
+    }
+
     vec3 to_light_unit = normalize(to_light);
     vec3 half_way = normalize(view + to_light);
 

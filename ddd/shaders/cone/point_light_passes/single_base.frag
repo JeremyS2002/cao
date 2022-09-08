@@ -17,22 +17,16 @@ layout(set = 0, binding = 6) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform CameraData {
     mat4 projection;
     mat4 view;
-    vec3 position;
+    vec4 position;
+    float z_far;
 } u_camera;
 
-layout(set = 2, binding = 0) uniform LightData {
+layout(set = 2, binding = 0) uniform Data {
     PointLightData light;
 } u_light_data;
 
-layout(set = 3, binding = 0) uniform ShadowData {
-    PointDepthData depth;
-} u_shadow_data;
-
-layout(set = 3, binding = 1) uniform samplerCube u_shadow_map;
-
 layout(push_constant) uniform PushData {
     float strength;
-    uint samples;
     float width;
     float height;
 };
@@ -44,27 +38,14 @@ void main() {
     float roughness = texture(sampler2D(u_roughness, u_sampler), in_uv).x;
     float metallic = texture(sampler2D(u_metallic, u_sampler), in_uv).x; 
 
-    float shadow = point_shadow_calc(
-        u_shadow_data.depth,
-        world_pos,
-        normal,
-        u_shadow_map,
-        int(samples)
-    );
-
-    if (shadow == 1.0) {
-        out_color = vec4(vec3(0.0), albedo.a);
-        return;
-    }
-   
     vec3 lighting = point_light_calc(
         u_light_data.light,
-        u_camera.position,
+        u_camera.position.xyz,
         world_pos,
         normal,
         albedo.rgb,
         roughness,
         metallic
     );
-    out_color = vec4((1.0 - shadow) * strength * lighting, albedo.a);
+    out_color = vec4(strength * lighting, albedo.a);
 }
