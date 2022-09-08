@@ -46,6 +46,7 @@ impl<U: bytemuck::Pod> Storage<U> {
             usage: gpu::BufferUsage::COPY_SRC
                 | gpu::BufferUsage::COPY_DST
                 | gpu::BufferUsage::STORAGE
+                | gpu::BufferUsage::UNIFORM
                 | usage,
             memory: gpu::MemoryType::Device,
             name: storage_name,
