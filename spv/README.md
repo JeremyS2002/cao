@@ -15,15 +15,3 @@ run from insed `cao/spirv` (to avoid path errors in loading files)
 |texture       |`cargo run --example texture`       |Using a texture to draw an image                                                          |
 |discard       |`cargo run --example discard`       |Same as the texture example but fragments with 0.0 in alpha channel are discarded         |
 |maths         |`cargo run --example maths`         |Using vectors and maths operations                                                        |
-
-
-# TODO
-- Error handling
-- Lift restriction on names being static
-- For Loops
-- More intuitive loops (allow b.spv_while(x < 3, |b| { .. }) syntax)
-- Testing
-- Stop parent builders being used while they have children
-- utility user facing macros
-- Examples 
-- Remove 2 stage compilation and compile as user commands are recoreded

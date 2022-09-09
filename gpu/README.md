@@ -12,10 +12,3 @@ run from inside `cao/gpu/` (to avoid path errors in loading files)
 |push_constants|`cargo run --example push_constants`|Builds off triangle example, uses push constants to color the triange                     |
 |depth         |`cargo run --example depth`         |Introduces depth testing to draw a rotating cube                                          |
 |compute       |`cargo run --example compute`       |Introduces compute shaders to compute the collatz conjecture for multiple values at once  |
-
-# TODO
-- Support Windows + Wayland on linux
-- Testing / Refactor (specifically binding.rs)
-- Compression Textures
-- Ray Tracing support
-- Improved error handling (no panics)

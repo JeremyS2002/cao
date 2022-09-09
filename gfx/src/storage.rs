@@ -170,13 +170,27 @@ impl<U: bytemuck::Pod> Storage<U> {
     /// The update will only be complete when the command encoder is submitted
     /// if the encoder is dropped before being submitted then no update will occur
     /// the data should have length >= self.length or this will return an error
-    pub fn update_gpu<'a>(
+    pub fn update_gpu<'a>(&'a self, encoder: &mut crate::CommandEncoder<'a>, data: &'a [U]) {
+        encoder.update_buffer_ref(&self.buffer, 0, bytemuck::cast_slice(data));
+    }
+
+    /// Update one index of the data on the gpu
+    /// --------------------------
+    ///
+    /// The update will only be complete when the command encoder is submitted
+    /// if the encoder is dropped before being submitted then no update will occur
+    /// the data should have length >= self.length or this will return an error
+    pub fn update_one_gpu<'a>(
         &'a self,
         encoder: &mut crate::CommandEncoder<'a>,
-        data: &'a [U],
-    ) -> Result<(), gpu::Error> {
-        encoder.update_buffer_ref(&self.buffer, 0, bytemuck::cast_slice(data));
-        Ok(())
+        index: usize,
+        data: &'a U,
+    ) {
+        encoder.update_buffer_ref(
+            &self.buffer,
+            (index * std::mem::size_of::<U>()) as _,
+            bytemuck::bytes_of(data),
+        );
     }
 
     /// Update the data on the cpu
@@ -203,7 +217,6 @@ impl<U: bytemuck::Pod> Storage<U> {
         let mut encoder = crate::CommandEncoder::new();
         encoder.copy_buffer_to_buffer(self.buffer.slice_ref(..), staging_buffer.slice_ref(..));
 
-        buffer.wait(!0)?;
         encoder.submit(buffer, true)?;
         buffer.wait(!0)?;
 

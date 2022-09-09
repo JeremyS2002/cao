@@ -1,3 +1,20 @@
+//! Point light types and renderers for lights
+//!
+//! [`PointLightData`] attributes about a point light
+//! [`PointLight`] alias for [`gfx::Uniform<PointLightData>`]
+//! [`PointLights`] alias for [`gfx::Storage<PointLightData>`]
+//! [`PointLightRenderer`] for rendering [`PointLight`]
+//! [`PointLightsRenderer`] for rendering [`PointLights`]
+//!
+//! If you scene only has one or few lights it will probably be more efficient to create lights as multiple [`PointLight`]s
+//! and the use the [`PointLightRenderer`] to add each lights contribution separatly as a separate draw call eg
+//! ```
+//! fn do_light(
+//!     encoder: &mut gfx::CommandEncoder<'_>,
+//!     renderer: &gfx
+//! )
+//! ```
+
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -94,7 +111,7 @@ pub struct PointLightRenderer {
 
 impl PointLightRenderer {
     /// Create a new [`PointLightRenderer`]
-    /// 
+    ///
     /// The renderer can only make use of passes declared by the flags
     pub fn new(
         device: &gpu::Device,
@@ -628,13 +645,13 @@ pub struct PointLightsRenderer {
 }
 
 impl PointLightsRenderer {
-    /// Create a new [`PointLightsRenderer`] 
-    /// 
+    /// Create a new [`PointLightsRenderer`]
+    ///
     /// The renderer can only make use of the passes declared by flags
     pub fn new(
-        device: &gpu::Device, 
+        device: &gpu::Device,
         flags: PointLightRendererFlags,
-        name: Option<&str>
+        name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let depth_calc_spv =
             gpu::include_spirv!("../../../shaders/cone/point_light_passes/depth_calc.comp.spv");
@@ -675,59 +692,67 @@ impl PointLightsRenderer {
             let base_spv =
                 gpu::include_spirv!("../../../shaders/cone/point_light_passes/tile_base.comp.spv");
 
-            base = Some(match gfx::ReflectedCompute::new(
-                device,
-                &base_spv,
-                name.map(|n| format!("{}_base_pass", n))
-                    .as_ref()
-                    .map(|n| &**n),
-            ) {
-                Ok(p) => p,
-                Err(e) => match e {
-                    gfx::ReflectedError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
+            base = Some(
+                match gfx::ReflectedCompute::new(
+                    device,
+                    &base_spv,
+                    name.map(|n| format!("{}_base_pass", n))
+                        .as_ref()
+                        .map(|n| &**n),
+                ) {
+                    Ok(p) => p,
+                    Err(e) => match e {
+                        gfx::ReflectedError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    },
                 },
-            })
+            )
         }
 
         let mut shadow = None;
         if flags.contains(PointLightRendererFlags::SHADOW) {
-            let shadow_spv =
-                gpu::include_spirv!("../../../shaders/cone/point_light_passes/tile_shadow.comp.spv");
+            let shadow_spv = gpu::include_spirv!(
+                "../../../shaders/cone/point_light_passes/tile_shadow.comp.spv"
+            );
 
-            shadow = Some(match gfx::ReflectedCompute::new(
-                device,
-                &shadow_spv,
-                name.map(|n| format!("{}_shadow_pass", n))
-                    .as_ref()
-                    .map(|n| &**n),
-            ) {
-                Ok(p) => p,
-                Err(e) => match e {
-                    gfx::ReflectedError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
+            shadow = Some(
+                match gfx::ReflectedCompute::new(
+                    device,
+                    &shadow_spv,
+                    name.map(|n| format!("{}_shadow_pass", n))
+                        .as_ref()
+                        .map(|n| &**n),
+                ) {
+                    Ok(p) => p,
+                    Err(e) => match e {
+                        gfx::ReflectedError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    },
                 },
-            })
+            )
         }
-        
+
         let mut subsurface = None;
         if flags.contains(PointLightRendererFlags::SUBSURFACE) {
-            let subsurface_spv =
-                gpu::include_spirv!("../../../shaders/cone/point_light_passes/tile_subsurface.comp.spv");
+            let subsurface_spv = gpu::include_spirv!(
+                "../../../shaders/cone/point_light_passes/tile_subsurface.comp.spv"
+            );
 
-            subsurface = Some(match gfx::ReflectedCompute::new(
-                device,
-                &subsurface_spv,
-                name.map(|n| format!("{}_subsurface_pass", n))
-                    .as_ref()
-                    .map(|n| &**n),
-            ) {
-                Ok(p) => p,
-                Err(e) => match e {
-                    gfx::ReflectedError::Gpu(e) => Err(e)?,
-                    e => unreachable!("{}", e),
+            subsurface = Some(
+                match gfx::ReflectedCompute::new(
+                    device,
+                    &subsurface_spv,
+                    name.map(|n| format!("{}_subsurface_pass", n))
+                        .as_ref()
+                        .map(|n| &**n),
+                ) {
+                    Ok(p) => p,
+                    Err(e) => match e {
+                        gfx::ReflectedError::Gpu(e) => Err(e)?,
+                        e => unreachable!("{}", e),
+                    },
                 },
-            })
+            )
         }
 
         Ok(Self {
@@ -756,7 +781,7 @@ impl PointLightsRenderer {
 
 impl PointLightsRenderer {
     /// append instructions for calculating min / max depth
-    /// 
+    ///
     /// returns (depth_texture, length_texture)
     #[inline(always)]
     pub fn calc_tiles<'a>(
@@ -863,7 +888,7 @@ impl PointLightsRenderer {
     }
 
     /// append instructions for assigning lights to tiles to the encoder
-    /// 
+    ///
     /// returns light indices (a storage buffer that maps tiles to the indices of lights in the light storage buffer)
     #[inline(always)]
     pub fn assign_pass<'a>(
@@ -977,13 +1002,13 @@ impl PointLightsRenderer {
     }
 
     /// Add the lights contributions to the output map of the geometry buffer
-    /// 
+    ///
     /// This implements a tiled rendering approach
     /// First For each tile the min and max depth of the the geometry buffer is calculated
     /// Then for each light in the iterator:
     ///     for each tile a list of lights is assigned to it based on their radius
     ///     for each tile add the lights contributions to the output map of the geometry buffer
-    /// 
+    ///
     /// strength multiplies the lights contributions per pixel
     /// clear specifies if to clear the geometry buffers output map or not
     pub fn base_pass<'a>(
@@ -1009,13 +1034,13 @@ impl PointLightsRenderer {
         // and then profile
         for light in lights {
             let light_indices = self.assign_pass(
-                encoder, 
-                device, 
-                &depth_texture, 
-                &length_texture, 
-                buffer, 
-                camera, 
-                light, 
+                encoder,
+                device,
+                &depth_texture,
+                &length_texture,
+                buffer,
+                camera,
+                light,
             )?;
 
             // get / create bundle for base pipeline
@@ -1108,13 +1133,13 @@ impl PointLightsRenderer {
     }
 
     /// Add the lights contributions to the output map of the geometry buffer including shadows
-    /// 
+    ///
     /// This implements a tiled rendering approach
     /// First For each tile the min and max depth of the the geometry buffer is calculated
     /// Then for each light in the iterator:
     ///     for each tile a list of lights is assigned to it based on their radius
     ///     for each tile add the lights contributions to the output map of the geometry buffer
-    /// 
+    ///
     /// strength multiplies the lights contributions per pixel
     /// clear specifies if to clear the geometry buffers output map or not
     pub fn shadow_pass<'a>(
@@ -1137,13 +1162,13 @@ impl PointLightsRenderer {
 
         for (light, shadow) in lights {
             let light_indices = self.assign_pass(
-                encoder, 
-                device, 
-                &depth_texture, 
-                &length_texture, 
-                buffer, 
-                camera, 
-                light, 
+                encoder,
+                device,
+                &depth_texture,
+                &length_texture,
+                buffer,
+                camera,
+                light,
             )?;
 
             // get / create bundle for base pipeline
@@ -1246,13 +1271,13 @@ impl PointLightsRenderer {
     }
 
     /// Add the lights contributions to the output map of the geometry buffer including shadows
-    /// 
+    ///
     /// This implements a tiled rendering approach
     /// First For each tile the min and max depth of the the geometry buffer is calculated
     /// Then for each light in the iterator:
     ///     for each tile a list of lights is assigned to it based on their radius
     ///     for each tile add the lights contributions to the output map of the geometry buffer
-    /// 
+    ///
     /// strength multiplies the lights contributions per pixel
     /// clear specifies if to clear the geometry buffers output map or not
     pub fn subsurface_pass<'a>(
@@ -1275,13 +1300,13 @@ impl PointLightsRenderer {
 
         for (light, shadow, subsurface) in lights {
             let light_indices = self.assign_pass(
-                encoder, 
-                device, 
-                &depth_texture, 
-                &length_texture, 
-                buffer, 
-                camera, 
-                light, 
+                encoder,
+                device,
+                &depth_texture,
+                &length_texture,
+                buffer,
+                camera,
+                light,
             )?;
 
             // get / create bundle for base pipeline

@@ -1,3 +1,17 @@
+//! Shadow and Subsurface maps to be used with [`crate::cone::PointLight`] or [`crate::cone::PointLights`] as well as pipeline for drawing to shadow maps
+//!
+//! # Data and Map types
+//! [`PointDepthData`] information about shadow or subsurface maps sent to the gpu
+//! [`PointDepthMap`] a depth map to be used with [`crate::cone::PointLight`] stored as [`gfx::GTextureCube`] and a [`gfx::Uniform<PointDepthData>`]
+//! [`PointSubsurfaceMap`] a [`PointDepthMap`] combined with a look up table used for depth to intensity look up
+//! [`PointDepthMaps`] a list of depth maps to be used with [`crate::cone::PointLights`] stored as [`gfx::GTextureCubeArray`] and a [`gfx::Storage<PointDepthData>`]
+//! [`PointSubsurfaceMaps`] a [`PointDepthMaps`] combined with a list ok look up tables for depth to intensity look up
+//!
+//! # Renderer types
+//! [`PointDepthMapRenderer`] used for rendering to [`PointDepthMap`] or [`PointDepthMaps`] or their subsurface equivalents
+//! see [`PointDepthMapRenderer::single_pass`] to draw to [`PointDepthMap`] or [`PointSubsurfaceMap`]
+//! see [`PointDepthMapRenderer::multi_pass`] to draw to [`PointDepthMaps`] or [`PointSubsurfaceMaps`]
+
 use crate::cone::*;
 use crate::prelude::*;
 use crate::utils::*;
@@ -154,71 +168,9 @@ impl PointDepthData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct PointSubsurfaceMap {
-    pub depth: PointDepthMap,
-    pub lut: gfx::GTexture1D,
-}
-
-impl PointSubsurfaceMap {
-    /// Creata new subsurface map from depth data
-    pub fn new(
-        encoder: &mut gfx::CommandEncoder<'_>,
-        device: &gpu::Device,
-        data: PointDepthData,
-        depth_width: u32,
-        depth_height: u32,
-        lut_width: u32,
-        name: Option<&str>,
-    ) -> Result<Self, gpu::Error> {
-        let depth = PointDepthMap::new(encoder, device, data, depth_width, depth_height, name)?;
-        Self::from_depth(encoder, device, depth, lut_width)
-    }
-
-    /// Create a subsurface map from a depth map
-    pub fn from_depth(
-        encoder: &mut gfx::CommandEncoder<'_>,
-        device: &gpu::Device,
-        depth: PointDepthMap,
-        width: u32,
-    ) -> Result<Self, gpu::Error> {
-        // make lut for 0 dist to max dist
-        let mut vec = Vec::with_capacity(width as _);
-        let incr = depth.uniform.data.z_far / width as f32;
-        let mut dist = 0.0f32;
-        for _ in 0..width {
-            vec.push((-0.5 * dist).exp());
-            dist += incr;
-        }
-
-        let lut = gfx::GTexture1D::from_raw_image(
-            encoder,
-            device,
-            width,
-            &vec,
-            gpu::TextureUsage::SAMPLED,
-            1,
-            None,
-        )?;
-
-        Ok(Self { depth, lut })
-    }
-}
-
-impl std::ops::Deref for PointSubsurfaceMap {
-    type Target = PointDepthMap;
-
-    fn deref(&self) -> &Self::Target {
-        &self.depth
-    }
-}
-
-impl std::ops::DerefMut for PointSubsurfaceMap {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.depth
-    }
-}
-
+/// Depth information to be used with a [`crate::cone::PointLight`]
+///
+/// Depth is stored as a [`gfx::GTextureCube`] and how to interprate it as a [`gfx::Uniform<PointDepthData>`]
 #[derive(Debug, Clone)]
 pub struct PointDepthMap {
     pub(crate) id: u64,
@@ -316,6 +268,77 @@ impl std::ops::DerefMut for PointDepthMap {
     }
 }
 
+/// Subsurface information to be used with [`crate::cone::PointLight`]
+///
+/// depth information is stored as a [`PointDepthMap`] and a look up table stored as a [`gfx::GTexture1D`]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PointSubsurfaceMap {
+    pub depth: PointDepthMap,
+    pub lut: gfx::GTexture1D,
+}
+
+impl PointSubsurfaceMap {
+    /// Creata new subsurface map from depth data
+    pub fn new(
+        encoder: &mut gfx::CommandEncoder<'_>,
+        device: &gpu::Device,
+        data: PointDepthData,
+        depth_width: u32,
+        depth_height: u32,
+        lut_width: u32,
+        name: Option<&str>,
+    ) -> Result<Self, gpu::Error> {
+        let depth = PointDepthMap::new(encoder, device, data, depth_width, depth_height, name)?;
+        Self::from_depth(encoder, device, depth, lut_width)
+    }
+
+    /// Create a subsurface map from a depth map
+    pub fn from_depth(
+        encoder: &mut gfx::CommandEncoder<'_>,
+        device: &gpu::Device,
+        depth: PointDepthMap,
+        width: u32,
+    ) -> Result<Self, gpu::Error> {
+        // make lut for 0 dist to max dist
+        let mut vec = Vec::with_capacity(width as _);
+        let incr = depth.uniform.data.z_far / width as f32;
+        let mut dist = 0.0f32;
+        for _ in 0..width {
+            vec.push((-0.5 * dist).exp());
+            dist += incr;
+        }
+
+        let lut = gfx::GTexture1D::from_raw_image(
+            encoder,
+            device,
+            width,
+            &vec,
+            gpu::TextureUsage::SAMPLED,
+            1,
+            None,
+        )?;
+
+        Ok(Self { depth, lut })
+    }
+}
+
+impl std::ops::Deref for PointSubsurfaceMap {
+    type Target = PointDepthMap;
+
+    fn deref(&self) -> &Self::Target {
+        &self.depth
+    }
+}
+
+impl std::ops::DerefMut for PointSubsurfaceMap {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.depth
+    }
+}
+
+/// Depth information to be used with [`crate::cone::PointLights`]
+///
+/// depth information is stored as a [`gfx::GTextureCubeArray`] and how to interperate it stored as a [`gfx::Storage<PointDepthData>`]
 #[derive(Debug, Clone, PartialEq)]
 pub struct PointDepthMaps {
     pub(crate) id: u64,
@@ -385,6 +408,9 @@ impl PointDepthMaps {
     }
 }
 
+/// Subsurface data to be used with [`crate::cone::PointLights`]
+///
+/// depth data stored as a [`PointDepthMaps`] along with a look up table stored as a [`gfx::GTexture1DArray`]
 #[derive(Debug, Clone, PartialEq)]
 pub struct PointSubsurfaceMaps {
     pub depth: PointDepthMaps,
@@ -628,7 +654,10 @@ impl PointDepthMapRenderer {
                     &[],
                     &[],
                     Some(gfx::Attachment {
-                        raw: gpu::Attachment::View(Cow::Borrowed(face), gpu::ClearValue::Depth(1.0)),
+                        raw: gpu::Attachment::View(
+                            Cow::Borrowed(face),
+                            gpu::ClearValue::Depth(1.0),
+                        ),
                         load: if clear {
                             gpu::LoadOp::Clear
                         } else {
@@ -645,8 +674,9 @@ impl PointDepthMapRenderer {
                         name: None,
                         entries: &[gpu::DescriptorSetEntry::Buffer(
                             shadow.storage.buffer.slice_ref(
-                                (index as u64 * std::mem::size_of::<PointDepthData>() as u64)..
-                                ((index as u64 + 1) * std::mem::size_of::<PointDepthData>() as u64)
+                                (index as u64 * std::mem::size_of::<PointDepthData>() as u64)
+                                    ..((index as u64 + 1)
+                                        * std::mem::size_of::<PointDepthData>() as u64),
                             ),
                         )],
                         layout: self
@@ -660,11 +690,11 @@ impl PointDepthMapRenderer {
                     shadow_map.insert(key, s.clone());
                 }
                 let shadow_set = shadow_map.get(&key).unwrap().clone();
-    
+
                 let mut instances_map = self.instances_map.lock().unwrap();
                 for (mesh, instance) in &meshes {
                     let key = instance.buffer.id();
-    
+
                     if instances_map.get(&key).is_none() {
                         let s = device.create_descriptor_set(&gpu::DescriptorSetDesc {
                             name: None,
@@ -681,18 +711,17 @@ impl PointDepthMapRenderer {
                         })?;
                         instances_map.insert(key, s.clone());
                     }
-    
+
                     let instance_set = instances_map.get(&key).unwrap().clone();
-    
+
                     pass.push_u32("face", face_idx);
                     pass.bind_descriptors_owned(0, vec![shadow_set.clone(), instance_set]);
                     pass.draw_instanced_mesh_ref(mesh, 0, instance.length as _);
                 }
-    
+
                 face_idx += 1;
             }
         }
-        
 
         Ok(())
     }

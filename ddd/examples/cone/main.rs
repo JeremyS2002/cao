@@ -841,7 +841,7 @@ impl Cone {
         self.shadow.update_gpu_ref(&mut encoder);
         self.subsurface.update_gpu_ref(&mut encoder);
         self.light_instance
-            .update_gpu(&mut encoder, &light_instances)?;
+            .update_gpu(&mut encoder, &light_instances);
 
         self.controller
             .update_cam_owned(&mut encoder, &mut self.camera);
@@ -866,7 +866,7 @@ impl Cone {
         // self.display_renderer.pass(
         //     &mut encoder,
         //     &self.device,
-        //     &self.lights_renderer.tmp(),
+        //     &self.buffer.get("view_pos").unwrap().view,
         //     gfx::Attachment {
         //         raw: gpu::Attachment::Swapchain(&frame, gpu::ClearValue::ColorFloat([0.0; 4])),
         //         load: gpu::LoadOp::Clear,

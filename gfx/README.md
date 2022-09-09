@@ -2,15 +2,8 @@
 
 # examples
 run from inside `cao/gfx` (to avoid path errors in loading files)
-|Name          |Command                             |Description                                                                                                            |
-|--------------|------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
-|fractal       |`cargo run --example fractal`       |Renders Mandelbrot or Julia sets in fragment shaders                                                                   |
-|slime         |`cargo run --example slime`         |Compute based particle simulation, ported from [here](https://www.youtube.com/watch?v=X-iSQQgOd1A)                     |
-|fluid         |`cargo run --example fluid`         |Interactive fragment shader fluid simulation ported from [here](https://paveldogreat.github.io/WebGL-Fluid-Simulation/)|
-
-# TODO
-- Reflect Tessellation + Geometry Shaders
-- Reflect Ray tracing shaders (need support from gpu first)
-- More examples
-- Better error handling (no panics)
-- Compression Texture support (need gpu support first)
+|Name                       |Command                      |Description                                                                                                            |
+|---------------------------|-----------------------------|-----------------------------------------------------------------------------------------------------------------------|
+|[fractal](examples/fractal)|`cargo run --example fractal`|Renders Mandelbrot or Julia sets in fragment shaders                                                                   |
+|[slime](examples/slime)    |`cargo run --example slime`  |Compute based particle simulation, ported from [here](https://www.youtube.com/watch?v=X-iSQQgOd1A)                     |
+|[fluid](examples/fluid)    |`cargo run --example fluid`  |Interactive fragment shader fluid simulation ported from [here](https://paveldogreat.github.io/WebGL-Fluid-Simulation/)|
