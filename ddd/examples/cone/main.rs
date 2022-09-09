@@ -910,7 +910,7 @@ impl Cone {
 fn main() {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_title("clay")
+        .with_title("cone")
         .with_inner_size(PhysicalSize {
             width: WIDTH,
             height: HEIGHT,
