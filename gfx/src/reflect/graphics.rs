@@ -13,7 +13,7 @@ use super::error;
 /// Allowing for caching pipelines by viewport so that the same
 /// "pipeline" can be used even when the window resized eg
 /// afaik this is ok but there is a good chance that i've messed something up
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct GraphicsPipelineKey {
     pub pass_hash: u64,
     pub viewport: gpu::Viewport,
@@ -48,9 +48,9 @@ impl std::hash::Hash for GraphicsPipelineKey {
     }
 }
 
-pub(crate) struct VertexLocationInfo {
-    pub(crate) name: String,
-    pub(crate) format: gpu::VertexFormat,
+pub struct VertexLocationInfo {
+    pub name: String,
+    pub format: gpu::VertexFormat,
 }
 
 #[derive(Debug, Clone)]
@@ -63,24 +63,8 @@ pub struct PipelineData {
     pub fragment: Option<gpu::ShaderModule>,
     pub geometry: Option<gpu::ShaderModule>,
     pub depth_stencil: Option<gpu::DepthStencilState>,
+    pub cache: Option<gpu::PipelineCache>,
     pub name: Option<String>,
-}
-
-#[derive(Clone)]
-#[allow(missing_docs, missing_debug_implementations)]
-pub struct ReflectData {
-    pub(crate) vertex_map: Arc<[VertexLocationInfo]>,
-    pub(crate) descriptor_set_map: Option<HashMap<String, (usize, usize)>>,
-    pub(crate) descriptor_set_types: Option<Arc<[Vec<(gpu::DescriptorLayoutEntryType, u32)>]>>,
-    pub(crate) descriptor_set_layouts: Option<Arc<[gpu::DescriptorLayout]>>,
-    pub(crate) push_constant_names: Option<HashMap<String, (u32, gpu::ShaderStages, TypeId)>>,
-}
-
-impl ReflectData {
-    /// Get a reference to the descriptor layouts if any
-    pub fn descriptor_layouts<'a>(&'a self) -> Option<&'a [gpu::DescriptorLayout]> {
-        self.descriptor_set_layouts.as_ref().map(|l| &**l)
-    }
 }
 
 /// A a reflected collection of graphics pipelines with a map from vertex to pipeline
@@ -101,8 +85,10 @@ pub struct ReflectedGraphics {
     pub pipeline_map: Arc<RwLock<HashMap<GraphicsPipelineKey, gpu::GraphicsPipeline>>>,
     /// Copies of data needed to build more pipelines
     pub pipeline_data: PipelineData,
+    /// ordered list of vertex inputs required
+    pub vertex_map: Arc<[super::graphics::VertexLocationInfo]>,
     /// Data needed to build bundles and for push_T functions
-    pub reflect_data: ReflectData,
+    pub reflect_data: super::data::ReflectData,
 }
 
 impl std::cmp::PartialEq for ReflectedGraphics {
@@ -135,6 +121,7 @@ impl ReflectedGraphics {
         rasterizer: gpu::Rasterizer,
         blend_states: &[gpu::BlendState],
         depth_stencil: Option<gpu::DepthStencilState>,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<Self, error::ReflectedError> {
         let vertex_map = super::spirv_raw::parse_vertex_states(&vertex);
@@ -227,8 +214,8 @@ impl ReflectedGraphics {
             id: hasher.finish(),
             pass_map: Arc::new(RwLock::default()),
             pipeline_map: Arc::new(RwLock::default()),
-            reflect_data: ReflectData {
-                vertex_map,
+            vertex_map,
+            reflect_data: super::data::ReflectData {
                 descriptor_set_map: if bundle_needed {
                     Some(descriptor_set_names.into())
                 } else {
@@ -249,6 +236,7 @@ impl ReflectedGraphics {
                 } else {
                     None
                 },
+                specialization_names: None,
             },
             pipeline_data: PipelineData {
                 layout: pipeline_layout,
@@ -258,6 +246,7 @@ impl ReflectedGraphics {
                 rasterizer,
                 blend_states: blend_states.to_vec().into(),
                 depth_stencil,
+                cache,
                 name: name.map(|n| n.to_string()),
             },
         })
@@ -278,21 +267,26 @@ impl ReflectedGraphics {
         rasterizer: gpu::Rasterizer,
         blend_states: &[gpu::BlendState],
         depth_stencil: Option<gpu::DepthStencilState>,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<Self, error::ReflectedError> {
         let mut descriptor_set_layouts = HashMap::new();
         let mut descriptor_set_names = HashMap::new();
         let mut push_constants = Vec::new();
         let mut push_constant_names = HashMap::new();
+        let mut specialization_names = HashMap::new();
+
         let vertex_entry = super::reflect_raw::parse_spirv(
             &mut descriptor_set_layouts,
             &mut descriptor_set_names,
             &mut push_constants,
             &mut push_constant_names,
+            &mut specialization_names,
             vertex,
-            spirv_reflect::types::variable::ReflectShaderStageFlags::VERTEX,
+            spirq::ExecutionModel::Vertex,
+            // spirv_reflect::types::variable::ReflectShaderStageFlags::VERTEX,
         )?;
-        let vertex_map = super::reflect_raw::parse_vertex_states(vertex, &vertex_entry)?;
+        let vertex_map = super::reflect_raw::parse_vertex_states(vertex)?;
 
         let vertex_name = name.as_ref().map(|n| format!("{}_vertex_module", n));
 
@@ -303,7 +297,14 @@ impl ReflectedGraphics {
         })?;
 
         let geometry_module = if let Some(geometry) = geometry {
-            super::reflect_raw::check_stage_compatibility(vertex, "vertex", geometry, "geometry")?;
+            super::reflect_raw::check_stage_compatibility(
+                vertex, 
+                spirq::ExecutionModel::Vertex,
+                "vertex", 
+                geometry, 
+                spirq::ExecutionModel::Geometry,
+                "geometry"
+            )?;
 
             let geometry_name = name.as_ref().map(|n| format!("{}_geometry_module", n));
 
@@ -312,8 +313,10 @@ impl ReflectedGraphics {
                 &mut descriptor_set_names,
                 &mut push_constants,
                 &mut push_constant_names,
+                &mut specialization_names,
                 geometry,
-                spirv_reflect::types::variable::ReflectShaderStageFlags::GEOMETRY,
+                spirq::ExecutionModel::Geometry,
+                // spirv_reflect::types::variable::ReflectShaderStageFlags::GEOMETRY,
             )?;
             Some(device.create_shader_module(&gpu::ShaderModuleDesc {
                 entries: &[(gpu::ShaderStages::GEOMETRY, &entry)],
@@ -328,13 +331,20 @@ impl ReflectedGraphics {
             if geometry.is_some() {
                 super::reflect_raw::check_stage_compatibility(
                     geometry.unwrap(),
+                    spirq::ExecutionModel::Geometry,
                     "geometry",
                     fragment,
+                    spirq::ExecutionModel::Fragment,
                     "fragment",
                 )?;
             } else {
                 super::reflect_raw::check_stage_compatibility(
-                    vertex, "vertex", fragment, "fragment",
+                    vertex, 
+                    spirq::ExecutionModel::Vertex,
+                    "vertex", 
+                    fragment, 
+                    spirq::ExecutionModel::Fragment,
+                    "fragment",
                 )?;
             }
 
@@ -345,8 +355,10 @@ impl ReflectedGraphics {
                 &mut descriptor_set_names,
                 &mut push_constants,
                 &mut push_constant_names,
+                &mut specialization_names, 
                 fragment,
-                spirv_reflect::types::variable::ReflectShaderStageFlags::FRAGMENT,
+                spirq::ExecutionModel::Fragment,
+                // spirv_reflect::types::variable::ReflectShaderStageFlags::FRAGMENT,
             )?;
             Some(device.create_shader_module(&gpu::ShaderModuleDesc {
                 entries: &[(gpu::ShaderStages::FRAGMENT, &entry)],
@@ -384,8 +396,8 @@ impl ReflectedGraphics {
             id: hasher.finish(),
             pass_map: Arc::new(RwLock::default()),
             pipeline_map: Arc::new(RwLock::default()),
-            reflect_data: ReflectData {
-                vertex_map: vertex_map.into(),
+            vertex_map: vertex_map.into(),
+            reflect_data: super::data::ReflectData {
                 descriptor_set_map: if bundle_needed {
                     Some(descriptor_set_names.into())
                 } else {
@@ -406,6 +418,11 @@ impl ReflectedGraphics {
                 } else {
                     None
                 },
+                specialization_names: if specialization_names.len() != 0 {
+                    Some(specialization_names)
+                } else {
+                    None
+                },
             },
             pipeline_data: PipelineData {
                 layout: pipeline_layout,
@@ -416,6 +433,7 @@ impl ReflectedGraphics {
                 blend_states: blend_states.to_vec().into(),
                 depth_stencil,
                 name: name.map(|n| n.to_string()),
+                cache,
             },
         })
     }
@@ -534,7 +552,7 @@ impl ReflectedGraphics {
     /// create vertex attributes for a type that implements vertex
     /// to match the pipeline contained in self
     pub fn vertex_attributes<V: crate::Vertex>(&self) -> Vec<gpu::VertexAttribute> {
-        let attribs = self.reflect_data
+        let attribs = self
             .vertex_map
             .iter()
             .enumerate()

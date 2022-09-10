@@ -326,7 +326,7 @@ impl<'a> CommandEncoder<'a> {
 
         let c = graphics.pipeline_map.read();
 
-        let key = crate::reflect::GraphicsPipelineKey {
+        let key = crate::reflect::graphics::GraphicsPipelineKey {
             pass_hash,
             vertex_ty: TypeId::of::<V>(),
             viewport,
@@ -366,15 +366,16 @@ impl<'a> CommandEncoder<'a> {
                 name: pipeline_name,
                 layout: &graphics.pipeline_data.layout,
                 pass: &pass,
-                vertex: &graphics.pipeline_data.vertex,
+                vertex: (&graphics.pipeline_data.vertex, None),
                 tessellation: None,
-                geometry: graphics.pipeline_data.geometry.as_ref(),
-                fragment: graphics.pipeline_data.fragment.as_ref(),
+                geometry: graphics.pipeline_data.geometry.as_ref().map(|s| (s, None)),
+                fragment: graphics.pipeline_data.fragment.as_ref().map(|s| (s, None)),
                 rasterizer: graphics.pipeline_data.rasterizer,
                 vertex_states,
                 blend_states: &graphics.pipeline_data.blend_states[..colors.len()],
                 depth_stencil: graphics.pipeline_data.depth_stencil,
                 viewports: &[viewport],
+                cache: None,
             };
 
             if std::mem::size_of::<V>() == 0 {
@@ -428,31 +429,37 @@ impl<'a> CommandEncoder<'a> {
 
     /// Begin a reflected compute pass without borrowning the ReflectedCompute
     #[cfg(any(feature = "reflect", feature = "spirv"))]
-    pub fn compute_pass_reflected_ref<'b>(
+    pub fn compute_pass_reflected<'b>(
         &'b mut self,
-        compute: &'a crate::reflect::ReflectedCompute,
-    ) -> Result<crate::pass::ReflectedComputePass<'a, 'b>, gpu::Error> {
-        Ok(crate::pass::ReflectedComputePass {
-            parent_id: compute.id,
-            bundle_needed: compute.bundle_needed(),
-            push_constant_names: Cow::Borrowed(&compute.push_constant_names),
-            pipeline: Md::new(Cow::Borrowed(&compute.pipeline)),
-            commands: Vec::new(),
-            encoder: self,
-        })
-    }
-
-    /// Begin a reflected compute pass without borrowning the ReflectedCompute
-    #[cfg(any(feature = "reflect", feature = "spirv"))]
-    pub fn compute_pass_reflected_owned<'b>(
-        &'b mut self,
+        device: &gpu::Device,
         compute: &crate::reflect::ReflectedCompute,
     ) -> Result<crate::pass::ReflectedComputePass<'a, 'b>, gpu::Error> {
+        let pipeline_map = compute.pipeline_map.read().unwrap();
+
+        let key = crate::reflect::compute::ComputePipelineKey {
+            specialization: None,
+        };
+
+        if pipeline_map.get(&key).is_none() {
+            drop(pipeline_map);
+
+            let pipeline = device.create_compute_pipeline(&gpu::ComputePipelineDesc {
+                name: compute.pipeline_data.name.clone(),
+                layout: &compute.pipeline_data.layout,
+                shader: (&compute.pipeline_data.shader, None),
+                cache: Some(&compute.pipeline_data.cache),
+            })?;
+
+            compute.pipeline_map.write().unwrap().insert(key, pipeline);
+        }
+
+        let pipeline = compute.pipeline_map.read().unwrap().get(&key).unwrap().clone();
+
         Ok(crate::pass::ReflectedComputePass {
             parent_id: compute.id,
             bundle_needed: compute.bundle_needed(),
-            push_constant_names: Cow::Owned(compute.push_constant_names.clone()),
-            pipeline: Md::new(Cow::Owned(compute.pipeline.clone())),
+            push_constant_names: Cow::Owned(compute.reflect_data.push_constant_names.clone()),
+            pipeline: Md::new(Cow::Owned(pipeline)),
             commands: Vec::new(),
             encoder: self,
         })

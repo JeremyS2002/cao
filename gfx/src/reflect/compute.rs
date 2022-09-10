@@ -1,24 +1,33 @@
-use std::any::TypeId;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::sync::Arc;
+use std::sync::RwLock;
 
 use super::bundle::BundleBuilder;
 use super::error;
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ComputePipelineKey {
+    pub specialization: Option<()>,
+}
+
+#[derive(Clone, Debug)]
+pub struct PipelineData {
+    pub layout: gpu::PipelineLayout,
+    pub shader: gpu::ShaderModule,
+    pub cache: gpu::PipelineCache,
+    pub name: Option<String>,
+}
 
 /// Reflected compute pipeline
 #[derive(Clone)]
 pub struct ReflectedCompute {
     pub(crate) id: u64,
-    pub(crate) pipeline: gpu::ComputePipeline,
-
-    pub(crate) descriptor_set_names: Option<HashMap<String, (usize, usize)>>,
-    pub(crate) descriptor_set_types: Option<Arc<[Vec<(gpu::DescriptorLayoutEntryType, u32)>]>>,
-    pub(crate) descriptor_set_layouts: Option<Arc<[gpu::DescriptorLayout]>>,
-
-    pub(crate) push_constant_names: Option<HashMap<String, (u32, gpu::ShaderStages, TypeId)>>,
+    pub reflect_data: super::data::ReflectData,
+    pub pipeline_data: PipelineData,
+    pub pipeline_map: Arc<RwLock<HashMap<ComputePipelineKey, gpu::ComputePipeline>>>,
 }
 
 impl std::fmt::Debug for ReflectedCompute {
@@ -32,19 +41,23 @@ impl ReflectedCompute {
     pub fn new(
         device: &gpu::Device,
         compute: &[u32],
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<Self, error::ReflectedError> {
         let mut descriptor_set_layouts = HashMap::new();
         let mut descriptor_set_names = HashMap::new();
         let mut push_constants = Vec::new();
         let mut push_constant_names = HashMap::new();
+        let mut specialization_names = HashMap::new();
         let entry = super::reflect_raw::parse_spirv(
             &mut descriptor_set_layouts,
             &mut descriptor_set_names,
             &mut push_constants,
             &mut push_constant_names,
+            &mut specialization_names,
             compute,
-            spirv_reflect::types::variable::ReflectShaderStageFlags::COMPUTE,
+            spirq::ExecutionModel::GLCompute,
+            // spirv_reflect::types::variable::ReflectShaderStageFlags::COMPUTE,
         )?;
 
         let module_name = name.as_ref().map(|n| format!("{}_shader_module", n));
@@ -70,53 +83,77 @@ impl ReflectedCompute {
             push_constants: &push_constants,
         })?;
 
-        let pipeline = device.create_compute_pipeline(&gpu::ComputePipelineDesc {
-            name: name.map(|n| format!("{}_pipeline", n)),
-            layout: &pipeline_layout,
-            shader: &module,
-        })?;
+        // let pipeline = device.create_compute_pipeline(&gpu::ComputePipelineDesc {
+        //     name: name.map(|n| format!("{}_pipeline", n)),
+        //     layout: &pipeline_layout,
+        //     shader: (&module, None),
+        //     cache: None,
+        // })?;
 
         let mut hasher = DefaultHasher::new();
         module.hash(&mut hasher);
 
         let bundle_needed = !(descriptor_set_layouts.len() == 0);
 
+        let cache = if let Some(cache) = cache {
+            cache
+        } else {
+            device.create_pipeline_cache(&gpu::PipelineCacheDesc {
+                name: name.as_ref().map(|n| format!("{}_pipeline_cache", n)),
+                initial_data: None,
+            })?
+        };
+
         Ok(Self {
             id: hasher.finish(),
-            pipeline,
-            descriptor_set_layouts: if bundle_needed {
-                Some(descriptor_set_layouts.into())
-            } else {
-                None
+            pipeline_map: Arc::default(),
+            pipeline_data: PipelineData {
+                layout: pipeline_layout,
+                shader: module,
+                cache,
+                name: name.map(|n| n.to_string()),
             },
-            descriptor_set_names: if bundle_needed {
-                Some(descriptor_set_names)
-            } else {
-                None
-            },
-            descriptor_set_types: if bundle_needed {
-                Some(descriptor_set_types.into())
-            } else {
-                None
-            },
-            push_constant_names: if push_constants.len() != 0 {
-                Some(push_constant_names)
-            } else {
-                None
+            reflect_data: super::data::ReflectData {
+                descriptor_set_layouts: if bundle_needed {
+                    Some(descriptor_set_layouts.into())
+                } else {
+                    None
+                },
+                descriptor_set_map: if bundle_needed {
+                    Some(descriptor_set_names)
+                } else {
+                    None
+                },
+                descriptor_set_types: if bundle_needed {
+                    Some(descriptor_set_types.into())
+                } else {
+                    None
+                },
+                push_constant_names: if push_constants.len() != 0 {
+                    Some(push_constant_names)
+                } else {
+                    None
+                },
+                specialization_names: if specialization_names.len() != 0 {
+                    Some(specialization_names)
+                } else {
+                    None
+                },
             },
         })
     }
 
     /// Create a new BundleBuilder for this Compute
     pub fn bundle(&self) -> Option<BundleBuilder<'_>> {
-        if self.descriptor_set_layouts.is_some() {
+        if self.reflect_data.descriptor_set_layouts.is_some() {
             Some(BundleBuilder {
                 parent_id: self.id,
-                parent_name: self.pipeline.name(),
-                map: self.descriptor_set_names.as_ref().unwrap(),
-                types: self.descriptor_set_types.as_ref().unwrap(),
-                layouts: self.descriptor_set_layouts.as_ref().unwrap(),
+                parent_name: self.pipeline_data.name.as_ref().map(|n| &**n),
+                map: self.reflect_data.descriptor_set_map.as_ref().unwrap(),
+                types: self.reflect_data.descriptor_set_types.as_ref().unwrap(),
+                layouts: self.reflect_data.descriptor_set_layouts.as_ref().unwrap(),
                 descriptors: self
+                    .reflect_data
                     .descriptor_set_types
                     .as_ref()
                     .unwrap()
@@ -131,7 +168,7 @@ impl ReflectedCompute {
 
     /// Returns if the Compute pipeline requires a bundle to run
     pub fn bundle_needed(&self) -> bool {
-        self.descriptor_set_layouts.is_some()
+        self.reflect_data.descriptor_set_layouts.is_some()
     }
 
     /// Get the id of the ReflectedCompute

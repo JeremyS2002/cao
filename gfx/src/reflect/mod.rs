@@ -17,6 +17,7 @@ pub mod compute;
 pub mod error;
 pub mod graphics;
 pub mod resource;
+pub mod data;
 
 #[cfg(feature = "reflect")]
 mod reflect_raw;
@@ -25,7 +26,7 @@ mod reflect_raw;
 mod spirv_raw;
 
 pub use bundle::*;
-pub use compute::*;
+pub use compute::ReflectedCompute;
 pub use error::*;
-pub use graphics::*;
+pub use graphics::ReflectedGraphics;
 pub use resource::*;

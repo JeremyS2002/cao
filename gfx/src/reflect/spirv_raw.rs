@@ -6,13 +6,13 @@ use either::*;
 
 pub(crate) fn parse_vertex_states(
     vertex: &spv::Builder<spv::specialisation::Vertex>,
-) -> std::sync::Arc<[crate::VertexLocationInfo]> {
+) -> std::sync::Arc<[super::graphics::VertexLocationInfo]> {
     vertex
         .get_inputs()
         .iter()
         .filter_map(|(ty, e, n)| {
             if let Left((_, _)) = e {
-                Some(crate::VertexLocationInfo {
+                Some(super::graphics::VertexLocationInfo {
                     name: n.unwrap().to_string(),
                     format: match ty {
                         spv::PrimitiveType::Float => gpu::VertexFormat::Float,

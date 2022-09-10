@@ -437,6 +437,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::ADD],
             depth_state,
+            None,
             Some("splat_stage"),
         )?;
 
@@ -466,6 +467,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
+            None,
             Some("advect_stage"),
         )?;
 
@@ -521,6 +523,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
+            None,
             Some("div_stage"),
         )?;
 
@@ -552,6 +555,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
+            None,
             Some("curl_stage"),
         )?;
 
@@ -583,6 +587,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
+            None,
             Some("vort_stage"),
         )?;
 
@@ -618,6 +623,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
+            None,
             Some("clear_stage"),
         )?;
 
@@ -651,6 +657,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
+            None,
             Some("pressure_stage"),
         )?;
 
@@ -684,6 +691,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
+            None,
             Some("grad_sub_stage"),
         )?;
 
@@ -717,6 +725,7 @@ impl Fluid {
             rasterizer,
             &[gpu::BlendState::REPLACE],
             depth_state,
+            None,
             Some("display_stage"),
         )?;
 
@@ -834,7 +843,7 @@ impl Fluid {
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         mesh: &'a gfx::Mesh<Vertex>,
-        graphics: &gfx::ReflectedGraphics,
+        graphics: &'a gfx::ReflectedGraphics,
         bundle: &gfx::Bundle,
         output: &gpu::TextureView,
         load: gpu::LoadOp,
@@ -898,7 +907,7 @@ impl Fluid {
             &mut encoder,
             device,
             mesh,
-            &mut u.splat_stage,
+            &u.splat_stage,
             &u.vel_splat_bundle,
             &a.vel.view,
             gpu::LoadOp::Load,
@@ -910,7 +919,7 @@ impl Fluid {
             &mut encoder,
             device,
             mesh,
-            &mut u.splat_stage,
+            &u.splat_stage,
             &u.ink_splat_bundle,
             &a.ink.view,
             gpu::LoadOp::Load, // ink_a needs to have the current data in already
@@ -1039,7 +1048,7 @@ impl Fluid {
             &mut encoder,
             device,
             mesh,
-            &mut u.advection_stage,
+            &u.advection_stage,
             &a.advect_ink_bundle,
             &b.ink.view,
             gpu::LoadOp::DontCare,

@@ -342,7 +342,8 @@ impl<'a, 'b> ReflectedComputePass<'a, 'b> {
                 assert_eq!(
                     ty,
                     TypeId::of::<T>(),
-                    "ERROR: Call to push_constant with different type of constant than in spirv"
+                    "ERROR: Call to push_constant with different type of constant than in spirv in pipeline {:?}",
+                    self.pipeline
                 );
                 self.push_constants(offset, bytemuck::bytes_of(&constant), stages)
             } else {
@@ -389,13 +390,13 @@ push!(
     (push_vec2, [f32; 2]),
     (push_vec3, [f32; 3]),
     (push_vec4, [f32; 4]),
-    (push_mat2, [f32; 4]),
-    (push_mat3, [f32; 9]),
-    (push_mat4, [f32; 16]),
+    (push_mat2, [[f32; 2]; 2]),
+    (push_mat3, [[f32; 3]; 3]),
+    (push_mat4, [[f32; 4]; 4]),
     (push_dvec2, [f64; 2]),
     (push_dvec3, [f64; 3]),
     (push_dvec4, [f64; 4]),
-    (push_dmat2, [f64; 4]),
-    (push_dmat3, [f64; 9]),
-    (push_dmat4, [f64; 16]),
+    (push_dmat2, [[f64; 2]; 2]),
+    (push_dmat3, [[f64; 3]; 3]),
+    (push_dmat4, [[f64; 4]; 4]),
 );

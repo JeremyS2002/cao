@@ -172,6 +172,7 @@ impl Fractal {
             &[gpu::BlendState::REPLACE],
             None,
             None,
+            None,
         )?;
 
         let fractal_bundle = fractal_graphics
@@ -204,6 +205,7 @@ impl Fractal {
             // display_pass,
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
+            None,
             None,
             None,
         )?;

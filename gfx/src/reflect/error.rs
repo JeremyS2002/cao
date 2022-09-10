@@ -1,4 +1,4 @@
-use spirv_reflect::types::variable::ReflectShaderStageFlags;
+use std::any::TypeId;
 
 #[derive(Debug)]
 pub enum ReflectedError {
@@ -83,12 +83,16 @@ pub enum ParseSpirvError {
     MissingBinding(u32, u32),
     /// Set name confilct set self.0, binding self.1
     SetConflict(u32, u32, String, String),
+    /// One name points to multiple locations
+    DescriptorNameUndecidable(String, usize, usize, usize, usize),
+    /// one name for push constants points to different data
+    PushNameConflict(String, u32, TypeId, u32, TypeId),
+    /// set self.0 binding self.1 mismatch in types wanted
+    DescriptorTypeConflict(u32, u32, gpu::DescriptorLayoutEntryType, gpu::DescriptorLayoutEntryType),
+    /// specialization constant conflict name self.0 points to differnt data types
+    ConstantNameConflict(String, TypeId, TypeId),
     /// Multiple bindings have the same name: self.0
-    SetNameConfilct(String),
-    /// Entry point not found
-    EntryPointNotFound(ReflectShaderStageFlags, Vec<ReflectShaderStageFlags>),
-    /// Vertex format self.0 doesn't map embers_gpu formats yet
-    VertexFormatInvalid(spirv_reflect::types::image::ReflectFormat),
+    DescriptorSetNameConfilct(String),
     /// Shader stages {src_stage_name} and {dst_stage_name} input and output at location {location} have different types {src_type} {dst_type}
     StageIncompatibility {
         /// the location of the conflict
@@ -96,11 +100,11 @@ pub enum ParseSpirvError {
         /// the name in the src stage
         src_stage_name: String,
         /// the type that the src emmits
-        src_type: spirv_reflect::types::image::ReflectFormat,
+        src_type: spirq::ty::Type,
         /// the name in the dst stage
         dst_stage_name: String,
         /// the type that the dst accepts
-        dst_type: spirv_reflect::types::image::ReflectFormat,
+        dst_type: spirq::ty::Type,
     },
 }
 
@@ -111,9 +115,7 @@ impl std::fmt::Display for ParseSpirvError {
             Self::MissingSet(e) => writeln!(f, "ERROR: Missing set {}", e),
             Self::MissingBinding(set, binding) => writeln!(f, "ERROR: Missing Binding set {}, binding {}", set, binding),
             Self::SetConflict(set, binding, n1, n2) => writeln!(f, "ERROR: Both {} and {} point to the same location set {}, binding {}", n1, n2, set, binding),
-            Self::SetNameConfilct(name) => writeln!(f, "ERROR: Multiple bindings have the same name: {}\nThis is probably caused by different shader stages using the same name for variables however due to current limitations in embers_gfx this isn't allowed at the moment", name),
-            Self::EntryPointNotFound(w, a) => writeln!(f, "ERROR: Entry point not found.\nWanted entry {:?} supplied entries: {:?}\nThis can be caused by supplying a different type of shader to what is wanted, for example supplying vertex shader spir-v as a fragment shader", w, a),
-            Self::VertexFormatInvalid(fmt) => writeln!(f, "ERROR: Vertex format {:?} doesn't map the gpu formats yet", fmt),
+            Self::DescriptorSetNameConfilct(name) => writeln!(f, "ERROR: Multiple bindings have the same name: {}\nThis is probably caused by different shader stages using the same name for variables however due to current limitations in embers_gfx this isn't allowed at the moment", name),
             Self::StageIncompatibility {
                 location,
                 src_stage_name,
@@ -121,6 +123,10 @@ impl std::fmt::Display for ParseSpirvError {
                 dst_stage_name,
                 dst_type,
             } => writeln!(f, "ERROR: Shader stages {} and {} input and output at location {} have different types {:?} and {:?}", src_stage_name, dst_stage_name, location, src_type, dst_type),
+            Self::DescriptorNameUndecidable(n, s0, b0, s1, b1) => writeln!(f, "ERROR: Descriptor name {} points to both (set {} binding {}) and (set {} binding {})", n, s0, b0, s1, b1),
+            Self::DescriptorTypeConflict(s, b, t1, t2) => writeln!(f, "ERROR: Descriptor set {} binding {} wants both {:?} and {:?} cannot satisfy", s, b, t1, t2),
+            Self::PushNameConflict(n, o1, t1, o2, t2) => writeln!(f, "Push constant name {} points to both offset {} ty {:?} and offset {} ty {:?}", n, o1, t1, o2, t2),
+            Self::ConstantNameConflict(n, t1, t2) => writeln!(f, "Specialization constant name {} points to different types {:?} and {:?}", n, t1, t2),
         }
     }
 }

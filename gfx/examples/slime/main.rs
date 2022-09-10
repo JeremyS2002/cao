@@ -161,7 +161,7 @@ impl Slime {
             None,
         )?;
 
-        let update = gfx::ReflectedCompute::new(&device, &gpu::include_spirv!("update.spv"), None)?;
+        let update = gfx::ReflectedCompute::new(&device, &gpu::include_spirv!("update.spv"), None, None)?;
 
         let update_bundle = update
             .bundle()
@@ -171,7 +171,7 @@ impl Slime {
             .set_resource("u_agents", &agents)?
             .build(&device)?;
 
-        let fade = gfx::ReflectedCompute::new(&device, &gpu::include_spirv!("fade.spv"), None)?;
+        let fade = gfx::ReflectedCompute::new(&device, &gpu::include_spirv!("fade.spv"), None, None)?;
 
         let fade_bundle = fade
             .bundle()
@@ -203,6 +203,7 @@ impl Slime {
             Some(&gpu::include_spirv!("display_frag.spv")),
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
+            None,
             None,
             None,
         )?;
@@ -375,12 +376,12 @@ impl Slime {
         self.uniform.update_gpu_ref(&mut encoder);
 
         if !self.paused {
-            let mut update_pass = encoder.compute_pass_reflected_ref(&self.update)?;
+            let mut update_pass = encoder.compute_pass_reflected(&self.device, &self.update)?;
             update_pass.set_bundle_ref(&self.update_bundle);
             update_pass.dispatch(UPDATE_DISPATCH, 1, 1);
             update_pass.finish();
 
-            let mut fade_pass = encoder.compute_pass_reflected_ref(&self.fade)?;
+            let mut fade_pass = encoder.compute_pass_reflected(&self.device, &self.fade)?;
             fade_pass.set_bundle_ref(&self.fade_bundle);
             fade_pass.dispatch(self.width, self.height, 1);
             fade_pass.finish();
