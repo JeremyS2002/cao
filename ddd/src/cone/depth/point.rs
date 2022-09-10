@@ -501,9 +501,10 @@ impl PointDepthMapRenderer {
         cull_face: gpu::CullFace,
         front_face: gpu::FrontFace,
         // geometry_pass: bool,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
-        let multi = Self::pipeline(device, cull_face, front_face, name)?;
+        let multi = Self::pipeline(device, cull_face, front_face, cache, name)?;
         Ok(Self {
             pipeline: multi,
             multi_shadow_map: Arc::default(),
@@ -518,6 +519,7 @@ impl PointDepthMapRenderer {
         cull_face: gpu::CullFace,
         front_face: gpu::FrontFace,
         // geometry_pass: bool,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vertex_spv = gpu::include_spirv!("../../../shaders/cone/shadow_passes/point.vert.spv");
@@ -543,6 +545,7 @@ impl PointDepthMapRenderer {
             },
             &[],
             Some(gpu::DepthStencilState::default_depth()),
+            cache,
             name.map(|n| format!("{}_renderer", n))
                 .as_ref()
                 .map(|n| &**n),
@@ -557,7 +560,7 @@ impl PointDepthMapRenderer {
 
     /// Draw each of the meshes shadow into the [`PointDepthMap`] supplied
     pub fn single_pass<'a, V: gfx::Vertex>(
-        &'a self,
+        &self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         shadow: &'a PointDepthMap,
@@ -638,7 +641,7 @@ impl PointDepthMapRenderer {
 
     /// Draw each of the meshes shadow into the [`PointDepthMap`] supplied
     pub fn multi_pass<'a, V: gfx::Vertex>(
-        &'a self,
+        &self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         shadow: &'a PointDepthMaps,

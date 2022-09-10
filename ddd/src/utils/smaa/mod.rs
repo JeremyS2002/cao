@@ -9,6 +9,8 @@ use gfx::prelude::*;
 
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 /// Describes how SMAA (Subpixel morphological antialiasing) should be performed
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -287,21 +289,21 @@ pub enum SMAAQuality {
 /// see [`SMAAQuality`] for more infomation on what these do
 pub struct SMAARenderer {
     state: SMAAState,
-    pub edges_targets: HashMap<(u32, u32), gfx::GTexture2D>,
-    pub blend_targets: HashMap<(u32, u32), gfx::GTexture2D>,
+    pub edges_targets: Arc<Mutex<HashMap<(u32, u32), gfx::GTexture2D>>>,
+    pub blend_targets: Arc<Mutex<HashMap<(u32, u32), gfx::GTexture2D>>>,
 
     pub area: gfx::GTexture2D,
     pub search: gfx::GTexture2D,
     pub sampler: gpu::Sampler,
 
     pub edge_detect: gfx::ReflectedGraphics,
-    pub edge_detect_bundles: HashMap<u64, gfx::Bundle>,
+    pub edge_detect_bundles: Arc<Mutex<HashMap<u64, gfx::Bundle>>>,
 
     pub blend_weight: gfx::ReflectedGraphics,
-    pub blend_weight_bundles: HashMap<(u32, u32), gfx::Bundle>,
+    pub blend_weight_bundles: Arc<Mutex<HashMap<(u32, u32), gfx::Bundle>>>,
 
     pub neighborhood_blend: gfx::ReflectedGraphics,
-    pub neighborhood_blend_bundles: HashMap<u64, gfx::Bundle>,
+    pub neighborhood_blend_bundles: Arc<Mutex<HashMap<u64, gfx::Bundle>>>,
 }
 
 impl SMAARenderer {
@@ -309,6 +311,7 @@ impl SMAARenderer {
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
         state: SMAAState,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let n = name.as_ref().map(|n| format!("{}_area_texture", n));
@@ -354,6 +357,7 @@ impl SMAARenderer {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
+            cache.clone(),
             n.as_ref().map(|n| &**n),
         ) {
             Ok(g) => g,
@@ -372,6 +376,7 @@ impl SMAARenderer {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
+            cache.clone(),
             n.as_ref().map(|n| &**n),
         ) {
             Ok(g) => g,
@@ -383,32 +388,33 @@ impl SMAARenderer {
 
         let n = name.as_ref().map(|n| format!("{}_neighborhood_blend", n));
         let neighborhood_blend =
-            Self::create_neighborhood(device, &state, n.as_ref().map(|n| &**n))?;
+            Self::create_neighborhood(device, &state, cache, n.as_ref().map(|n| &**n))?;
 
         Ok(Self {
             state,
 
-            edges_targets: HashMap::new(),
-            blend_targets: HashMap::new(),
+            edges_targets: Arc::default(),
+            blend_targets: Arc::default(),
 
             area,
             search,
             sampler,
 
             edge_detect,
-            edge_detect_bundles: HashMap::new(),
+            edge_detect_bundles: Arc::default(),
 
             blend_weight,
-            blend_weight_bundles: HashMap::new(),
+            blend_weight_bundles: Arc::default(),
 
             neighborhood_blend,
-            neighborhood_blend_bundles: HashMap::new(),
+            neighborhood_blend_bundles: Arc::default(),
         })
     }
 
     pub fn create_neighborhood(
         device: &gpu::Device,
         state: &SMAAState,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = state.neighborhood_blend_vert();
@@ -421,6 +427,7 @@ impl SMAARenderer {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
+            cache,
             name,
         ) {
             Ok(g) => Ok(g),
@@ -434,12 +441,13 @@ impl SMAARenderer {
 
 impl SMAARenderer {
     pub fn edges_target(
-        &mut self,
+        &self,
         device: &gpu::Device,
         width: u32,
         height: u32,
     ) -> Result<gpu::TextureView, gpu::Error> {
-        if self.edges_targets.get(&(width, height)).is_none() {
+        let mut edges_targets = self.edges_targets.lock().unwrap();
+        if edges_targets.get(&(width, height)).is_none() {
             let t = gfx::GTexture2D::from_formats(
                 device,
                 width,
@@ -457,10 +465,9 @@ impl SMAARenderer {
                 None,
             )?
             .unwrap();
-            self.edges_targets.insert((width, height), t);
+            edges_targets.insert((width, height), t);
         }
-        Ok(self
-            .edges_targets
+        Ok(edges_targets
             .get(&(width, height))
             .unwrap()
             .view
@@ -468,12 +475,13 @@ impl SMAARenderer {
     }
 
     fn blend_weight_target(
-        &mut self,
+        &self,
         device: &gpu::Device,
         width: u32,
         height: u32,
     ) -> Result<gpu::TextureView, gpu::Error> {
-        if self.blend_targets.get(&(width, height)).is_none() {
+        let mut blend_targets = self.blend_targets.lock().unwrap();
+        if blend_targets.get(&(width, height)).is_none() {
             let t = gfx::GTexture2D::from_formats(
                 device,
                 width,
@@ -491,10 +499,9 @@ impl SMAARenderer {
                 None,
             )?
             .unwrap();
-            self.blend_targets.insert((width, height), t);
+            blend_targets.insert((width, height), t);
         }
-        Ok(self
-            .blend_targets
+        Ok(blend_targets
             .get(&(width, height))
             .unwrap()
             .view
@@ -502,9 +509,9 @@ impl SMAARenderer {
     }
 
     #[inline]
-    pub fn edge_detect_pass(
-        &mut self,
-        encoder: &mut gfx::CommandEncoder<'_>,
+    pub fn edge_detect_pass<'a>(
+        &'a self,
+        encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         src: &gpu::TextureView,
     ) -> Result<(), gpu::Error> {
@@ -525,7 +532,8 @@ impl SMAARenderer {
             None,
             &self.edge_detect,
         )?;
-        if self.edge_detect_bundles.get(&src.id()).is_none() {
+        let mut edge_detect_bundles = self.edge_detect_bundles.lock().unwrap();
+        if edge_detect_bundles.get(&src.id()).is_none() {
             let b = match self
                 .edge_detect
                 .bundle()
@@ -540,9 +548,9 @@ impl SMAARenderer {
                     e => unreachable!("{}", e),
                 },
             };
-            self.edge_detect_bundles.insert(src.id(), b);
+            edge_detect_bundles.insert(src.id(), b);
         }
-        let bundle = self.edge_detect_bundles.get(&src.id()).unwrap().clone();
+        let bundle = edge_detect_bundles.get(&src.id()).unwrap().clone();
         pass.set_bundle_owned(bundle);
         let rt = glam::vec4(
             1.0 / width as f32,
@@ -556,9 +564,9 @@ impl SMAARenderer {
     }
 
     #[inline]
-    pub fn blend_weight_pass(
-        &mut self,
-        encoder: &mut gfx::CommandEncoder<'_>,
+    pub fn blend_weight_pass<'a>(
+        &'a self,
+        encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         width: u32,
         height: u32,
@@ -578,7 +586,8 @@ impl SMAARenderer {
             None,
             &self.blend_weight,
         )?;
-        if self.blend_weight_bundles.get(&(width, height)).is_none() {
+        let mut blend_weight_bundles = self.blend_weight_bundles.lock().unwrap();
+        if blend_weight_bundles.get(&(width, height)).is_none() {
             let edges_target = self.edges_target(device, width, height)?;
             let b = match self
                 .blend_weight
@@ -598,10 +607,9 @@ impl SMAARenderer {
                     e => unreachable!("{}", e),
                 },
             };
-            self.blend_weight_bundles.insert((width, height), b);
+            blend_weight_bundles.insert((width, height), b);
         }
-        let bundle = self
-            .blend_weight_bundles
+        let bundle = blend_weight_bundles
             .get(&(width, height))
             .unwrap()
             .clone();
@@ -619,7 +627,7 @@ impl SMAARenderer {
 
     #[inline]
     pub fn neighborhood_blend_pass<'a>(
-        &mut self,
+        &'a self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         src: &gpu::TextureView,
@@ -633,11 +641,13 @@ impl SMAARenderer {
             &self.neighborhood_blend,
         )?;
 
-        if self.neighborhood_blend_bundles.get(&src.id()).is_none() {
+        let mut neighborhood_blend_bundles = self.neighborhood_blend_bundles.lock().unwrap();
+        if neighborhood_blend_bundles.get(&src.id()).is_none() {
             let width = src.extent().width;
             let height = src.extent().height;
             let blend_target = {
-                if self.blend_targets.get(&(width, height)).is_none() {
+                let mut blend_targets = self.blend_targets.lock().unwrap();
+                if blend_targets.get(&(width, height)).is_none() {
                     let t = gfx::GTexture2D::from_formats(
                         device,
                         width,
@@ -655,9 +665,9 @@ impl SMAARenderer {
                         None,
                     )?
                     .unwrap();
-                    self.blend_targets.insert((width, height), t);
+                    blend_targets.insert((width, height), t);
                 }
-                self.blend_targets
+                blend_targets
                     .get(&(width, height))
                     .unwrap()
                     .view
@@ -680,10 +690,9 @@ impl SMAARenderer {
                     e => unreachable!("{}", e),
                 },
             };
-            self.neighborhood_blend_bundles.insert(src.id(), b);
+            neighborhood_blend_bundles.insert(src.id(), b);
         }
-        let bundle = self
-            .neighborhood_blend_bundles
+        let bundle = neighborhood_blend_bundles
             .get(&src.id())
             .unwrap()
             .clone();
@@ -707,7 +716,7 @@ impl SMAARenderer {
     /// Color values will be clipped into the range of the target textures format
     /// If self was created with [`SMAAEdgeMethod::Depth`] then depth must not be [`None`]
     pub fn pass<'a>(
-        &mut self,
+        &'a self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         src: &gpu::TextureView,
@@ -733,8 +742,8 @@ impl SMAARenderer {
     /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
     /// This function drops Descriptor sets cached by self
     pub fn clean(&mut self) {
-        self.edge_detect_bundles.clear();
-        self.blend_weight_bundles.clear();
-        self.neighborhood_blend_bundles.clear();
+        self.edge_detect_bundles.lock().unwrap().clear();
+        self.blend_weight_bundles.lock().unwrap().clear();
+        self.neighborhood_blend_bundles.lock().unwrap().clear();
     }
 }

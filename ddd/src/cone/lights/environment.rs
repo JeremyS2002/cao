@@ -41,7 +41,7 @@ pub fn new_skybox(
     hdri: ImageBuffer<Rgb<f32>, Vec<f32>>,
     resolution: u32,
 ) -> Result<SkyBox, gpu::Error> {
-    let mut generator = SkyBoxGenerator::new(encoder, device)?;
+    let generator = SkyBoxGenerator::new(encoder, device)?;
 
     generator.generate_from_hdri(encoder, device, hdri, resolution, resolution)
 }
@@ -92,10 +92,11 @@ unsafe impl bytemuck::Pod for SpecularData {}
 unsafe impl bytemuck::Zeroable for SpecularData {}
 
 /// Builds skyboxes from hdri textures
+#[derive(Clone, Debug)]
 pub struct SkyBoxGenerator<'a> {
     pub pipeline: gfx::ReflectedGraphics,
     /// TODO: Multiple HashMap from format to compute? to allow for other that Rgba32Float
-    pub rgb_to_rgba: Option<gfx::ReflectedCompute>,
+    pub rgb_to_rgba: Arc<Mutex<Option<gfx::ReflectedCompute>>>,
     pub sampler: Cow<'a, gpu::Sampler>,
     pub cube: Cow<'a, gfx::Mesh<BasicVertex>>,
 }
@@ -111,7 +112,7 @@ impl SkyBoxGenerator<'static> {
         let cube = mesh::cube(encoder, device, None)?;
         Ok(Self {
             pipeline,
-            rgb_to_rgba: None,
+            rgb_to_rgba: Arc::new(Mutex::new(None)),
             sampler: Cow::Owned(sampler),
             cube: Cow::Owned(cube),
         })
@@ -132,6 +133,7 @@ impl<'a> SkyBoxGenerator<'a> {
             &[gpu::BlendState::REPLACE],
             None,
             None,
+            None,
         ) {
             Ok(g) => Ok(g),
             Err(e) => match e {
@@ -145,7 +147,7 @@ impl<'a> SkyBoxGenerator<'a> {
         let compute_spv =
             gpu::include_spirv!("../../../shaders/cone/workarounds/rgb32f_to_rgba32f.comp.spv");
 
-        match gfx::ReflectedCompute::new(device, &compute_spv, None) {
+        match gfx::ReflectedCompute::new(device, &compute_spv, None, None) {
             Ok(c) => Ok(c),
             Err(e) => match e {
                 gfx::error::ReflectedError::Gpu(e) => Err(e)?,
@@ -156,7 +158,7 @@ impl<'a> SkyBoxGenerator<'a> {
 
     /// Create new skybox from an image
     pub fn generate_from_hdri(
-        &mut self,
+        &self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         hdri: ImageBuffer<Rgb<f32>, Vec<f32>>,
@@ -217,12 +219,12 @@ impl<'a> SkyBoxGenerator<'a> {
 
             let storage = gfx::Storage::from_vec(encoder, device, hdri.to_vec(), None)?;
 
-            if self.rgb_to_rgba.is_none() {
-                self.rgb_to_rgba = Some(Self::rgb_to_rgba(device)?);
+            let mut rgb_to_rgba = self.rgb_to_rgba.lock().unwrap();
+            if rgb_to_rgba.is_none() {
+                *rgb_to_rgba = Some(Self::rgb_to_rgba(device)?);
             }
 
-            let bundle = match self
-                .rgb_to_rgba
+            let bundle = match rgb_to_rgba
                 .as_ref()
                 .unwrap()
                 .bundle()
@@ -241,7 +243,7 @@ impl<'a> SkyBoxGenerator<'a> {
             };
 
             let mut comp_pass =
-                encoder.compute_pass_reflected_owned(self.rgb_to_rgba.as_ref().unwrap())?;
+                encoder.compute_pass_reflected(device, rgb_to_rgba.as_ref().unwrap())?;
 
             comp_pass.set_bundle_owned(bundle);
             comp_pass.push_i32("cols", hdri.width() as _);
@@ -257,7 +259,7 @@ impl<'a> SkyBoxGenerator<'a> {
     /// an Rgba image and using that can be easier than running
     /// a compute shader to convert the formats
     pub fn generate_from_image_rgba(
-        &self,
+        &'a self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         hdri: &ImageBuffer<Rgba<f32>, Vec<f32>>,
@@ -343,8 +345,8 @@ impl<'a> SkyBoxGenerator<'a> {
             )?;
 
             pass.set_bundle_owned(bundle.clone());
-            pass.push_mat4("projection", projection.to_cols_array());
-            pass.push_mat4("view", views[face as usize].to_cols_array());
+            pass.push_mat4("projection", projection.to_cols_array_2d());
+            pass.push_mat4("view", views[face as usize].to_cols_array_2d());
             match &self.cube {
                 Cow::Borrowed(c) => {
                     pass.draw_mesh_ref(*c);
@@ -418,6 +420,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
+            None,
             n.as_ref().map(|n| &**n),
         ) {
             Ok(g) => g,
@@ -436,6 +439,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
             &[gpu::BlendState::REPLACE],
             None,
             None,
+            None,
         ) {
             Ok(g) => g,
             Err(e) => match e {
@@ -451,6 +455,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
             Some(&brdf_spv),
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
+            None,
             None,
             None,
         ) {
@@ -535,8 +540,8 @@ impl<'a> EnvironmentMapGenerator<'a> {
                 &self.diffuse_pipeline,
             )?;
             pass.set_bundle_owned(diffuse_bundle.clone());
-            pass.push_mat4("projection", projection.to_cols_array());
-            pass.push_mat4("view", views[face as usize].to_cols_array());
+            pass.push_mat4("projection", projection.to_cols_array_2d());
+            pass.push_mat4("view", views[face as usize].to_cols_array_2d());
             match &self.cube {
                 Cow::Borrowed(c) => {
                     pass.draw_mesh_ref(*c);
@@ -736,6 +741,7 @@ impl EnvironmentRenderer {
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
         flags: EnvironmentRendererFlags,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let sampler = device.create_sampler(&gpu::SamplerDesc {
@@ -751,19 +757,19 @@ impl EnvironmentRenderer {
         Ok(Self {
             cube: mesh::cube(encoder, device, cn.as_ref().map(|n| &**n))?,
             ambient: if flags.contains(EnvironmentRendererFlags::AMBIENT) {
-                Some(Self::create_ambient(device, an.as_ref().map(|n| &**n))?)
+                Some(Self::create_ambient(device, cache.clone(), an.as_ref().map(|n| &**n))?)
             } else {
                 None
             },
             ambient_bundles: Arc::default(),
             skybox: if flags.contains(EnvironmentRendererFlags::SKYBOX) {
-                Some(Self::create_skybox(device, sn.as_ref().map(|n| &**n))?)
+                Some(Self::create_skybox(device, cache.clone(), sn.as_ref().map(|n| &**n))?)
             } else {
                 None
             },
             skybox_bundles: Arc::default(),
             environment: if flags.contains(EnvironmentRendererFlags::ENVIRONMENT) {
-                Some(Self::create_environment(device, en.as_ref().map(|n| &**n))?)
+                Some(Self::create_environment(device, cache, en.as_ref().map(|n| &**n))?)
             } else {
                 None
             },
@@ -814,6 +820,7 @@ impl EnvironmentRenderer {
         device: &gpu::Device,
         vert: &[u32],
         frag: &[u32],
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         match gfx::ReflectedGraphics::from_spv(
@@ -828,6 +835,7 @@ impl EnvironmentRenderer {
                 false,
                 gpu::CompareOp::Greater,
             )),
+            cache,
             name,
         ) {
             Ok(g) => Ok(g),
@@ -840,24 +848,27 @@ impl EnvironmentRenderer {
 
     pub fn create_ambient(
         device: &gpu::Device,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let frag = gpu::include_spirv!("../../../shaders/cone/environment/ambient.frag.spv");
-        Self::create_light_pipeline(device, &vert, &frag, name)
+        Self::create_light_pipeline(device, &vert, &frag, cache, name)
     }
 
     pub fn create_environment(
         device: &gpu::Device,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let frag = gpu::include_spirv!("../../../shaders/cone/environment/environment.frag.spv");
-        Self::create_light_pipeline(device, &vert, &frag, name)
+        Self::create_light_pipeline(device, &vert, &frag, cache, name)
     }
 
     pub fn create_skybox(
         device: &gpu::Device,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         match gfx::ReflectedGraphics::from_spv(
@@ -878,6 +889,7 @@ impl EnvironmentRenderer {
                 stencil_back: None,
                 stencil_front: None,
             }),
+            cache,
             name,
         ) {
             Ok(g) => Ok(g),
@@ -1065,7 +1077,7 @@ impl EnvironmentRenderer {
 
 impl EnvironmentRenderer {
     pub fn skybox_pass<'a>(
-        &'a self,
+        &self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
@@ -1106,7 +1118,7 @@ impl EnvironmentRenderer {
 
         pass.push_f32("strength", strength);
         pass.set_bundle_owned(bundle);
-        pass.draw_mesh_ref(&self.cube);
+        pass.draw_mesh_owned(self.cube.clone());
 
         Ok(())
     }

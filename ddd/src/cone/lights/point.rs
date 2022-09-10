@@ -116,6 +116,7 @@ impl PointLightRenderer {
     pub fn new(
         device: &gpu::Device,
         flags: PointLightRendererFlags,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let bfn = name.as_ref().map(|n| format!("{}_base_pipeline", n));
@@ -124,13 +125,13 @@ impl PointLightRenderer {
 
         Ok(Self {
             base: if flags.contains(PointLightRendererFlags::BASE) {
-                Some(Self::create_base(device, bfn.as_ref().map(|n| &**n))?)
+                Some(Self::create_base(device, cache.clone(), bfn.as_ref().map(|n| &**n))?)
             } else {
                 None
             },
             base_bundles: Arc::default(),
             shadow: if flags.contains(PointLightRendererFlags::SHADOW) {
-                Some(Self::create_shadow(device, sfn.as_ref().map(|n| &**n))?)
+                Some(Self::create_shadow(device, cache.clone(), sfn.as_ref().map(|n| &**n))?)
             } else {
                 None
             },
@@ -138,6 +139,7 @@ impl PointLightRenderer {
             subsurface: if flags.contains(PointLightRendererFlags::SUBSURFACE) {
                 Some(Self::create_subsurface(
                     device,
+                    cache.clone(),
                     sbfn.as_ref().map(|n| &**n),
                 )?)
             } else {
@@ -165,6 +167,7 @@ impl PointLightRenderer {
         device: &gpu::Device,
         vert: &[u32],
         frag: &[u32],
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         match gfx::ReflectedGraphics::from_spv(
@@ -183,6 +186,7 @@ impl PointLightRenderer {
                 stencil_front: None,
                 stencil_back: None,
             }),
+            cache,
             name,
         ) {
             Ok(g) => Ok(g),
@@ -195,33 +199,36 @@ impl PointLightRenderer {
 
     pub fn create_base(
         device: &gpu::Device,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let frag =
             gpu::include_spirv!("../../../shaders/cone/point_light_passes/single_base.frag.spv");
-        Self::create_pipeline(device, &vert, &frag, name)
+        Self::create_pipeline(device, &vert, &frag, cache, name)
     }
 
     pub fn create_shadow(
         device: &gpu::Device,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let frag =
             gpu::include_spirv!("../../../shaders/cone/point_light_passes/single_shadow.frag.spv");
-        Self::create_pipeline(device, &vert, &frag, name)
+        Self::create_pipeline(device, &vert, &frag, cache, name)
     }
 
     pub fn create_subsurface(
         device: &gpu::Device,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let frag = gpu::include_spirv!(
             "../../../shaders/cone/point_light_passes/single_subsurface.frag.spv"
         );
-        Self::create_pipeline(device, &vert, &frag, name)
+        Self::create_pipeline(device, &vert, &frag, cache, name)
     }
 }
 
@@ -281,7 +288,7 @@ impl PointLightRenderer {
     /// strength multiplies the lights contibution per pixel
     /// clear specifies if to clear the geometry buffers output map or not
     pub fn base_pass<'a>(
-        &'a self,
+        &self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
@@ -398,7 +405,7 @@ impl PointLightRenderer {
     /// shadow samples is the number of shadow map reads for calculating shadow contribution (max 64)
     /// clear specifies if to clear the geometry buffers output map or not
     pub fn shadow_pass<'a>(
-        &'a self,
+        &self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
@@ -528,7 +535,7 @@ impl PointLightRenderer {
     /// shadow samples is the number of shadow map reads for calculating shadow contribution (max 64)
     /// clear specifies if to clear the geometry buffers output map or not
     pub fn subsurface_pass<'a>(
-        &'a self,
+        &self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
@@ -651,6 +658,7 @@ impl PointLightsRenderer {
     pub fn new(
         device: &gpu::Device,
         flags: PointLightRendererFlags,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let depth_calc_spv =
@@ -659,6 +667,7 @@ impl PointLightsRenderer {
         let depth_calc = match gfx::ReflectedCompute::new(
             device,
             &depth_calc_spv,
+            cache.clone(),
             name.map(|n| format!("{}_depth_calc", n))
                 .as_ref()
                 .map(|n| &**n),
@@ -676,6 +685,7 @@ impl PointLightsRenderer {
         let tile_assign = match gfx::ReflectedCompute::new(
             device,
             &tile_assign_spv,
+            cache.clone(),
             name.map(|n| format!("{}_tile_assign", n))
                 .as_ref()
                 .map(|n| &**n),
@@ -696,6 +706,7 @@ impl PointLightsRenderer {
                 match gfx::ReflectedCompute::new(
                     device,
                     &base_spv,
+                    cache.clone(),
                     name.map(|n| format!("{}_base_pass", n))
                         .as_ref()
                         .map(|n| &**n),
@@ -719,6 +730,7 @@ impl PointLightsRenderer {
                 match gfx::ReflectedCompute::new(
                     device,
                     &shadow_spv,
+                    cache.clone(),
                     name.map(|n| format!("{}_shadow_pass", n))
                         .as_ref()
                         .map(|n| &**n),
@@ -742,6 +754,7 @@ impl PointLightsRenderer {
                 match gfx::ReflectedCompute::new(
                     device,
                     &subsurface_spv,
+                    cache,
                     name.map(|n| format!("{}_subsurface_pass", n))
                         .as_ref()
                         .map(|n| &**n),
@@ -785,7 +798,7 @@ impl PointLightsRenderer {
     /// returns (depth_texture, length_texture)
     #[inline(always)]
     pub fn calc_tiles<'a>(
-        &'a self,
+        &self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
@@ -877,7 +890,7 @@ impl PointLightsRenderer {
 
         // compute pass to get min / max depth and store into texture
         let mut pass = encoder
-            .compute_pass_reflected_ref(&self.depth_calc)
+            .compute_pass_reflected(device, &self.depth_calc)
             .unwrap();
         pass.set_bundle_owned(bundle.clone());
         pass.push_u32("width", buffer.width);
@@ -892,7 +905,7 @@ impl PointLightsRenderer {
     /// returns light indices (a storage buffer that maps tiles to the indices of lights in the light storage buffer)
     #[inline(always)]
     pub fn assign_pass<'a>(
-        &'a self,
+        &self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         depth_texture: &gfx::GTexture2D,
@@ -993,7 +1006,7 @@ impl PointLightsRenderer {
             .unwrap();
 
         // compute pass to assign lights to tiles
-        let mut pass = encoder.compute_pass_reflected_ref(&self.tile_assign)?;
+        let mut pass = encoder.compute_pass_reflected(device, &self.tile_assign)?;
         pass.set_bundle_owned(bundle.clone());
         pass.dispatch(tile_tex_width, tile_tex_height, 1);
         pass.finish();
@@ -1012,7 +1025,7 @@ impl PointLightsRenderer {
     /// strength multiplies the lights contributions per pixel
     /// clear specifies if to clear the geometry buffers output map or not
     pub fn base_pass<'a>(
-        &'a self,
+        &self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
@@ -1113,7 +1126,7 @@ impl PointLightsRenderer {
                 .unwrap();
 
             // compute pass to render light contributions
-            let mut pass = encoder.compute_pass_reflected_ref(self.base.as_ref().unwrap())?;
+            let mut pass = encoder.compute_pass_reflected(device, self.base.as_ref().unwrap())?;
             pass.set_bundle_owned(bundle.clone());
             pass.push_f32("strength", strength);
             pass.push_u32("width", buffer.width);
@@ -1143,7 +1156,7 @@ impl PointLightsRenderer {
     /// strength multiplies the lights contributions per pixel
     /// clear specifies if to clear the geometry buffers output map or not
     pub fn shadow_pass<'a>(
-        &'a self,
+        &self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
@@ -1251,7 +1264,7 @@ impl PointLightsRenderer {
                 .unwrap();
 
             // compute pass to render light contributions
-            let mut pass = encoder.compute_pass_reflected_ref(self.base.as_ref().unwrap())?;
+            let mut pass = encoder.compute_pass_reflected(device, self.base.as_ref().unwrap())?;
             pass.set_bundle_owned(bundle.clone());
             pass.push_f32("strength", strength);
             pass.push_u32("width", buffer.width);
@@ -1281,7 +1294,7 @@ impl PointLightsRenderer {
     /// strength multiplies the lights contributions per pixel
     /// clear specifies if to clear the geometry buffers output map or not
     pub fn subsurface_pass<'a>(
-        &'a self,
+        &self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
@@ -1398,7 +1411,7 @@ impl PointLightsRenderer {
                 .unwrap();
 
             // compute pass to render light contributions
-            let mut pass = encoder.compute_pass_reflected_ref(self.base.as_ref().unwrap())?;
+            let mut pass = encoder.compute_pass_reflected(device, self.base.as_ref().unwrap())?;
             pass.set_bundle_owned(bundle.clone());
             pass.push_f32("strength", strength);
             pass.push_u32("width", buffer.width);

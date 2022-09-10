@@ -84,7 +84,7 @@ pub struct Cone {
 }
 
 impl Cone {
-    pub fn new(window: &winit::window::Window) -> Result<Self, anyhow::Error> {
+    pub fn new(window: &winit::window::Window, debug: bool) -> Result<Self, anyhow::Error> {
         let instance = gpu::Instance::new(&gpu::InstanceDesc::default())?;
 
         let surface = instance.create_surface(window)?;
@@ -111,7 +111,11 @@ impl Cone {
             &device,
             false,
             "../resources/models/dragon_small.obj",
-            None,
+            if debug {
+                Some("mesh_small")
+            } else {
+                None
+            },
         )?
         .remove(0);
 
@@ -120,13 +124,17 @@ impl Cone {
             &device,
             true,
             "../resources/models/dragon.obj",
-            None,
+            if debug {
+                Some("mesh")
+            } else {
+                None
+            },
         )?
         .remove(0);
 
-        let plane = mesh::xz_plane(&mut encoder, &device, None)?;
+        let plane = mesh::xz_plane(&mut encoder, &device, if debug { Some("plane") } else { None })?;
 
-        let cube = mesh::cube(&mut encoder, &device, None)?;
+        let cube = mesh::cube(&mut encoder, &device, if debug { Some("cube") } else { None })?;
 
         let controller = ddd::utils::DebugController::from_flipped_perspective(
             glam::vec3(0.0, 0.0, 2.0),
@@ -141,7 +149,7 @@ impl Cone {
             true,
         );
 
-        let camera = controller.create_cam(&mut encoder, &device, None)?;
+        let camera = controller.create_cam(&mut encoder, &device, if debug { Some("camera") } else { None })?;
 
         let buffer = cone::GeometryBuffer::new(
             &device,
@@ -156,24 +164,30 @@ impl Cone {
                     _ => (None, None),
                 },
                 depth_usage: gpu::TextureUsage::empty(),
-                name: None,
+                name: if debug {
+                    Some("geometry_buffer".to_string())
+                } else {
+                    None
+                },
             },
         )?;
 
         let smaa_renderer =
-            ddd::utils::SMAARenderer::new(&mut encoder, &device, ddd::utils::SMAAState::LOW, None)?;
+            ddd::utils::SMAARenderer::new(&mut encoder, &device, ddd::utils::SMAAState::LOW, None, if debug { Some("smaa") } else { None })?;
 
         let env_renderer = cone::EnvironmentRenderer::new(
             &mut encoder,
             &device,
             cone::EnvironmentRendererFlags::all(),
             None,
+            if debug {
+                Some("env")
+            } else {
+                None
+            },
         )?;
 
-        let point_renderer =
-            cone::PointLightRenderer::new(&device, cone::PointLightRendererFlags::all(), None)?;
-
-        let solid_renderer = clay::SolidRenderer::new(&device, None)?;
+        let solid_renderer = clay::SolidRenderer::new(&device, None, None)?;
 
         let ao_renderer = cone::AORenderer::new(
             &mut encoder,
@@ -188,15 +202,25 @@ impl Cone {
             },
             false,
             None,
+            if debug {
+                Some("ao")
+            } else {
+                None
+            }
         )?;
 
-        let bloom_renderer = cone::BloomRenderer::new(&mut encoder, &device, 0.5, 1.5, None)?;
+        let bloom_renderer = cone::BloomRenderer::new(&mut encoder, &device, 0.5, 1.5, None, if debug { Some("bloom") } else { None })?;
 
         let tonemap_renderer = cone::GlobalToneMapRenderer::new(
             &mut encoder,
             &device,
             cone::GlobalToneMapParams::default(),
             None,
+            if debug {
+                Some("tonemap")
+            } else {
+                None
+            }
         )?;
         let antialiased = gfx::GTexture2D::from_formats(
             &device,
@@ -206,9 +230,16 @@ impl Cone {
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COLOR_OUTPUT,
             1,
             gfx::alt_formats(gpu::Format::Rgba32Float),
-            None,
+            if debug {
+                Some("antialiased")
+            } else {
+                None
+            }
         )?
         .unwrap();
+
+        let point_renderer =
+            cone::PointLightRenderer::new(&device, cone::PointLightRendererFlags::all(), None, if debug { Some("point_renderer") } else { None })?;
 
         let sampler = device.create_sampler(&gpu::SamplerDesc {
             wrap_x: gpu::WrapMode::ClampToEdge,
@@ -225,21 +256,21 @@ impl Cone {
         let leather_instance =
             [(glam::Mat4::from_translation(glam::vec3(-4.5, -1.0, 0.0)) * scale).into()];
         let leather_instance =
-            ddd::utils::Instances::new(&mut encoder, &device, &leather_instance, None)?;
+            ddd::utils::Instances::new(&mut encoder, &device, &leather_instance, if debug { Some("leather instance") } else { None })?;
 
         let metal_instance =
             [(glam::Mat4::from_translation(glam::vec3(-1.5, -1.0, 0.0)) * scale).into()];
         let metal_instance =
-            ddd::utils::Instances::new(&mut encoder, &device, &metal_instance, None)?;
+            ddd::utils::Instances::new(&mut encoder, &device, &metal_instance, if debug { Some("metal instance") } else { None })?;
 
         let wax_instance =
             [(glam::Mat4::from_translation(glam::vec3(1.5, -1.0, 0.0)) * scale).into()];
-        let wax_instance = ddd::utils::Instances::new(&mut encoder, &device, &wax_instance, None)?;
+        let wax_instance = ddd::utils::Instances::new(&mut encoder, &device, &wax_instance, if debug { Some("wax instance") } else { None })?;
 
         let chrome_instance =
             [(glam::Mat4::from_translation(glam::vec3(4.5, -1.0, 0.0)) * scale).into()];
         let chrome_instance =
-            ddd::utils::Instances::new(&mut encoder, &device, &chrome_instance, None)?;
+            ddd::utils::Instances::new(&mut encoder, &device, &chrome_instance, if debug { Some("chrome instance") } else { None })?;
 
         let wood_instance = [glam::Mat4::from_scale_rotation_translation(
             glam::vec3(7.0, 1.0, 7.0),
@@ -248,7 +279,7 @@ impl Cone {
         )
         .into()];
         let wood_instance =
-            ddd::utils::Instances::new(&mut encoder, &device, &wood_instance, None)?;
+            ddd::utils::Instances::new(&mut encoder, &device, &wood_instance, if debug { Some("wood instance") } else { None })?;
 
         println!("loading textures...");
 
@@ -261,7 +292,7 @@ impl Cone {
             &leather_albedo_image,
             gpu::TextureUsage::SAMPLED,
             3,
-            None,
+            if debug { Some("leather albedo") } else { None },
         )?;
 
         let leather_roughness_image = image::open("../resources/images/leather/roughness.jpg")
@@ -273,7 +304,11 @@ impl Cone {
             &leather_roughness_image,
             gpu::TextureUsage::SAMPLED,
             1,
-            None,
+            if debug {
+                Some("leather roughness")
+            } else {
+                None
+            },
         )?;
 
         // let leather_normal_image = image::open("../resources/images/leather/normal.jpg")
@@ -296,6 +331,7 @@ impl Cone {
             None, //Some(&leather_normal),
             &sampler,
             false,
+            None,
         )
         .unwrap();
 
@@ -308,7 +344,11 @@ impl Cone {
             &metal_albedo_image,
             gpu::TextureUsage::SAMPLED,
             3,
-            None,
+            if debug {
+                Some("metal albedo")
+            } else {
+                None
+            },
         )?;
 
         let metal_roughness_image = image::open("../resources/images/metal/roughness.jpg")
@@ -320,7 +360,11 @@ impl Cone {
             &metal_roughness_image,
             gpu::TextureUsage::SAMPLED,
             1,
-            None,
+            if debug {
+                Some("metal roughness")
+            } else {
+                None
+            },
         )?;
 
         let metal_metallic_image = image::open("../resources/images/metal/metallic.jpg")
@@ -332,7 +376,11 @@ impl Cone {
             &metal_metallic_image,
             gpu::TextureUsage::SAMPLED,
             1,
-            None,
+            if debug {
+                Some("metal metallic")
+            } else {
+                None
+            },
         )?;
 
         let metal_material = cone::Material::textured(
@@ -343,6 +391,7 @@ impl Cone {
             None,
             &sampler,
             false,
+            None,
         )
         .unwrap();
 
@@ -354,6 +403,7 @@ impl Cone {
                 metallic: 0.0,
                 subsurface: glam::vec4(0.95, 0.66, 0.35, 0.5),
             },
+            None,
         )?;
 
         let chrome_material = cone::Material::constant(
@@ -364,6 +414,7 @@ impl Cone {
                 metallic: 1.0,
                 subsurface: glam::vec4(0.0, 0.0, 0.0, 0.0),
             },
+            None,
         )?;
 
         let wood_albedo_image = image::open("../resources/images/wood/color.jpg")
@@ -375,7 +426,11 @@ impl Cone {
             &wood_albedo_image,
             gpu::TextureUsage::SAMPLED,
             3,
-            None,
+            if debug {
+                Some("wood albedo")
+            } else {
+                None
+            },
         )?;
 
         let wood_roughness_image = image::open("../resources/images/wood/roughness.jpg")
@@ -387,7 +442,11 @@ impl Cone {
             &wood_roughness_image,
             gpu::TextureUsage::SAMPLED,
             1,
-            None,
+            if debug {
+                Some("wood roughness")
+            } else {
+                None
+            },
         )?;
 
         let wood_normal_image = image::open("../resources/images/wood/normal.jpg")
@@ -399,7 +458,11 @@ impl Cone {
             &wood_normal_image,
             gpu::TextureUsage::SAMPLED,
             1,
-            None,
+            if debug {
+                Some("wood normal")
+            } else {
+                None
+            },
         )?;
 
         let wood_material = cone::Material::textured(
@@ -410,6 +473,7 @@ impl Cone {
             Some(&wood_normal),
             &sampler,
             false,
+            None,
         )
         .unwrap();
 
@@ -433,13 +497,13 @@ impl Cone {
         let light_pos = glam::vec3(0.0, 2.0, 0.0);
 
         let light_data = cone::PointLightData::new(0.05, light_pos, [2.5; 3].into(), 0.05);
-        let light = cone::PointLight::new(&mut encoder, &device, light_data, None)?;
+        let light = cone::PointLight::new(&mut encoder, &device, light_data, if debug { Some("light") } else { None })?;
 
         let light_instance = [(glam::Mat4::from_translation(light_pos)
             * glam::Mat4::from_scale(glam::vec3(0.1, 0.1, 0.1)))
         .into()];
         let light_instance =
-            ddd::utils::Instances::new(&mut encoder, &device, &light_instance, None)?;
+            ddd::utils::Instances::new(&mut encoder, &device, &light_instance, if debug { Some("light instance") } else { None })?;
 
         let shadow = cone::PointDepthMap::new(
             &mut encoder,
@@ -447,7 +511,11 @@ impl Cone {
             cone::PointDepthData::from_light(&light.data, 0.1, 20.0, 0.05, 0.005),
             512,
             512,
-            None,
+            if debug {
+                Some("shadow map")
+            } else {
+                None
+            },
         )?;
 
         let subsurface = cone::PointSubsurfaceMap::new(
@@ -457,7 +525,11 @@ impl Cone {
             512,
             512,
             64,
-            None,
+            if debug {
+                Some("subsurface map")
+            } else {
+                None
+            },
         )?;
 
         let shadow_renderer = cone::PointDepthMapRenderer::new(
@@ -465,13 +537,18 @@ impl Cone {
             gpu::CullFace::Front,
             gpu::FrontFace::Clockwise,
             None,
+            if debug {
+                Some("shadow renderer")
+            } else {
+                None
+            },
         )?;
 
         println!("pre-computing lookup tables...");
 
         encoder.submit(&mut command_buffer, true)?;
 
-        let display_renderer = ddd::utils::CopyRenderer::new(&device, None)?;
+        let display_renderer = ddd::utils::CopyRenderer::new(&device, None, None)?;
 
         let query1 = device.create_time_query(16, None)?;
         let query2 = device.create_time_query(2, None)?;
@@ -918,7 +995,7 @@ fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let mut cone = Cone::new(&window).unwrap();
+    let mut cone = Cone::new(&window, true).unwrap();
 
     let mut input_helper = WinitInputHelper::new();
     window.set_cursor_grab(true).unwrap();

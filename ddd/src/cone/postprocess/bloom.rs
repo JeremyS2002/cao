@@ -57,15 +57,17 @@ impl BloomRenderer {
         device: &gpu::Device,
         intensity: f32,
         threshold: f32,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let blur_renderer = ChainBlurRenderer::new(
             device,
+            cache.clone(),
             name.map(|n| format!("{}_blur_renderer", n))
                 .as_ref()
                 .map(|n| &**n),
         )?;
-        Self::from_blur(encoder, device, intensity, threshold, blur_renderer, name)
+        Self::from_blur(encoder, device, intensity, threshold, blur_renderer, cache, name)
     }
 
     pub fn from_blur(
@@ -74,6 +76,7 @@ impl BloomRenderer {
         intensity: f32,
         threshold: f32,
         blur_renderer: ChainBlurRenderer,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let params = BloomParams::new(intensity, threshold, 0.7);
@@ -94,6 +97,7 @@ impl BloomRenderer {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
+            cache,
             n.as_ref().map(|n| &**n),
         ) {
             Ok(g) => g,

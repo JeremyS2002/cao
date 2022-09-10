@@ -245,16 +245,18 @@ impl AORenderer {
         device: &gpu::Device,
         params: AOParams,
         split_blur: bool,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let blur_renderer = GaussBlurRenderer::new(
             device,
             split_blur,
+            cache.clone(),
             name.map(|n| format!("{}_blur_renderer", n))
                 .as_ref()
                 .map(|n| &**n),
         )?;
-        Self::from_blur(encoder, device, params, blur_renderer, name)
+        Self::from_blur(encoder, device, params, blur_renderer, cache, name)
     }
 
     pub fn from_blur(
@@ -262,6 +264,7 @@ impl AORenderer {
         device: &gpu::Device,
         params: AOParams,
         blur_renderer: GaussBlurRenderer,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let n = name.map(|n| format!("{}_noise_texture", n));
@@ -300,6 +303,7 @@ impl AORenderer {
                 stencil_front: None,
                 stencil_back: None,
             }),
+            cache,
             n.as_ref().map(|n| &**n),
         ) {
             Ok(g) => g,

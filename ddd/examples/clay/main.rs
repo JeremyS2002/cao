@@ -119,11 +119,12 @@ impl Clay {
             &device,
             ddd::utils::SMAAState::MEDIUM,
             None,
+            None,
         )?;
 
-        let display_renderer = ddd::utils::CopyRenderer::new(&device, None)?;
+        let display_renderer = ddd::utils::CopyRenderer::new(&device, None, None)?;
 
-        let smooth_renderer = clay::SmoothRenderer::new(&device, None)?;
+        let smooth_renderer = clay::SmoothRenderer::new(&device, None, None)?;
 
         let model = glam::Mat4::from_translation(glam::vec3(0.0, -1.5, -5.0))
             * glam::Mat4::from_scale(glam::vec3(2.0, 2.0, 2.0));

@@ -679,12 +679,13 @@ impl<'a> MaterialBuilder<'a> {
     }
 
     /// Build a material from defalt graphics pipeline parameters
-    pub fn build(self, device: &gpu::Device) -> Result<Material, gfx::error::ReflectedError> {
+    pub fn build(self, device: &gpu::Device, cache: Option<gpu::PipelineCache>) -> Result<Material, gfx::error::ReflectedError> {
         self.build_from_info(
             device,
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE; 8],
             Some(gpu::DepthState::default()),
+            cache,
         )
     }
 
@@ -695,6 +696,7 @@ impl<'a> MaterialBuilder<'a> {
         rasterizer: gpu::Rasterizer,
         blend_states: &[gpu::BlendState],
         depth_state: Option<gpu::DepthState>,
+        cache: Option<gpu::PipelineCache>,
     ) -> Result<Material, gfx::error::ReflectedError> {
         if blend_states.len() < 7 {
             panic!("ERROR: Attempt to build material with less than 7 blend states\nOne state must be supplied for each output write")
@@ -711,6 +713,7 @@ impl<'a> MaterialBuilder<'a> {
                 depth: depth_state,
                 ..Default::default()
             }),
+            cache,
             None,
         )?;
         let set = if let Some(mut bundle) = graphics.bundle() {
@@ -766,6 +769,7 @@ impl Material {
         normal: Option<&gfx::Texture2D>,
         sampler: &gpu::Sampler,
         discard: bool,
+        cache: Option<gpu::PipelineCache>,
     ) -> Result<Self, gfx::error::ReflectedError> {
         if let Some(normal) = normal {
             let mut builder = MaterialBuilder::new();
@@ -783,7 +787,7 @@ impl Material {
                 discard,
                 &Default::default(),
             );
-            builder.build(device)
+            builder.build(device, cache)
         } else {
             let mut builder = MaterialBuilder::new();
             let (world_pos, view_pos, normal, uv) = builder.default_vertex();
@@ -791,7 +795,7 @@ impl Material {
                 world_pos, view_pos, normal, uv, albedo, roughness, metallic, None, sampler,
                 discard,
             );
-            builder.build(device)
+            builder.build(device, cache)
         }
     }
 
@@ -802,22 +806,24 @@ impl Material {
         device: &gpu::Device,
         uniform: &super::MaterialParams,
         discard: bool,
+        cache: Option<gpu::PipelineCache>,
     ) -> Result<Self, gfx::error::ReflectedError> {
         let mut builder = MaterialBuilder::new();
         let (world_pos, view_pos, normal, _) = builder.default_vertex();
         builder.uniform_fragment(world_pos, view_pos, normal, uniform, discard);
-        builder.build(device)
+        builder.build(device, cache)
     }
 
     /// Create a material with constant parameters with a single instance
     pub fn constant(
         device: &gpu::Device,
         constants: &super::MaterialData,
+        cache: Option<gpu::PipelineCache>,
     ) -> Result<Self, gfx::error::ReflectedError> {
         let mut builder = MaterialBuilder::new();
         let (world_pos, view_pos, normal, _) = builder.default_vertex();
         builder.constant_fragment(world_pos, view_pos, normal, constants);
-        builder.build(device)
+        builder.build(device, cache)
     }
 
     /// Draw all the meshes with the material into self

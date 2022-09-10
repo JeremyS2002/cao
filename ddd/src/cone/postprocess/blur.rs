@@ -29,7 +29,7 @@ pub struct GaussBlurRenderer {
 // }
 
 impl GaussBlurRenderer {
-    pub fn new(device: &gpu::Device, split: bool, name: Option<&str>) -> Result<Self, gpu::Error> {
+    pub fn new(device: &gpu::Device, split: bool, cache: Option<gpu::PipelineCache>, name: Option<&str>) -> Result<Self, gpu::Error> {
         let vert_spv = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let frag_spv = if split {
             gpu::include_spirv!("../../../shaders/cone/postprocess/split_gauss_blur.frag.spv")
@@ -45,6 +45,7 @@ impl GaussBlurRenderer {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::ADD],
             None,
+            cache,
             name.map(|n| format!("{}_pipeline", n))
                 .as_ref()
                 .map(|n| &**n),
@@ -72,9 +73,9 @@ impl GaussBlurRenderer {
         })
     }
 
-    fn split_pass(
-        &self,
-        encoder: &mut gfx::CommandEncoder,
+    fn split_pass<'a>(
+        &'a self,
+        encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         src_view: &gpu::TextureView,
         dst_view: &gpu::TextureView,
@@ -225,9 +226,9 @@ impl GaussBlurRenderer {
         Ok(())
     }
 
-    fn full_pass(
-        &self,
-        encoder: &mut gfx::CommandEncoder<'_>,
+    fn full_pass<'a>(
+        &'a self,
+        encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         src_view: &gpu::TextureView,
         dst_view: &gpu::TextureView,
@@ -334,9 +335,9 @@ impl GaussBlurRenderer {
     /// Blur the src_view into dst_view
     ///
     /// src_view and dst_view _can_ be the same as the blur is performed from a tempary texture
-    pub fn pass(
-        &self,
-        encoder: &mut gfx::CommandEncoder<'_>,
+    pub fn pass<'a>(
+        &'a self,
+        encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         src_view: &gpu::TextureView,
         dst_view: &gpu::TextureView,
@@ -372,7 +373,7 @@ impl std::clone::Clone for ChainBlurRenderer {
 }
 
 impl ChainBlurRenderer {
-    pub fn new(device: &gpu::Device, name: Option<&str>) -> Result<Self, gpu::Error> {
+    pub fn new(device: &gpu::Device, cache: Option<gpu::PipelineCache>, name: Option<&str>) -> Result<Self, gpu::Error> {
         let vert_spv = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let frag_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/chain_blur.frag.spv");
 
@@ -384,6 +385,7 @@ impl ChainBlurRenderer {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::ADD],
             None,
+            cache,
             name.map(|n| format!("{}_renderer", n))
                 .as_ref()
                 .map(|n| &**n),

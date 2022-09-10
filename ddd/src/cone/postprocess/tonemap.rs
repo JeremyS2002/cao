@@ -63,6 +63,7 @@ impl GlobalToneMapRenderer {
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
         params: GlobalToneMapParams,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let sampler = device.create_sampler(&gpu::SamplerDesc {
@@ -74,7 +75,7 @@ impl GlobalToneMapRenderer {
         let params = gfx::Uniform::new(encoder, device, params, n.as_ref().map(|n| &**n))?;
 
         let n = name.as_ref().map(|n| format!("{}_pipeline", n));
-        let pipeline = Self::create_pipeline(device, n.as_ref().map(|n| &**n))?;
+        let pipeline = Self::create_pipeline(device, cache, n.as_ref().map(|n| &**n))?;
 
         Ok(Self {
             pipeline,
@@ -86,6 +87,7 @@ impl GlobalToneMapRenderer {
 
     pub fn create_pipeline(
         device: &gpu::Device,
+        cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/screen.vert.spv");
@@ -98,6 +100,7 @@ impl GlobalToneMapRenderer {
             gpu::Rasterizer::default(),
             &[gpu::BlendState::REPLACE],
             None,
+            cache,
             name,
         ) {
             Ok(g) => Ok(g),
@@ -111,7 +114,7 @@ impl GlobalToneMapRenderer {
 
 impl GlobalToneMapRenderer {
     pub fn pass<'a>(
-        &mut self,
+        &'a self,
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         src: &gpu::TextureView,

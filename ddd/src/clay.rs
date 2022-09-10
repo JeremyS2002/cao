@@ -1,5 +1,8 @@
 //! Forward rendering for debugging applications
 
+use std::sync::Arc;
+use std::sync::Mutex;
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct Vertex {
@@ -74,19 +77,19 @@ macro_rules! impl_renderer {
         $(#[$attr])*
         pub struct $name {
             pub pipeline: gfx::ReflectedGraphics,
-            pub bundles: HashMap<(u64, u64), gfx::Bundle>,
+            pub bundles: Arc<Mutex<HashMap<(u64, u64), gfx::Bundle>>>,
         }
 
         impl $name {
-            pub fn new(device: &gpu::Device, name: Option<&str>) -> Result<Self, gpu::Error> {
-                let pipeline = Self::pipeline(device, name)?;
+            pub fn new(device: &gpu::Device, cache: Option<gpu::PipelineCache>, name: Option<&str>) -> Result<Self, gpu::Error> {
+                let pipeline = Self::pipeline(device, cache, name)?;
                 Ok(Self {
                     pipeline,
-                    bundles: HashMap::new(),
+                    bundles: Arc::default(),
                 })
             }
 
-            pub fn pipeline(device: &gpu::Device, name: Option<&str>) -> Result<gfx::ReflectedGraphics, gpu::Error> {
+            pub fn pipeline(device: &gpu::Device, cache: Option<gpu::PipelineCache>, name: Option<&str>) -> Result<gfx::ReflectedGraphics, gpu::Error> {
                 let vert_spv = gpu::include_spirv!($vert);
                 let frag_spv = gpu::include_spirv!($frag);
 
@@ -107,6 +110,7 @@ macro_rules! impl_renderer {
                         stencil_front: None,
                         stencil_back: None,
                     }),
+                    cache,
                     name.as_ref().map(|n| &**n),
                 ) {
                     Ok(g) => g,
@@ -120,12 +124,13 @@ macro_rules! impl_renderer {
             }
 
             pub fn bundle(
-                &mut self,
+                &self,
                 device: &gpu::Device,
                 camera: &Camera,
                 instance: &Instances,
             ) -> Result<gfx::Bundle, gpu::Error> {
-                if let Some(b) = self.bundles.get(&(camera.buffer.id(), instance.buffer.id())) {
+                let mut bundles = self.bundles.lock().unwrap();
+                if let Some(b) = bundles.get(&(camera.buffer.id(), instance.buffer.id())) {
                     Ok(b.clone())
                 } else {
                     let b = match self.pipeline.bundle().unwrap()
@@ -141,13 +146,13 @@ macro_rules! impl_renderer {
                         }
                     };
 
-                    self.bundles.insert((camera.buffer.id(), instance.buffer.id()), b.clone());
+                    bundles.insert((camera.buffer.id(), instance.buffer.id()), b.clone());
                     Ok(b)
                 }
             }
 
             pub fn pass<'a, 'b, V: gfx::Vertex>(
-                &mut self,
+                &'a self,
                 encoder: &mut gfx::CommandEncoder<'a>,
                 device: &gpu::Device,
                 target: gfx::Attachment<'a>,
@@ -181,7 +186,7 @@ macro_rules! impl_renderer {
             /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
             /// This function drops Descriptor sets cached by self
             pub fn clean(&mut self) {
-                self.bundles.clear();
+                self.bundles.lock().unwrap().clear();
             }
         }
     };
