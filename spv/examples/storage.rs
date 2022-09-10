@@ -215,15 +215,16 @@ fn main() {
             name: None,
             layout: &layout,
             pass: &render_pass,
-            vertex: &vertex_shader,
+            vertex: (&vertex_shader, None),
             geometry: None,
             tessellation: None,
-            fragment: Some(&fragment_shader),
+            fragment: Some((&fragment_shader, None)),
             rasterizer,
             vertex_states: &[vertex_state],
             blend_states: &[blend_state],
             depth_stencil: None,
             viewports: &[viewport],
+            cache: None,
         })
         .unwrap();
 
@@ -258,15 +259,16 @@ fn main() {
                             name: None,
                             layout: &layout,
                             pass: &render_pass,
-                            vertex: &vertex_shader,
+                            vertex: (&vertex_shader, None),
                             geometry: None,
                             tessellation: None,
-                            fragment: Some(&fragment_shader),
+                            fragment: Some((&fragment_shader, None)),
                             rasterizer,
                             vertex_states: &[vertex_state],
                             blend_states: &[blend_state],
                             depth_stencil: None,
                             viewports: &[viewport],
+                            cache: None,
                         })
                         .unwrap();
                 }
