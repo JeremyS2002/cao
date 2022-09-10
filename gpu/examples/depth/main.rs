@@ -391,15 +391,16 @@ fn main() {
             name: Some("pipeline".to_string()),
             layout: &pipeline_layout,
             pass: &render_pass,
-            vertex: &vertex_shader,
+            vertex: (&vertex_shader, None),
             tessellation: None,
             geometry: None,
-            fragment: Some(&fragment_shader),
+            fragment: Some((&fragment_shader, None)),
             rasterizer,
             vertex_states: &[vertex_state],
             blend_states: &[blend_state],
             depth_stencil,
             viewports: &[viewport],
+            cache: None,
         })
         .unwrap();
 
@@ -460,15 +461,16 @@ fn main() {
                             name: Some("pipeline".to_string()),
                             layout: &pipeline_layout,
                             pass: &render_pass,
-                            vertex: &vertex_shader,
+                            vertex: (&vertex_shader, None),
                             tessellation: None,
                             geometry: None,
-                            fragment: Some(&fragment_shader),
+                            fragment: Some((&fragment_shader, None)),
                             rasterizer,
                             vertex_states: &[vertex_state],
                             blend_states: &[blend_state],
                             depth_stencil,
                             viewports: &[viewport],
+                            cache: None,
                         })
                         .unwrap();
 

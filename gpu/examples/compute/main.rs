@@ -64,7 +64,8 @@ fn main() {
         .create_compute_pipeline(&gpu::ComputePipelineDesc {
             name: None,
             layout: &layout,
-            shader: &shader,
+            shader: (&shader, None),
+            cache: None,
         })
         .unwrap();
 

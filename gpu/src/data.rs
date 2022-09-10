@@ -2641,9 +2641,9 @@ impl Into<vk::AccessFlags> for AccessFlags {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Tesselation<'a> {
     /// the tessellation evaulation shader
-    pub eval: &'a crate::ShaderModule,
+    pub eval: (&'a crate::ShaderModule, Option<crate::Specialization<'a>>),
     /// the tessellation control shader, not required
-    pub control: Option<&'a crate::ShaderModule>,
+    pub control: Option<(&'a crate::ShaderModule, Option<crate::Specialization<'a>>)>,
     /// the number of control points per patch, not required
     pub patch_points: Option<u32>,
 }
@@ -2720,4 +2720,44 @@ impl Into<vk::QueryType> for QueryType {
             QueryType::PipelineStatistics => vk::QueryType::PIPELINE_STATISTICS,
         }
     }
+}
+
+/// One entry in specialization constants 
+/// 
+/// See [`Specialization`] for more information on how to use these
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub struct SpecializationEntry {
+    /// The id declared in the shader module
+    pub id: u32,
+    /// The offset of the data to read from in the data field of the parent
+    pub offset: u32,
+    /// The size of this entry
+    pub size: usize,
+}
+
+/// Specialize a pipeline on creation to allow for user supplied parameters or more optimizations
+/// 
+/// declare specilization constants in shaders eg:
+/// ```glsl
+/// layout (constant_id = 0) const int NUM_SAMPLES = 64;
+/// ```
+/// then declare their usage on pipeline creation
+/// ```
+/// let num_samples = 32;
+/// 
+/// let specialization = Specialization {
+///     entries: &[SpecializationEntry {
+///         id: 0,
+///         offset: 0,
+///         size: std::mem::size_of::<i32>(),
+///     }],
+///     data: bytemuck::bytes_of(num_samples),
+/// };
+/// ```
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub struct Specialization<'a> {
+    /// The specialization constants to be used
+    pub entries: &'a [SpecializationEntry],
+    /// The data to read the constant values from 
+    pub data: &'a [u8],
 }

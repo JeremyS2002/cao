@@ -133,6 +133,159 @@ impl Drop for PipelineLayout {
     }
 }
 
+#[derive(Debug)]
+pub struct PipelineCacheDesc<'a> {
+    pub name: Option<String>,
+    pub initial_data: Option<&'a [u8]>,
+}
+
+impl<'a> std::default::Default for PipelineCacheDesc<'a> {
+    fn default() -> Self {
+        Self { name: Default::default(), initial_data: Default::default() }
+    }
+}
+
+/// Object used for caching [`GraphicsPipeline`] or [`ComputePipeline`] compilation
+/// 
+/// If you are using multiple similar pipelines then creating each one with the same pipeline cache
+/// can save time of subsequent pipeline creation as some compilation has already been done
+/// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkPipelineCache.html>
+pub struct PipelineCache {
+    pub(crate) raw: Md<Arc<vk::PipelineCache>>,
+    pub(crate) device: Arc<crate::RawDevice>,
+    pub(crate) name: Option<String>,
+}
+
+impl std::hash::Hash for PipelineCache {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        (**self.raw).hash(state)
+    }
+}
+
+impl PartialEq for PipelineCache {
+    fn eq(&self, other: &PipelineCache) -> bool {
+        **self.raw == **other.raw
+    }
+}
+
+impl Eq for PipelineCache {}
+
+impl Clone for PipelineCache {
+    fn clone(&self) -> Self {
+        Self {
+            raw: Md::new(Arc::clone(&self.raw)),
+            device: Arc::clone(&self.device),
+            name: self.name.clone(),
+        }
+    }
+}
+
+impl std::fmt::Debug for PipelineCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "PipelineCache {:?}, name: {:?}",
+            **self.raw, self.name
+        )
+    }
+}
+
+impl PipelineCache {
+    pub unsafe fn raw_cache(&self) -> vk::PipelineCache {
+        **self.raw
+    }
+}
+
+impl PipelineCache {
+    pub fn new(device: &crate::Device, desc: &PipelineCacheDesc<'_>) -> Result<Self, crate::Error> {
+        let create_info = vk::PipelineCacheCreateInfo {
+            s_type: vk::StructureType::PIPELINE_CACHE_CREATE_INFO,
+            p_next: ptr::null(),
+            flags: vk::PipelineCacheCreateFlags::empty(),
+            initial_data_size: if let Some(data) = desc.initial_data {
+                data.len() as _
+            } else {
+                0
+            },
+            p_initial_data: if let Some(data) = desc.initial_data {
+                data.as_ptr() as *const _
+            } else {
+                ptr::null()
+            },
+        };
+
+        let result = unsafe {
+            device.raw.create_pipeline_cache(&create_info, None)
+        };
+
+        let raw = match result {
+            Ok(r) => r,
+            Err(e) => return Err(e.into()),
+        };
+
+        let s = Self {
+            raw: Md::new(Arc::new(raw)),
+            device: Arc::clone(&device.raw),
+            name: desc.name.clone(),
+        };
+
+        if let Some(name) = &desc.name {
+            device.raw.set_pipeline_cache_name(&s, name)?;
+        }
+
+        device.raw.check_errors()?;
+
+        Ok(s)
+    }
+
+    /// merge the other pipeline caches into self
+    /// 
+    /// None of the caches in others should be self
+    pub fn merge<'a>(&self, others: impl IntoIterator<Item = &'a PipelineCache>) -> Result<(), crate::Error> {
+        let src = others.into_iter().map(|p| **p.raw).collect::<Vec<_>>();
+
+        let result = unsafe {
+            self.device.merge_pipeline_caches(**self.raw, &src)
+        };
+
+        match result {
+            Ok(_) => (),
+            Err(e) => return Err(e.into()),
+        }
+
+        Ok(self.device.check_errors()?)
+    }
+
+    /// Get the cached data from self
+    /// 
+    /// Typical usage would be storing this to disk then loading on next run of the application into initial_data
+    pub fn get_data(&self) -> Result<Vec<u8>, crate::Error> {
+        let result = unsafe {
+            self.device.get_pipeline_cache_data(**self.raw)
+        };
+
+        let data = match result {
+            Ok(d) => d,
+            Err(e) => return Err(e.into())
+        };
+
+        self.device.check_errors()?;
+
+        Ok(data)
+    }
+}
+
+impl Drop for PipelineCache {
+    fn drop(&mut self) {
+        let raw = unsafe { Md::take(&mut self.raw) };
+        if let Ok(raw) = Arc::try_unwrap(raw) {
+            unsafe {
+                self.device.destroy_pipeline_cache(raw, None);
+            }
+        }
+    }
+}
+
 /// Describes a GraphicsPipeline
 #[derive(Debug)]
 pub struct GraphicsPipelineDesc<'a> {
@@ -143,13 +296,13 @@ pub struct GraphicsPipelineDesc<'a> {
     /// the pass of the pipeline,
     pub pass: &'a crate::RenderPass,
     /// the vertex shader for the pipeline operates on each vertex input
-    pub vertex: &'a crate::ShaderModule,
+    pub vertex: (&'a crate::ShaderModule, Option<crate::Specialization<'a>>),
     /// the tessellation options
     pub tessellation: Option<crate::Tesselation<'a>>,
     /// the geometry shader, not required
-    pub geometry: Option<&'a crate::ShaderModule>,
+    pub geometry: Option<(&'a crate::ShaderModule, Option<crate::Specialization<'a>>)>,
     /// the fragment shader, not required
-    pub fragment: Option<&'a crate::ShaderModule>,
+    pub fragment: Option<(&'a crate::ShaderModule, Option<crate::Specialization<'a>>)>,
     /// the rasterizer for this pipeline
     pub rasterizer: crate::Rasterizer,
     /// the vertex buffers that the pipeline takes
@@ -160,6 +313,8 @@ pub struct GraphicsPipelineDesc<'a> {
     pub depth_stencil: Option<crate::DepthStencilState>,
     /// what portion of the texture to render to
     pub viewports: &'a [crate::Viewport],
+    /// cached pipeline creation data
+    pub cache: Option<&'a PipelineCache>,
 }
 
 /// A GraphicsPipeline
@@ -225,13 +380,14 @@ impl GraphicsPipeline {
     /// The shaders must be compatible with the pipeline layout
     /// If in doubt enable the "VK_LAYER_KHRONOS_validation" validation layer
     /// And check for messages when the pipeline is created
-    pub fn new(
+    pub fn new<'a>(
         device: &crate::Device,
-        desc: &GraphicsPipelineDesc<'_>,
+        desc: &GraphicsPipelineDesc<'a>,
     ) -> Result<Self, crate::Error> {
         let mut shaders = Vec::new();
+        let mut spec_entries = Vec::new();
         let mut push_shader = |stage: crate::ShaderStages,
-                               module: &crate::ShaderModule|
+                               module: &crate::ShaderModule, spec: Option<crate::Specialization<'a>>|
          -> Result<(), crate::Error> {
             if let Some(entry) = module.map.iter().fold(None, |t, (s, e)| {
                 if t.is_some() {
@@ -242,19 +398,31 @@ impl GraphicsPipeline {
                     None
                 }
             }) {
-                shaders.push((Arc::clone(&*module.raw), entry, stage));
+                if let Some(s) = spec {
+                    let map_entries = s.entries.iter().map(|e| vk::SpecializationMapEntry {
+                        constant_id: e.id,
+                        offset: e.offset,
+                        size: e.size,
+                    }).collect::<Vec<_>>();
+                    spec_entries.push((map_entries, s.data));
+
+                    shaders.push((Arc::clone(&*module.raw), entry, stage, Some(spec_entries.len() - 1)));
+                } else {
+                    shaders.push((Arc::clone(&*module.raw), entry, stage, None));
+                }
+                
                 Ok(())
             } else {
                 panic!("ERROR: Attempt to use shader as stage {:?} with out declaring an entry point for stage", stage);
             }
         };
 
-        push_shader(crate::ShaderStages::VERTEX, desc.vertex)?;
+        push_shader(crate::ShaderStages::VERTEX, &desc.vertex.0, desc.vertex.1)?;
 
         let tessellation = if let Some(tessellation) = &desc.tessellation {
-            push_shader(crate::ShaderStages::TESSELLATION_EVAL, tessellation.eval)?;
+            push_shader(crate::ShaderStages::TESSELLATION_EVAL, tessellation.eval.0, tessellation.eval.1)?;
             if let Some(control) = tessellation.control {
-                push_shader(crate::ShaderStages::TESSELLATION_CONTROL, control)?;
+                push_shader(crate::ShaderStages::TESSELLATION_CONTROL, control.0, control.1)?;
             }
             Some(vk::PipelineTessellationStateCreateInfo {
                 s_type: vk::StructureType::PIPELINE_TESSELLATION_STATE_CREATE_INFO,
@@ -267,11 +435,35 @@ impl GraphicsPipeline {
         };
 
         if let Some(geometry) = &desc.geometry {
-            push_shader(crate::ShaderStages::GEOMETRY, geometry)?;
+            push_shader(crate::ShaderStages::GEOMETRY, geometry.0, geometry.1)?;
         }
         if let Some(fragment) = &desc.fragment {
-            push_shader(crate::ShaderStages::FRAGMENT, fragment)?;
+            push_shader(crate::ShaderStages::FRAGMENT, fragment.0, fragment.1)?;
         }
+
+        let spec_info = spec_entries.iter().map(|(e, d)| vk::SpecializationInfo {
+            map_entry_count: e.len() as _,
+            p_map_entries: e.as_ptr(),
+            data_size: d.len(),
+            p_data: d.as_ptr() as *const _,
+        }).collect::<Vec<_>>();
+
+        let shader_stages = shaders
+            .iter()
+            .map(|s| vk::PipelineShaderStageCreateInfo {
+                s_type: vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
+                p_next: ptr::null(),
+                flags: vk::PipelineShaderStageCreateFlags::empty(),
+                module: *s.0,
+                p_name: s.1.as_ptr(),
+                stage: s.2.into(),
+                p_specialization_info: if let Some(idx) = s.3 {
+                    spec_info.get(idx).unwrap()
+                } else {
+                    ptr::null()
+                },
+            })
+            .collect::<Vec<_>>();
 
         let vertex_states = desc
             .vertex_states
@@ -377,43 +569,60 @@ impl GraphicsPipeline {
             p_viewports: viewports.as_ptr(),
         };
 
-        let shader_stages = shaders
-            .iter()
-            .map(|s| vk::PipelineShaderStageCreateInfo {
-                s_type: vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
-                p_next: ptr::null(),
-                flags: vk::PipelineShaderStageCreateFlags::empty(),
-                module: *s.0,
-                p_name: s.1.as_ptr(),
-                p_specialization_info: ptr::null(),
-                stage: s.2.into(),
-            })
-            .collect::<Vec<_>>();
+        let create_info = vk::GraphicsPipelineCreateInfo {
+            s_type: vk::StructureType::GRAPHICS_PIPELINE_CREATE_INFO,
+            p_next: ptr::null(),
+            flags: vk::PipelineCreateFlags::empty(),
+            stage_count: shader_stages.len() as _,
+            p_stages: shader_stages.as_ptr(),
+            p_vertex_input_state: &vertex_state,
+            p_input_assembly_state: &input_assembly_state,
+            p_tessellation_state: if let Some(t) = &tessellation {
+                t
+            } else {
+                ptr::null()
+            },
+            p_viewport_state: &viewport_state,
+            p_rasterization_state: &rasterization_state,
+            p_multisample_state: &multisample_state,
+            p_depth_stencil_state: if let Some(d) = &depth_state {
+                d
+            } else {
+                ptr::null()
+            },
+            p_color_blend_state: &color_blend_state,
+            p_dynamic_state: ptr::null(),
+            layout: **desc.layout.raw,
+            render_pass: **desc.pass.raw,
+            subpass: 0,
+            base_pipeline_handle: vk::Pipeline::null(),
+            base_pipeline_index: 0,
+        };
 
-        let mut create_info = vk::GraphicsPipelineCreateInfo::builder()
-            .layout(**desc.layout.raw)
-            .viewport_state(&viewport_state)
-            .multisample_state(&multisample_state)
-            .color_blend_state(&color_blend_state)
-            .stages(&shader_stages)
-            .vertex_input_state(&vertex_state)
-            .input_assembly_state(&input_assembly_state)
-            .rasterization_state(&rasterization_state)
-            .subpass(0)
-            .render_pass(**desc.pass.raw);
+        // let mut create_info = vk::GraphicsPipelineCreateInfo::builder()
+        //     .layout(**desc.layout.raw)
+        //     .viewport_state(&viewport_state)
+        //     .multisample_state(&multisample_state)
+        //     .color_blend_state(&color_blend_state)
+        //     .stages(&shader_stages)
+        //     .vertex_input_state(&vertex_state)
+        //     .input_assembly_state(&input_assembly_state)
+        //     .rasterization_state(&rasterization_state)
+        //     .subpass(0)
+        //     .render_pass(**desc.pass.raw);
 
-        if let Some(depth_stencil) = &depth_state {
-            create_info = create_info.depth_stencil_state(depth_stencil);
-        }
+        // if let Some(depth_stencil) = &depth_state {
+        //     create_info = create_info.depth_stencil_state(depth_stencil);
+        // }
 
-        if let Some(tessellation_state) = &tessellation {
-            create_info = create_info.tessellation_state(tessellation_state);
-        }
+        // if let Some(tessellation_state) = &tessellation {
+        //     create_info = create_info.tessellation_state(tessellation_state);
+        // }
 
         let raw_result = unsafe {
             device
                 .raw
-                .create_graphics_pipelines(vk::PipelineCache::null(), &[*create_info], None)
+                .create_graphics_pipelines(vk::PipelineCache::null(), &[create_info], None)
         };
 
         let raw = match raw_result {
@@ -473,7 +682,9 @@ pub struct ComputePipelineDesc<'a> {
     /// The layout of the pipeline
     pub layout: &'a PipelineLayout,
     /// The shader module to be executed
-    pub shader: &'a crate::ShaderModule,
+    pub shader: (&'a crate::ShaderModule, Option<crate::Specialization<'a>>),
+    /// Cached data to be reused
+    pub cache: Option<&'a PipelineCache>,
 }
 
 /// A ComputePipeline
@@ -534,7 +745,7 @@ impl ComputePipeline {
         device: &crate::Device,
         desc: &ComputePipelineDesc<'_>,
     ) -> Result<Self, crate::Error> {
-        let entry = if let Some(entry) = desc.shader.map.iter().fold(None, |t, (s, e)| {
+        let entry = if let Some(entry) = desc.shader.0.map.iter().fold(None, |t, (s, e)| {
             if t.is_some() {
                 t
             } else if s.contains(crate::ShaderStages::COMPUTE) {
@@ -551,13 +762,40 @@ impl ComputePipeline {
             );
         };
 
-        let create_info = vk::ComputePipelineCreateInfo::builder()
-            .stage(
-                *vk::PipelineShaderStageCreateInfo::builder()
-                    .stage(vk::ShaderStageFlags::COMPUTE)
-                    .name(&entry)
-                    .module(**desc.shader.raw),
+        let spec_entries = desc.shader.1.as_ref().map(|s| {
+            (
+                s.entries.iter().map(|e| vk::SpecializationMapEntry {
+                    constant_id: e.id,
+                    offset: e.offset,
+                    size: e.size,
+                }).collect::<Vec<_>>(),
+                s.data,
             )
+        });
+
+        let spec = spec_entries.as_ref().map(|(e, d)| vk::SpecializationInfo {
+            map_entry_count: e.len() as _,
+            p_map_entries: e.as_ptr(),
+            data_size: d.len() as _,
+            p_data: d.as_ptr() as *const _,
+        });
+
+        let shader_stage = vk::PipelineShaderStageCreateInfo {
+            s_type: vk::StructureType::PIPELINE_SHADER_STAGE_CREATE_INFO,
+            p_next: ptr::null(),
+            flags: vk::PipelineShaderStageCreateFlags::empty(),
+            module: **desc.shader.0.raw,
+            p_name: entry.as_ptr(),
+            stage: vk::ShaderStageFlags::COMPUTE,
+            p_specialization_info: if let Some(s) = spec {
+                &s
+            } else {
+                ptr::null()
+            },
+        };
+
+        let create_info = vk::ComputePipelineCreateInfo::builder()
+            .stage(shader_stage)
             .layout(**desc.layout.raw);
 
         let raw_result = unsafe {

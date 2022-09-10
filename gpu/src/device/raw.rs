@@ -215,6 +215,10 @@ impl RawDevice {
     pub fn set_time_query_name(&self, query: &crate::TimeQuery, name: &str) -> Result<(), Error> {
         self.set_name(query.raw.as_raw(), vk::ObjectType::QUERY_POOL, name)
     }
+
+    pub fn set_pipeline_cache_name(&self, cache: &crate::PipelineCache, name: &str) -> Result<(), Error> {
+        self.set_name(cache.raw.as_raw(), vk::ObjectType::PIPELINE_CACHE, name)
+    }
 }
 
 impl Drop for RawDevice {

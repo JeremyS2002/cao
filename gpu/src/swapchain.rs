@@ -561,6 +561,7 @@ impl Swapchain {
             // and the signal semaphore will be signaled so if the view is just acquired
             // and not drawn to this fixes that
             // TODO: Think about what happens if you draw to the same view twice
+            // seems fine
             let stage = vk::PipelineStageFlags::BOTTOM_OF_PIPE;
             let submit_info = vk::SubmitInfo {
                 s_type: vk::StructureType::SUBMIT_INFO,

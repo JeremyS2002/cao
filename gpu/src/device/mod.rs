@@ -624,6 +624,14 @@ impl Device {
     ) -> Result<crate::TimeQuery, crate::Error> {
         crate::TimeQuery::new(self, count, name)
     }
+
+    /// <https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/vkCreatePipelineCache.html>
+    pub fn create_pipeline_cache(
+        &self,
+        desc: &crate::PipelineCacheDesc,
+    ) -> Result<crate::PipelineCache, crate::Error> {
+        crate::PipelineCache::new(self, desc)
+    }
 }
 
 impl Drop for Device {
