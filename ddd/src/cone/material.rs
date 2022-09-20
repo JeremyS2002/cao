@@ -1,9 +1,9 @@
 use gfx::GraphicsPass;
-use spv::prelude::*;
 
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::{borrow::Cow, collections::HashMap};
+use std::cell::RefCell;
 
 use crate::utils::*;
 
@@ -14,7 +14,7 @@ pub type MaterialParams = gfx::Uniform<MaterialData>;
 
 /// Used to send default values when not sampling from textures
 #[repr(C)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, spv::AsStructType)]
 pub struct MaterialData {
     pub albedo: glam::Vec4,
     pub subsurface: glam::Vec4,
@@ -36,62 +36,40 @@ impl Default for MaterialData {
 unsafe impl bytemuck::Pod for MaterialData {}
 unsafe impl bytemuck::Zeroable for MaterialData {}
 
-unsafe impl spv::AsSpvStruct for MaterialData {
-    const DESC: spv::StructDesc = spv::StructDesc {
-        name: "MaterialData",
-        names: &["albedo", "subsurface", "roughness", "metallic"],
-        fields: &[
-            spv::DataType::Primitive(spv::PrimitiveType::Vec4),
-            spv::DataType::Primitive(spv::PrimitiveType::Vec4),
-            spv::DataType::Primitive(spv::PrimitiveType::Float),
-            spv::DataType::Primitive(spv::PrimitiveType::Float),
-        ],
-    };
-
-    fn fields<'a>(&'a self) -> Vec<&'a dyn spv::AsData> {
-        vec![
-            &self.albedo,
-            &self.subsurface,
-            &self.roughness,
-            &self.metallic,
-        ]
-    }
-}
-
 /// Builds a Materials shader modules as well a bundle
 pub struct MaterialBuilder<'a> {
     /// builds the vertex module
-    vertex: spv::VertexBuilder,
+    vertex: spv::Builder,
     /// builds the fragment module
-    fragment: spv::FragmentBuilder,
+    fragment: spv::Builder,
     /// resources used in the shaders
-    resources: Vec<&'a dyn gfx::Resource>,
+    resources: RefCell<Vec<&'a dyn gfx::Resource>>,
 
     /// outputs required for the fragment material
 
     /// the position of the fragment in world space
-    pub world_pos: spv::Output<spv::Vec3>,
+    pub world_pos: spv::Output<spv::IOVec3>,
     /// the position of the fragment in view space
-    pub view_pos: spv::Output<spv::Vec3>,
+    pub view_pos: spv::Output<spv::IOVec3>,
     /// the normal of the fragment in world space
-    pub normal: spv::Output<spv::Vec3>,
+    pub normal: spv::Output<spv::IOVec3>,
     /// the albedo of the fragment
-    pub albedo: spv::Output<spv::Vec4>,
+    pub albedo: spv::Output<spv::IOVec4>,
     /// the roughness of the fragment
-    pub roughness: spv::Output<spv::Float>,
+    pub roughness: spv::Output<spv::IOFloat>,
     /// how metallic the fragment is
-    pub metallic: spv::Output<spv::Float>,
+    pub metallic: spv::Output<spv::IOFloat>,
     /// optional subsurface output
-    pub subsurface: spv::Output<spv::Vec4>,
+    pub subsurface: spv::Output<spv::IOVec4>,
     /// the uv coordinate at that point
-    pub uv: spv::Output<spv::Vec2>,
+    pub uv: spv::Output<spv::IOVec2>,
 }
 
 impl<'a> MaterialBuilder<'a> {
     /// Create a new MaterialBuilder
     pub fn new() -> Self {
-        let vertex = spv::VertexBuilder::new();
-        let fragment = spv::FragmentBuilder::new();
+        let vertex = spv::Builder::new();
+        let fragment = spv::Builder::new();
         let world_pos = fragment.output(0, false, Some("out_world_pos"));
         let view_pos = fragment.output(1, false, Some("out_view_pos"));
         let normal = fragment.output(2, false, Some("out_normal"));
@@ -104,7 +82,7 @@ impl<'a> MaterialBuilder<'a> {
         Self {
             vertex,
             fragment,
-            resources: Vec::new(),
+            resources: RefCell::new(Vec::new()),
 
             world_pos,
             view_pos,
@@ -118,18 +96,17 @@ impl<'a> MaterialBuilder<'a> {
     }
 
     /// Sets a camera in the vertex shader and returns the spir-v uniform
-    pub fn camera(&mut self) -> spv::Uniform<spv::Struct<CameraData>> {
-        self.vertex
-            .uniform_struct::<CameraData>(0, 0, Some("u_camera"))
+    pub fn camera(&self) -> spv::Uniform<crate::utils::camera::SpvCameraData> {
+        self.vertex.uniform::<SpvCameraData>(0, 0, Some("u_camera"))
     }
 
-    pub fn instances(&mut self) -> spv::Storage<spv::Struct<InstanceData>> {
-        self.vertex.storage::<spv::Struct<InstanceData>>(
-            spv::StorageAccessDesc {
-                read: true,
-                write: false,
-                atomic: false,
-            },
+    pub fn instances(&self) -> spv::Storage<SpvInstanceData> {
+        self.vertex.storage::<SpvInstanceData>(
+            // spv::StorageAccessDesc {
+            //     read: true,
+            //     write: false,
+            //     atomic: false,
+            // },
             1,
             0,
             Some("u_instances"),
@@ -141,63 +118,62 @@ impl<'a> MaterialBuilder<'a> {
     /// The vertex builder can't be used after this function
     /// returns (in_world_pos, in_view_pos, in_normal, in_uv) for the fragment shader
     pub fn default_vertex(
-        &mut self,
+        &self,
     ) -> (
-        spv::Input<spv::Vec3>,
-        spv::Input<spv::Vec3>,
-        spv::Input<spv::Vec3>,
-        spv::Input<spv::Vec2>,
+        spv::Input<spv::IOVec3>,
+        spv::Input<spv::IOVec3>,
+        spv::Input<spv::IOVec3>,
+        spv::Input<spv::IOVec2>,
     ) {
-        let in_pos = self.vertex.in_vec3(0, false, Some("in_pos"));
-        let in_normal = self.vertex.in_vec3(1, false, Some("in_normal"));
-        let in_uv = self.vertex.in_vec2(2, false, Some("in_uv"));
+        let in_pos = self.vertex.in_vec3(0, "in_pos");
+        let in_normal = self.vertex.in_vec3(1, "in_normal");
+        let in_uv = self.vertex.in_vec2(2, "in_uv");
 
-        let out_world_pos = self.vertex.out_vec3(0, false, Some("out_world_pos"));
-        let out_view_pos = self.vertex.out_vec3(1, false, Some("out_view_pos"));
-        let out_normal = self.vertex.out_vec3(2, false, Some("out_normal"));
-        let out_uv = self.vertex.out_vec2(3, false, Some("out_uv"));
+        let out_world_pos = self.vertex.out_vec3(0, "out_world_pos");
+        let out_view_pos = self.vertex.out_vec3(1, "out_view_pos");
+        let out_normal = self.vertex.out_vec3(2, "out_normal");
+        let out_uv = self.vertex.out_vec2(3, "out_uv");
 
         let camera = self.camera();
         let instances = self.instances();
 
         let instance_idx = self.vertex.instance_index();
 
-        let vk_position = self.vertex.position();
+        let vk_pos = self.vertex.vk_position();
 
-        self.vertex.main(|b| {
-            let projection = b.load_uniform_field::<_, spv::Mat4>(camera, "projection");
-            let view = b.load_uniform_field::<_, spv::Mat4>(camera, "view");
-            let idx = b.load_in(instance_idx);
-            let u_idx = b.convert::<spv::UInt>(idx);
-            let model = b.load_storage_element_field::<_, spv::Mat4>(instances, &u_idx, "model");
-            //let model = b.load_storage_field::<_, spv::Mat4>(instance, "model");
-            let in_pos = b.load_in(in_pos);
-            let x = in_pos.x(b);
-            let y = in_pos.y(b);
-            let z = in_pos.z(b);
-            let in_pos4 = b.vec4(&x, &y, &z, &1.0);
-            let world_pos = b.mul(model, in_pos4);
-            b.store_out(out_world_pos, world_pos.xyz(b));
-            let view_pos = b.mul(view, world_pos);
-            b.store_out(out_view_pos, view_pos.xyz(b));
-            let screen_pos = b.mul(projection, view_pos);
-            b.store_out(vk_position, screen_pos);
-            let in_norm = b.load_in(in_normal);
-            let model_x = b.mat_col(model, 0).xyz(b);
-            let model_y = b.mat_col(model, 1).xyz(b);
-            let model_z = b.mat_col(model, 2).xyz(b);
+        let b = &self.vertex;
+
+        self.vertex.entry(spv::ShaderStage::Vertex, "main", || {
+            let camera = camera.load();
+            let projection = camera.projection();
+            let view = camera.view();
+
+            let idx = instance_idx.load();
+
+            let model = instances.load_element(&idx).model();
+            let pos = in_pos.load();
+            let world_pos = model * b.vec4(&pos.x(), &pos.y(), &pos.z(), &1.0);
+            out_world_pos.store(world_pos.xyz());
+            let view_pos = view * world_pos;
+            out_view_pos.store(view_pos.xyz());
+            let screen_pos = projection * view_pos;
+            vk_pos.store(screen_pos);
+
+            let normal = in_normal.load();
+            let model_x = model.col(0).xyz();
+            let model_y = model.col(1).xyz();
+            let model_z = model.col(2).xyz();
             let model3 = b.mat3(&model_x, &model_y, &model_z);
-            let mut out_norm = b.mul(model3, in_norm);
-            out_norm = out_norm.normalize(b);
-            b.store_out(out_normal, out_norm);
+            let normal = model3 * normal;
+            out_normal.store(normal.normalized());
 
-            b.store_out(out_uv, b.load_in(in_uv));
+            out_uv.store(in_uv.load());
         });
 
-        let in_world_pos = self.fragment.in_vec3(0, false, Some("in_pos"));
-        let in_view_pos = self.fragment.in_vec3(1, false, Some("in_view_pos"));
-        let in_normal = self.fragment.in_vec3(2, false, Some("in_normal"));
-        let in_uv = self.fragment.in_vec2(3, false, Some("in_uv"));
+        let in_world_pos = self.fragment.in_vec3(0, "in_pos");
+        let in_view_pos = self.fragment.in_vec3(1, "in_view_pos");
+        let in_normal = self.fragment.in_vec3(2, "in_normal");
+        let in_uv = self.fragment.in_vec2(3, "in_uv");
 
         (in_world_pos, in_view_pos, in_normal, in_uv)
     }
@@ -209,75 +185,71 @@ impl<'a> MaterialBuilder<'a> {
     pub fn tbn_vertex(
         &mut self,
     ) -> (
-        spv::Input<spv::Vec3>,
-        spv::Input<spv::Vec3>,
-        spv::Input<spv::Vec2>,
-        spv::Input<spv::Vec3>,
-        spv::Input<spv::Vec3>,
-        spv::Input<spv::Vec3>,
+        spv::Input<spv::IOVec3>,
+        spv::Input<spv::IOVec3>,
+        spv::Input<spv::IOVec2>,
+        spv::Input<spv::IOVec3>,
+        spv::Input<spv::IOVec3>,
+        spv::Input<spv::IOVec3>,
     ) {
-        let in_pos = self.vertex.in_vec3(0, false, Some("in_pos"));
-        let in_normal = self.vertex.in_vec3(1, false, Some("in_normal"));
-        let in_uv = self.vertex.in_vec2(2, false, Some("in_uv"));
-        let in_tangent = self.vertex.in_vec3(3, false, Some("in_tangent"));
+        let in_pos = self.vertex.in_vec3(0, "in_pos");
+        let in_normal = self.vertex.in_vec3(1, "in_normal");
+        let in_uv = self.vertex.in_vec2(2, "in_uv");
+        let in_tangent = self.vertex.in_vec3(3, "in_tangent");
 
-        let out_world_pos = self.vertex.out_vec3(0, false, Some("out_world_pos"));
-        let out_view_pos = self.vertex.out_vec3(1, false, Some("out_view_pos"));
-        let out_uv = self.vertex.out_vec2(2, false, Some("out_uv"));
-        let out_t = self.vertex.out_vec3(3, false, Some("out_t"));
-        let out_b = self.vertex.out_vec3(4, false, Some("out_b"));
-        let out_n = self.vertex.out_vec3(5, false, Some("out_n"));
+        let out_world_pos = self.vertex.out_vec3(0, "out_world_pos");
+        let out_view_pos = self.vertex.out_vec3(1, "out_view_pos");
+        let out_uv = self.vertex.out_vec2(2, "out_uv");
+        let out_t = self.vertex.out_vec3(3, "out_t");
+        let out_b = self.vertex.out_vec3(4, "out_b");
+        let out_n = self.vertex.out_vec3(5, "out_n");
 
         let camera = self.camera();
         let instances = self.instances();
 
         let instance_idx = self.vertex.instance_index();
 
-        let vk_position = self.vertex.position();
+        let vk_pos = self.vertex.vk_position();
 
-        self.vertex.main(|b| {
-            let projection: spv::Mat4 = b.load_uniform_field(camera, "projection");
-            let view: spv::Mat4 = b.load_uniform_field(camera, "view");
-            //let model: spv::Mat4 = b.load_uniform_field(instance, "model");
-            let idx = b.load_in(instance_idx);
-            let u_idx = b.convert::<spv::UInt>(idx);
-            let model = b.load_storage_element_field::<_, spv::Mat4>(instances, &u_idx, "model");
-            let pos = b.load_in(in_pos);
-            let (x, y, z) = (pos.x(b), pos.y(b), pos.z(b));
-            let world_pos = b.mul(model, b.vec4(&x, &y, &z, &1.0));
-            b.store_out(out_world_pos, world_pos.xyz(b));
-            let view_pos = b.mul(view, world_pos);
-            b.store_out(out_view_pos, view_pos.xyz(b));
-            let screen_pos = b.mul(projection, view_pos);
-            b.store_out(vk_position, screen_pos);
+        let b = &self.vertex;
 
-            let uv = b.load_in(in_uv);
-            b.store_out(out_uv, uv);
+        self.vertex.entry(spv::ShaderStage::Vertex, "main", || {
+            let camera = camera.load();
+            let projection = camera.projection();
+            let view = camera.view();
 
-            let mut t = b.load_in(in_tangent);
-            t = b
-                .mul(model, b.vec4(&t.x(b), &t.y(b), &t.z(b), &0.0))
-                .xzy(b)
-                .normalize(b);
-            let mut n = b.load_in(in_normal);
-            n = b
-                .mul(model, b.vec4(&n.x(b), &n.y(b), &n.z(b), &0.0))
-                .xyz(b)
-                .normalize(b);
-            t = b.sub(t, b.mul(t.dot(&n, b), n)).normalize(b);
-            let bi = n.cross(&t, b);
+            let idx = instance_idx.load();
 
-            b.store_out(out_t, t);
-            b.store_out(out_b, bi);
-            b.store_out(out_n, n);
+            let model = instances.load_element(&idx).model();
+            
+            let pos = in_pos.load();
+            let world_pos = model * b.vec4(&pos.x(), &pos.y(), &pos.z(), &1.0);
+            out_world_pos.store(world_pos.xyz());
+            let view_pos = view * world_pos;
+            out_view_pos.store(view_pos.xyz());
+            let screen_pos = projection * view_pos;
+            vk_pos.store(screen_pos);
+
+            let tangent = in_tangent.load();
+            let tangent = (model * b.vec4(&tangent.x(), &tangent.y(), &tangent.z(), &0.0)).xyz().normalized();
+            let normal = in_normal.load();
+            let normal = (model * b.vec4(&normal.x(), &normal.y(), &normal.z(), &0.0)).xyz().normalized();
+            let tangent = (tangent - (tangent.dot(&normal) * normal)).normalized();
+            let bitangent = normal.cross(&tangent);
+
+            out_t.store(tangent);
+            out_b.store(bitangent);
+            out_n.store(normal);
+
+            out_uv.store(in_uv.load());
         });
 
-        let in_world_pos = self.fragment.in_vec3(0, false, Some("in_world_pos"));
-        let in_view_pos = self.fragment.in_vec3(1, false, Some("in_view_pos"));
-        let in_uv = self.fragment.in_vec2(2, false, Some("in_uv"));
-        let in_t = self.fragment.in_vec3(3, false, Some("in_t"));
-        let in_b = self.fragment.in_vec3(4, false, Some("in_b"));
-        let in_n = self.fragment.in_vec3(5, false, Some("in_n"));
+        let in_world_pos = self.fragment.in_vec3(0, "in_world_pos");
+        let in_view_pos = self.fragment.in_vec3(1, "in_view_pos");
+        let in_uv = self.fragment.in_vec2(2, "in_uv");
+        let in_t = self.fragment.in_vec3(3, "in_t");
+        let in_b = self.fragment.in_vec3(4, "in_b");
+        let in_n = self.fragment.in_vec3(5, "in_n");
 
         (in_world_pos, in_view_pos, in_uv, in_t, in_b, in_n)
     }
@@ -288,10 +260,10 @@ impl<'a> MaterialBuilder<'a> {
     /// if discard then if the albedo alpha channel is 0.0 the fragment will be discarded
     pub fn textured_fragment(
         &mut self,
-        world_pos: spv::Input<spv::Vec3>,
-        view_pos: spv::Input<spv::Vec3>,
-        normal: spv::Input<spv::Vec3>,
-        uv: spv::Input<spv::Vec2>,
+        world_pos: spv::Input<spv::IOVec3>,
+        view_pos: spv::Input<spv::IOVec3>,
+        normal: spv::Input<spv::IOVec3>,
+        uv: spv::Input<spv::IOVec2>,
         albedo: &'a gfx::Texture2D,
         roughness: &'a gfx::Texture2D,
         metallic: Option<&'a gfx::Texture2D>,
@@ -320,38 +292,28 @@ impl<'a> MaterialBuilder<'a> {
     /// if discard then if the albedo alpha channel is 0.0 the fragment will be discarded
     pub fn uniform_fragment(
         &mut self,
-        world_pos: spv::Input<spv::Vec3>,
-        view_pos: spv::Input<spv::Vec3>,
-        normal: spv::Input<spv::Vec3>,
+        world_pos: spv::Input<spv::IOVec3>,
+        view_pos: spv::Input<spv::IOVec3>,
+        normal: spv::Input<spv::IOVec3>,
         uniform: &'a super::MaterialParams,
-        discard: bool,
+        _discard: bool,
     ) {
         let params = self.set_fragment_uniform(&uniform, Some("u_params"));
 
-        self.fragment.main(|b| {
-            let albedo: spv::Vec4 = b.load_uniform_field(params, "albedo");
-            if discard {
-                let a = albedo.w(b);
-                let bl = b.eq(&a, &0.0f32);
-                b.spv_if(bl, |b| {
-                    b.discard();
-                });
-            }
-            let roughness: spv::Float = b.load_uniform_field(params, "metallic");
-            let metallic: spv::Float = b.load_uniform_field(params, "metallic");
-            let mut subsurface: spv::Vec4 = b.load_uniform_field(params, "subsurface");
-            let mut tmp = subsurface.xyz(b);
-            tmp = b.div(-1.0f32, tmp).exp(b);
-            subsurface = b.vec4(&tmp.x(b), &tmp.y(b), &tmp.z(b), &subsurface.z(b));
+        let b = &self.fragment;
 
-            b.store_out(self.world_pos, b.load_in(world_pos));
-            b.store_out(self.view_pos, b.load_in(view_pos));
-            b.store_out(self.normal, b.load_in(normal));
-            b.store_out(self.albedo, albedo);
-            b.store_out(self.roughness, roughness);
-            b.store_out(self.metallic, metallic);
-            b.store_out(self.subsurface, subsurface);
-            b.store_out(self.uv, b.vec2(&0.0, &0.0));
+        b.entry(spv::ShaderStage::Fragment, "main", || {
+            let params = params.load();
+            self.world_pos.store(world_pos.load());
+            self.view_pos.store(view_pos.load());
+            self.normal.store(normal.load());
+            self.albedo.store(params.albedo());
+            self.roughness.store(params.roughness());
+            self.metallic.store(params.roughness());
+            let subsurface = params.subsurface();
+            let tmp = (-1.0 / subsurface.xyz()).exp();
+            self.subsurface.store(b.vec4(&tmp.x(), &tmp.y(), &tmp.z(), &subsurface.w()));
+            self.uv.store(b.vec2(&0.0, &0.0));
         });
     }
 
@@ -360,47 +322,48 @@ impl<'a> MaterialBuilder<'a> {
     /// The fragment builder can't be used after this function
     pub fn constant_fragment(
         &mut self,
-        world_pos: spv::Input<spv::Vec3>,
-        view_pos: spv::Input<spv::Vec3>,
-        normal: spv::Input<spv::Vec3>,
+        world_pos: spv::Input<spv::IOVec3>,
+        view_pos: spv::Input<spv::IOVec3>,
+        normal: spv::Input<spv::IOVec3>,
         constants: &MaterialData,
     ) {
         let mut tmp = constants.subsurface.xyz();
         tmp = (-1.0 / tmp).exp();
         let subsurface = glam::vec4(tmp.x, tmp.y, tmp.z, constants.subsurface.w);
-        self.fragment.main(|b| {
-            b.store_out(self.world_pos, b.load_in(world_pos));
-            b.store_out(self.view_pos, b.load_in(view_pos));
-            b.store_out(self.normal, b.load_in(normal));
-            b.store_out(self.albedo, constants.albedo);
-            b.store_out(self.roughness, constants.roughness);
-            b.store_out(self.metallic, constants.metallic);
-            b.store_out(self.subsurface, subsurface);
-            b.store_out(self.uv, b.vec2(&0.0, &0.0));
+        let b = &self.fragment;
+        b.entry(spv::ShaderStage::Fragment, "main", || {
+            self.world_pos.store(world_pos.load());
+            self.view_pos.store(view_pos.load());
+            self.normal.store(normal.load());
+            self.albedo.store(b.const_vec4(constants.albedo));
+            self.roughness.store(b.const_float(constants.roughness));
+            self.metallic.store(b.const_float(constants.metallic));
+            self.subsurface.store(b.const_vec4(subsurface));
+            self.uv.store(b.vec2(&0.0, &0.0));
         });
     }
 
     /// if discard then if the albedo alpha channel is 0.0 the fragment will be discarded
     pub fn textured_or_default_fragment(
         &mut self,
-        world_pos: spv::Input<spv::Vec3>,
-        view_pos: spv::Input<spv::Vec3>,
+        world_pos: spv::Input<spv::IOVec3>,
+        view_pos: spv::Input<spv::IOVec3>,
         normal: Either<
-            spv::Input<spv::Vec3>,
+            spv::Input<spv::IOVec3>,
             (
-                spv::Input<spv::Vec3>,
-                spv::Input<spv::Vec3>,
-                spv::Input<spv::Vec3>,
+                spv::Input<spv::IOVec3>,
+                spv::Input<spv::IOVec3>,
+                spv::Input<spv::IOVec3>,
                 &'a gfx::Texture2D,
             ),
         >,
-        uv: spv::Input<spv::Vec2>,
+        uv: spv::Input<spv::IOVec2>,
         albedo: Option<&'a gfx::Texture2D>,
         roughness: Option<&'a gfx::Texture2D>,
         metallic: Option<&'a gfx::Texture2D>,
         subsurface: Option<&'a gfx::Texture2D>,
         sampler: &'a gpu::Sampler,
-        discard: bool,
+        _discard: bool,
         defaults: &MaterialData,
     ) {
         let albedo = if let Some(albedo) = albedo {
@@ -437,103 +400,96 @@ impl<'a> MaterialBuilder<'a> {
 
         let sampler = self.set_fragment_sampler(sampler, Some("u_sampler"));
 
-        self.fragment.main(|b| {
-            b.store_out(self.world_pos, b.load_in(world_pos));
-            b.store_out(self.view_pos, b.load_in(view_pos));
-            let uv = b.load_in(uv);
-            b.store_out(self.uv, uv);
+        let b = &self.fragment;
+
+        b.entry(spv::ShaderStage::Fragment, "main", || {
+            self.world_pos.store(world_pos.load());
+            self.view_pos.store(view_pos.load());
+            let uv = uv.load();
+            self.uv.store(uv);
 
             match normal {
                 Left(n) => {
-                    b.store_out(self.normal, b.load_in(n));
+                    self.normal.store(n.load());
                 }
                 Right((t, bi, n, map)) => {
-                    let tbn = b.mat3(&b.load_in(t), &b.load_in(bi), &b.load_in(n));
-                    let mut normal = b
-                        .sample_texture(b.combine_texture_sampler(map, sampler), uv)
-                        .xyz(b);
-                    b.mul_assign(&mut normal, 2.0);
-                    b.sub_assign(&mut normal, b.vec3(&1.0, &1.0, &1.0));
-                    b.mul_assign(&mut normal, tbn);
-                    b.store_out(self.normal, normal.normalize(b));
+                    let tangent = t.load();
+                    let bitangent = bi.load();
+                    let normal = n.load();
+                    let tbn = b.mat3(&tangent, &bitangent, &normal);
+                    let combined = spv::combine(&map, sampler);
+                    let mut sampled = spv::sample(&combined, uv).xyz();
+                    sampled *= 2.0;
+                    sampled -= b.vec3(&1.0, &1.0, &1.0);
+                    self.normal.store(tbn * sampled);
                 }
-            }
+            };
 
             if let Some(albedo) = albedo {
-                let albedo = b.sample_texture(b.combine_texture_sampler(albedo, sampler), uv);
-                if discard {
-                    let a = albedo.w(b);
-                    let bl = b.eq(&a, &0.0f32);
-                    b.spv_if(bl, |b| {
-                        b.discard();
-                    });
-                }
-                b.store_out(self.albedo, albedo);
+                let combined = spv::combine(&albedo, sampler);
+                let albedo = spv::sample(&combined, uv);
+                self.albedo.store(albedo);
             } else {
-                b.store_out(self.albedo, defaults.albedo);
-            }
+                self.albedo.store(b.const_vec4(defaults.albedo));
+            };
 
             if let Some(roughness) = roughness {
-                b.store_out(
-                    self.roughness,
-                    b.sample_texture(b.combine_texture_sampler(roughness, sampler), uv)
-                        .x(b),
-                );
+                let combined = spv::combine(&roughness, sampler);
+                let roughness = spv::sample(&combined, uv).x();
+                self.roughness.store(roughness);
             } else {
-                b.store_out(self.roughness, defaults.roughness);
-            }
+                self.roughness.store(b.const_float(defaults.roughness))
+            };
 
             if let Some(metallic) = metallic {
-                b.store_out(
-                    self.metallic,
-                    b.sample_texture(b.combine_texture_sampler(metallic, sampler), uv)
-                        .x(b),
-                );
+                let combined = spv::combine(&metallic, sampler);
+                let metallic = spv::sample(&combined, uv).x();
+                self.metallic.store(metallic);
             } else {
-                b.store_out(self.metallic, defaults.metallic);
-            }
+                self.metallic.store(b.const_float(defaults.metallic))
+            };
 
             if let Some(subsurface) = subsurface {
-                let mut subsurface: spv::Vec4 =
-                    b.sample_texture(b.combine_texture_sampler(subsurface, sampler), uv);
-                let mut tmp = subsurface.xyz(b);
-                tmp = b.div(-1.0f32, tmp).exp(b);
-                subsurface = b.vec4(&tmp.x(b), &tmp.y(b), &tmp.z(b), &subsurface.z(b));
-                b.store_out(self.subsurface, subsurface);
+                let combined = spv::combine(&subsurface, sampler);
+                let subsurface = spv::sample(&combined, uv);
+                let tmp = (-1.0 / subsurface.xyz()).exp();
+                self.subsurface.store(b.vec4(&tmp.x(), &tmp.y(), &tmp.z(), &subsurface.w()));
             } else {
-                let mut tmp = defaults.subsurface.xyz();
-                tmp = (-1.0 / tmp).exp();
-                let subsurface = glam::vec4(tmp.x, tmp.y, tmp.z, defaults.subsurface.w);
-                b.store_out(self.subsurface, subsurface);
-            }
+                let subsurface = b.const_vec4(defaults.subsurface);
+                let tmp = (-1.0 / subsurface.xyz()).exp();
+                self.subsurface.store(b.vec4(&tmp.x(), &tmp.y(), &tmp.z(), &subsurface.w()));
+            };
+            
         });
     }
 
     /// Set a uniform buffer in the vertex shader
-    pub fn set_vertex_uniform<U: spv::AsSpvStruct + bytemuck::Pod>(
-        &mut self,
+    pub fn set_vertex_uniform<'b, U: spv::RustStructType + bytemuck::Pod>(
+        &'b mut self,
         uniform: &'a gfx::Uniform<U>,
         name: Option<&'static str>,
-    ) -> spv::Uniform<spv::Struct<U>> {
-        let binding = self.resources.len() as u32;
-        self.resources.push(uniform);
+    ) -> spv::Uniform<U::Spv<'b>> {
+        let mut resources = self.resources.borrow_mut();
+        let binding = resources.len() as u32;
+        resources.push(uniform);
         self.vertex.uniform(2, binding, name)
     }
 
     /// Set a storage buffer in the fragment shader
-    pub fn set_vertex_storage<U: spv::AsSpvStruct + bytemuck::Pod>(
-        &mut self,
+    pub fn set_vertex_storage<'b, U: spv::RustStructType + bytemuck::Pod>(
+        &'b mut self,
         storage: &'a gfx::Storage<U>,
         name: Option<&'static str>,
-    ) -> spv::Storage<spv::Struct<U>> {
-        let binding = self.resources.len() as u32;
-        self.resources.push(storage);
+    ) -> spv::Storage<U::Spv<'b>> {
+        let mut resources = self.resources.borrow_mut();
+        let binding = resources.len() as u32;
+        resources.push(storage);
         self.vertex.storage(
-            spv::StorageAccessDesc {
-                read: true,
-                write: false,
-                atomic: false,
-            },
+            // spv::StorageAccessDesc {
+            //     read: true,
+            //     write: false,
+            //     atomic: false,
+            // },
             2,
             binding,
             name,
@@ -546,8 +502,9 @@ impl<'a> MaterialBuilder<'a> {
         texture: &'a gfx::Texture<D>,
         name: Option<&'static str>,
     ) -> spv::Texture<D::Spirv> {
-        let binding = self.resources.len() as u32;
-        self.resources.push(&texture.0);
+        let mut resources = self.resources.borrow_mut();
+        let binding = resources.len() as u32;
+        resources.push(&texture.0);
         self.vertex.texture(2, binding, name)
     }
 
@@ -556,9 +513,10 @@ impl<'a> MaterialBuilder<'a> {
         texture: &'a gfx::DTexture<D>,
         name: Option<&'static str>,
     ) -> spv::DTexture<D::Spirv> {
-        let binding = self.resources.len() as u32;
-        self.resources.push(&texture.0);
-        self.vertex.d_texture(2, binding, name)
+        let mut resources = self.resources.borrow_mut();
+        let binding = resources.len() as u32;
+        resources.push(&texture.0);
+        self.vertex.dtexture(2, binding, name)
     }
 
     pub fn set_vertex_i_texture<D: gfx::AsDimension>(
@@ -566,9 +524,10 @@ impl<'a> MaterialBuilder<'a> {
         texture: &'a gfx::ITexture<D>,
         name: Option<&'static str>,
     ) -> spv::ITexture<D::Spirv> {
-        let binding = self.resources.len() as u32;
-        self.resources.push(&texture.0);
-        self.vertex.i_texture(2, binding, name)
+        let mut resources = self.resources.borrow_mut();
+        let binding = resources.len() as u32;
+        resources.push(&texture.0);
+        self.vertex.itexture(2, binding, name)
     }
 
     pub fn set_vertex_u_texture<D: gfx::AsDimension>(
@@ -576,9 +535,10 @@ impl<'a> MaterialBuilder<'a> {
         texture: &'a gfx::UTexture<D>,
         name: Option<&'static str>,
     ) -> spv::UTexture<D::Spirv> {
-        let binding = self.resources.len() as u32;
-        self.resources.push(&texture.0);
-        self.vertex.u_texture(2, binding, name)
+        let mut resources = self.resources.borrow_mut();
+        let binding = resources.len() as u32;
+        resources.push(&texture.0);
+        self.vertex.utexture(2, binding, name)
     }
 
     /// Set a sampler in the vertex shader
@@ -587,36 +547,39 @@ impl<'a> MaterialBuilder<'a> {
         sampler: &'a gpu::Sampler,
         name: Option<&'static str>,
     ) -> spv::Sampler {
-        let binding = self.resources.len() as u32;
-        self.resources.push(sampler);
+        let mut resources = self.resources.borrow_mut();
+        let binding = resources.len() as u32;
+        resources.push(sampler);
         self.vertex.sampler(2, binding, name)
     }
 
     /// Set a uniform buffer in the fragment shader
-    pub fn set_fragment_uniform<U: spv::AsSpvStruct + bytemuck::Pod>(
-        &mut self,
+    pub fn set_fragment_uniform<'b, U: spv::RustStructType + bytemuck::Pod>(
+        &'b self,
         uniform: &'a gfx::Uniform<U>,
         name: Option<&'static str>,
-    ) -> spv::Uniform<spv::Struct<U>> {
-        let binding = self.resources.len() as u32;
-        self.resources.push(uniform);
+    ) -> spv::Uniform<U::Spv<'b>> {
+        let mut resources = self.resources.borrow_mut();
+        let binding = resources.len() as u32;
+        resources.push(uniform);
         self.fragment.uniform(2, binding, name)
     }
 
     /// Set a storage buffer in the fragment shader
-    pub fn set_fragment_storage<U: spv::AsSpvStruct + bytemuck::Pod>(
-        &mut self,
+    pub fn set_fragment_storage<'b, U: spv::RustStructType + bytemuck::Pod>(
+        &'b mut self,
         storage: &'a gfx::Storage<U>,
         name: Option<&'static str>,
-    ) -> spv::Storage<spv::Struct<U>> {
-        let binding = self.resources.len() as u32;
-        self.resources.push(storage);
+    ) -> spv::Storage<U::Spv<'b>> {
+        let mut resources = self.resources.borrow_mut();
+        let binding = resources.len() as u32;
+        resources.push(storage);
         self.fragment.storage(
-            spv::StorageAccessDesc {
-                read: true,
-                write: false,
-                atomic: false,
-            },
+            // spv::StorageAccessDesc {
+            //     read: true,
+            //     write: false,
+            //     atomic: false,
+            // },
             2,
             binding,
             name,
@@ -629,8 +592,9 @@ impl<'a> MaterialBuilder<'a> {
         texture: &'a gfx::Texture<D>,
         name: Option<&'static str>,
     ) -> spv::Texture<D::Spirv> {
-        let binding = self.resources.len() as u32;
-        self.resources.push(&texture.0);
+        let mut resources = self.resources.borrow_mut();
+        let binding = resources.len() as u32;
+        resources.push(&texture.0);
         self.fragment.texture(2, binding, name)
     }
 
@@ -640,9 +604,10 @@ impl<'a> MaterialBuilder<'a> {
         texture: &'a gfx::DTexture<D>,
         name: Option<&'static str>,
     ) -> spv::DTexture<D::Spirv> {
-        let binding = self.resources.len() as u32;
-        self.resources.push(&texture.0);
-        self.fragment.d_texture(2, binding, name)
+        let mut resources = self.resources.borrow_mut();
+        let binding = resources.len() as u32;
+        resources.push(&texture.0);
+        self.fragment.dtexture(2, binding, name)
     }
 
     /// Set a texture in the fragment shader
@@ -651,9 +616,10 @@ impl<'a> MaterialBuilder<'a> {
         texture: &'a gfx::ITexture<D>,
         name: Option<&'static str>,
     ) -> spv::ITexture<D::Spirv> {
-        let binding = self.resources.len() as u32;
-        self.resources.push(&texture.0);
-        self.fragment.i_texture(2, binding, name)
+        let mut resources = self.resources.borrow_mut();
+        let binding = resources.len() as u32;
+        resources.push(&texture.0);
+        self.fragment.itexture(2, binding, name)
     }
 
     /// Set a texture in the fragment shader
@@ -662,9 +628,10 @@ impl<'a> MaterialBuilder<'a> {
         texture: &'a gfx::UTexture<D>,
         name: Option<&'static str>,
     ) -> spv::UTexture<D::Spirv> {
-        let binding = self.resources.len() as u32;
-        self.resources.push(&texture.0);
-        self.fragment.u_texture(2, binding, name)
+        let mut resources = self.resources.borrow_mut();
+        let binding = resources.len() as u32;
+        resources.push(&texture.0);
+        self.fragment.utexture(2, binding, name)
     }
 
     /// Set a sampler in the fragment shader
@@ -673,8 +640,9 @@ impl<'a> MaterialBuilder<'a> {
         sampler: &'a gpu::Sampler,
         name: Option<&'static str>,
     ) -> spv::Sampler {
-        let binding = self.resources.len() as u32;
-        self.resources.push(sampler);
+        let mut resources = self.resources.borrow_mut();
+        let binding = resources.len() as u32;
+        resources.push(sampler);
         self.fragment.sampler(2, binding, name)
     }
 
@@ -716,11 +684,12 @@ impl<'a> MaterialBuilder<'a> {
             cache,
             None,
         )?;
+        let resources = self.resources.into_inner();
         let set = if let Some(mut bundle) = graphics.bundle() {
-            let vertex_len = self.resources.len();
-            for (i, v) in self.resources.into_iter().enumerate() {
+            let vertex_len = resources.len();
+            for (i, v) in resources.iter().enumerate() {
                 // should be ok to unwrap result as any resources set should match the binding in spv
-                bundle = bundle.set_resource_by_location(2, i as _, v).unwrap();
+                bundle = bundle.set_resource_by_location(2, i as _, *v).unwrap();
             }
 
             let set0 = if vertex_len != 0 {

@@ -48,8 +48,8 @@ pub enum BuilderConfigError {
         location: u32,
         src_stage_name: String,
         dst_stage_name: String,
-        src_type: spv::PrimitiveType,
-        dst_type: spv::PrimitiveType,
+        src_type: spv::Type,
+        dst_type: spv::Type,
     },
 }
 

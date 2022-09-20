@@ -1,4 +1,3 @@
-use spv::prelude::*;
 
 use winit::{
     event::{ElementState, Event, MouseButton, WindowEvent},
@@ -57,21 +56,18 @@ fn main() {
         .unwrap();
 
     let vertex_spv = {
-        let builder = spv::VertexBuilder::new();
+        let b = spv::Builder::new();
 
-        let in_pos = builder.in_vec2(0, false, Some("in_pos"));
+        let in_pos = b.in_vec2(0, "in_pos");
 
-        let position = builder.position();
+        let vk_pos = b.vk_position();
 
-        builder.main(|b| {
-            let pos = b.load_in(in_pos);
-            let x = pos.x(b);
-            let y = pos.y(b);
-            let pos = b.vec4(&x, &y, &0.0, &1.0);
-            b.store_out(position, pos);
+        b.entry(spv::ShaderStage::Vertex, "main", || {
+            let pos = in_pos.load();
+            vk_pos.store(b.vec4(&pos.x(), &pos.y(), &0.0, &1.0));
         });
 
-        builder.compile()
+        b.compile()
     };
     let vertex_shader = device
         .create_shader_module(&gpu::ShaderModuleDesc {
@@ -82,24 +78,23 @@ fn main() {
         .unwrap();
 
     let fragment_spv = {
-        let builder = spv::FragmentBuilder::new();
+        let b = spv::Builder::new();
 
-        builder.push_constant::<spv::UInt>(None, Some("p_data"));
+        let push_data = b.push_constants::<spv::UInt>(Some("push_data"));
 
-        let out_col = builder.out_vec4(0, false, Some("out_color"));
+        let out_col = b.out_vec4(0, "out_color");
 
-        builder.main(|b| {
-            let col = b.load_push_constant::<spv::UInt>();
-            let bl = b.eq(&col, &0u32);
-            b.spv_if(bl, |b| {
-                b.store_out(out_col, b.vec4(&0.0, &1.0, &0.0, &1.0));
-            })
-            .spv_else(|b| {
-                b.store_out(out_col, b.vec4(&1.0, &0.0, &0.0, &1.0));
+        b.entry(spv::ShaderStage::Fragment, "main", || {
+            let data = push_data.load();
+
+            spv::spv_if(data.eq(&0), || {
+                out_col.store(b.vec4(&0.0, &1.0, &0.0, &1.0));
+            }).spv_else(|| {
+                out_col.store(b.vec4(&1.0, &0.0, &0.0, &1.0));
             });
         });
 
-        builder.compile()
+        b.compile()
     };
 
     let fragment_shader = device

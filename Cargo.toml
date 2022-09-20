@@ -4,6 +4,7 @@ members = [
     "gpu",
     "gfx",
     "spv",
+    "spv/src/spv-derive",
     "mesh",
     "ddd",
 ]

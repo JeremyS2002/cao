@@ -28,7 +28,7 @@ pub use controller::*;
 pub type Camera = gfx::Uniform<CameraData>;
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, spv::AsStructType)]
 pub struct CameraData {
     /// projection matrix, transforms view space to unit cube centered on origin
     pub projection: glam::Mat4,
@@ -42,20 +42,3 @@ pub struct CameraData {
 
 unsafe impl bytemuck::Pod for CameraData {}
 unsafe impl bytemuck::Zeroable for CameraData {}
-
-unsafe impl spv::AsSpvStruct for CameraData {
-    const DESC: spv::StructDesc = spv::StructDesc {
-        name: "CameraData",
-        names: &["projection", "view", "position", "z_far"],
-        fields: &[
-            spv::DataType::Primitive(spv::PrimitiveType::Mat4),
-            spv::DataType::Primitive(spv::PrimitiveType::Mat4),
-            spv::DataType::Primitive(spv::PrimitiveType::Vec4),
-            spv::DataType::Primitive(spv::PrimitiveType::Float),
-        ],
-    };
-
-    fn fields<'a>(&'a self) -> Vec<&'a dyn spv::AsData> {
-        vec![&self.projection, &self.view, &self.position, &self.z_far]
-    }
-}

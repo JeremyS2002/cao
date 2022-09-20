@@ -1,4 +1,3 @@
-use spv::prelude::*;
 
 use std::borrow::Cow;
 
@@ -91,26 +90,22 @@ fn main() {
         .unwrap();
 
     let vertex_spv = {
-        let builder = spv::VertexBuilder::new();
+        let b = spv::Builder::new();
 
-        let in_pos = builder.in_vec2(0, false, Some("in_pos"));
-        let in_uv = builder.in_vec2(1, false, Some("in_uv"));
+        let in_pos = b.in_vec2(0, "in_pos");
+        let in_uv = b.in_vec2(1, "in_uv");
 
-        let position = builder.position();
-        let out_uv = builder.out_vec2(0, false, Some("out_uv"));
+        let vk_pos = b.vk_position();
+        let out_uv = b.out_vec2(0, "out_uv");
 
-        builder.main(|b| {
-            let pos = b.load_in(in_pos);
-            let x = pos.x(b);
-            let y = pos.y(b);
-            let pos = b.vec4(&x, &y, &0.0, &1.0);
-            b.store_out(position, pos);
+        b.entry(spv::ShaderStage::Vertex, "main", || {
+            let pos = in_pos.load();
+            vk_pos.store(b.vec4(&pos.x(), &pos.y(), &0.0, &1.0));
 
-            let uv = b.load_in(in_uv);
-            b.store_out(out_uv, uv);
+            out_uv.store(in_uv.load());
         });
-
-        builder.compile()
+        
+        b.compile()
     };
 
     let vertex_shader = device
@@ -122,27 +117,23 @@ fn main() {
         .unwrap();
 
     let fragment_spv = {
-        let builder = spv::FragmentBuilder::new();
+        let b = spv::Builder::new();
 
-        let in_uv = builder.in_vec2(0, false, Some("in_uv"));
+        let in_uv = b.in_vec2(0, "in_uv");
 
-        let out_col = builder.out_vec3(0, false, Some("out_color"));
+        let out_col = b.out_vec3(0, "out_color");
 
-        // let texture: spv::SampledTexture2D =
-        //     builder.sampled_texture(0, 0, Some("u_texture"));
+        let texture = b.texture2d(0, 0, Some("u_color"));
+        let sampler = b.sampler(0, 1, Some("u_sampler"));
 
-        let texture = builder.texture_2d(0, 0, Some("u_tex"));
-        let sampler = builder.sampler(0, 1, Some("u_sampler"));
-
-        builder.main(|b| {
-            let uv = b.load_in(in_uv);
-            let sampled = b.combine_texture_sampler(texture, sampler);
-            let col = b.sample_texture(sampled, uv);
-            let col_rgb = col.xyz(b);
-            b.store_out(out_col, col_rgb);
+        b.entry(spv::ShaderStage::Fragment, "main", || {
+            let uv = in_uv.load();
+            let combined = spv::combine(&texture, sampler);
+            let col = spv::sample(&combined, uv);
+            out_col.store(col.xyz());
         });
 
-        builder.compile()
+        b.compile()
     };
 
     let fragment_shader = device

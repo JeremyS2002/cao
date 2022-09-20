@@ -1,4 +1,3 @@
-use spv::prelude::*;
 
 use winit::{
     event::{Event, WindowEvent},
@@ -16,7 +15,7 @@ unsafe impl bytemuck::Pod for Vertex {}
 unsafe impl bytemuck::Zeroable for Vertex {}
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, spv::AsStructType)]
 pub struct Uniform {
     pub r: f32,
     pub g: f32,
@@ -25,22 +24,6 @@ pub struct Uniform {
 
 unsafe impl bytemuck::Pod for Uniform {}
 unsafe impl bytemuck::Zeroable for Uniform {}
-
-unsafe impl spv::AsSpvStruct for Uniform {
-    const DESC: spv::StructDesc = spv::StructDesc {
-        name: "Uniform",
-        names: &["r", "g", "b"],
-        fields: &[
-            spv::DataType::Primitive(spv::PrimitiveType::Float),
-            spv::DataType::Primitive(spv::PrimitiveType::Float),
-            spv::DataType::Primitive(spv::PrimitiveType::Float),
-        ],
-    };
-
-    fn fields<'a>(&'a self) -> Vec<&'a dyn spv::AsData> {
-        vec![&self.r, &self.g, &self.b]
-    }
-}
 
 fn main() {
     let instance = gpu::Instance::new(&gpu::InstanceDesc::default()).unwrap();
@@ -106,21 +89,18 @@ fn main() {
         .unwrap();
 
     let vertex_spv = {
-        let builder = spv::VertexBuilder::new();
+        let b = spv::Builder::new();
 
-        let in_pos = builder.in_vec2(0, false, Some("in_pos"));
+        let in_pos = b.in_vec2(0, "in_pos");
 
-        let position = builder.position();
+        let vk_pos = b.vk_position();
 
-        builder.main(|b| {
-            let pos = b.load_in(in_pos);
-            let x = pos.x(b);
-            let y = pos.y(b);
-            let pos = b.vec4(&x, &y, &0.0, &1.0);
-            b.store_out(position, pos);
+        b.entry(spv::ShaderStage::Vertex, "main", || {
+            let pos = in_pos.load();
+            vk_pos.store(b.vec4(&pos.x(), &pos.y(), &0.0, &1.0));
         });
 
-        builder.compile()
+        b.compile()
     };
 
     let vertex_shader = device
@@ -132,30 +112,22 @@ fn main() {
         .unwrap();
 
     let fragment_spv = {
-        let builder = spv::FragmentBuilder::new();
+        let b = spv::Builder::new();
 
-        let u = builder.uniform_struct::<Uniform>(0, 0, Some("u_data"));
+        let u_color = b.uniform::<SpvUniform>(0, 0, Some("u_data"));
+        
+        let out_col = b.out_vec3(0, "out_color");
 
-        let out_col = builder.out_vec3(0, false, Some("out_color"));
+        b.entry(spv::ShaderStage::Fragment, "main", || {
+            let col = u_color.load();
+            let red = col.r();
+            let green = col.g();
+            let blue = col.b();
 
-        builder.main(|b| {
-            // First load the whole struct the fields
-            // let u = b.load_uniform(u);
-            // let red = b.struct_load::<_, spv::Float>(u, "r");
-            // let green = b.struct_load::<_, spv::Float>(u, "g");
-            // let blue = b.struct_load::<_, spv::Float>(u, "b");
-
-            // Just load fields
-            let red = b.load_uniform_field::<_, spv::Float>(u, "r");
-            let green = b.load_uniform_field::<_, spv::Float>(u, "g");
-            let blue = b.load_uniform_field::<_, spv::Float>(u, "b");
-            let col = b.vec3(&red, &green, &blue);
-
-            // store composite into output
-            b.store_out(out_col, col);
+            out_col.store(b.vec3(&red, &green, &blue));
         });
 
-        builder.compile()
+        b.compile()
     };
 
     let fragment_shader = device

@@ -3,21 +3,19 @@ name = "spv"
 version = "0.1.0"
 edition = "2021"
 
-[features]
-default            = ["gpu", "glam"]
-
 [dependencies]
 rspirv             = "^0.11.0"
-slab               = "^0.4.6"
+glam               = "0.21.2"
 either             = "^1.6.1"
-gpu                = { path = "../gpu", optional=true }
-glam               = { version = "0.21.2", optional = true }
+slab               = "^0.4.6"
+spv-derive         = { path = "src/spv-derive" }
 
 [dev-dependencies]
 shaderc            = "*"
 bytemuck           = "^1.12.1"
 winit              = { version = "0.26.1", default-features = false, features = ["x11"] }
 image              = "0.24.1"
+gpu                = { path = "../gpu" }
 
 [[example]]
 name = "basic"
@@ -26,13 +24,4 @@ name = "basic"
 name = "uniform"
 
 [[example]]
-name = "storage"
-
-[[example]]
 name = "push_constants"
-
-[[example]]
-name = "maths"
-
-[[example]]
-name = "help"

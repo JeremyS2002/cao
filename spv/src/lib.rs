@@ -1,1128 +1,962 @@
-#![feature(const_type_id)]
 
-//! A tool to build spir-v shaders at runtime built on rspirv
-
-use data::IsPrimitiveType;
+pub use either;
 use either::*;
-pub use interface::{Input, Output, Storage, StorageAccessDesc, Uniform};
-use rspirv::binary::Assemble;
 
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::marker::PhantomData;
-use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::Mutex;
 
-use builder::{Instruction, RawBaseBuilder};
-
-pub use rspirv;
-
-pub mod builder;
 pub mod data;
-pub mod function;
-pub mod interface;
-pub mod prelude;
-pub mod sampler;
-pub mod specialisation;
-pub mod texture;
-
-pub use specialisation::{
-    ComputeBuilder, FragmentBuilder, GeometryBuilder, TessControlBuilder, TessEvalBuilder,
-    VertexBuilder,
-};
+pub mod instruction;
+pub mod io;
+pub mod builder;
+pub mod func;
+pub mod scope;
+pub mod bindings;
 
 pub use data::*;
-pub use sampler::*;
-pub use texture::*;
+pub use instruction::*;
+pub use io::*;
+pub use builder::*;
+pub use func::*;
+pub use scope::*;
+pub use bindings::*;
 
-/// The main entry point to building a spir-v module
-///
-/// Create a builder specifiying what kind of spir-v module it will build using [`Builder::new`]
-///
-/// Example recieving a vec2 as vertex input and storing it to the output positon vulkan uses
-///
-/// ```
-/// use spv::prelude::*;
-///
-/// let b = spv::VertexBuilder::new();
-///
-/// let in_pos = b.in_vec2(0, false, None);
-/// let vk_pos = b.position();
-///
-/// b.main(|b| {
-///     let pos = b.load_in(in_pos);
-///     b.store_out(vk_pos, b.vec4(&pos.x(b), &pos.y(b), &0.0, &1.0));
-/// });
-/// ```
-pub struct Builder<T> {
-    /// Well well well, look who wants implement more features and can't remember how this works.
-    ///
-    /// Overview:
-    ///     - stage 1. build a vector of [`Instruction`] for each function
-    ///     - stage 2. iterate over the instructions to compile a spir-v module
-    ///
-    /// Stage 1 and 2 should be combined and done at the same time. There is no reason not to do this other than
-    /// I got confused and it would be alot of work to change it now.
-    ///
-    /// Stage 1.
-    ///     - Each variable (Primitives, Structs and Arrays) is represented by a unique usize
-    ///     - There are multiple Builder types to make creating instructions easier
-    ///         - MainBuilder : used to create the main function (TODO implement as a wrapper around FunctionBuilder<Void>)
-    ///         - FunctionBuilder : used to create arbitrary functions
-    ///         - ConditionBuilder : used to create IfChain instructions
-    ///         - LoopBuilder : used to create Loop instructions
-    ///     - Each builder type implements the same instruction set (implemented via a macro that duplicates the same code on each builder)
-    ///     - Each builder has a RawBuilder inside that points to the previous builder
-    ///         - MainBuilder and FunctionBuilder both point to RawBaseBuilder
-    ///         - ConditionBuilder and LoopBuilder can point to any other builder
-    ///     - RawBuilders provide an interface to push instructions and get new id's
-    ///
-    /// Stage 2.
-    ///     - basically just ```for instruction in instructions { instruction.process(..) }```
-    ///     - maps store relation between my (usize) variables id's and rspirv (u32) variable ids
-    ///     - all data is stored as spri-v variables behind function local pointers
-    ///     - map from StructDesc to spir-v struct id caches based on pointers not data so if anything breaks this could be it
+pub use glam::IVec2 as GlamIVec2;
+pub use glam::IVec3 as GlamIVec3;
+pub use glam::IVec4 as GlamIVec4;
+pub use glam::UVec2 as GlamUVec2;
+pub use glam::UVec3 as GlamUVec3;
+pub use glam::UVec4 as GlamUVec4;
+pub use glam::Vec2 as GlamVec2;
+pub use glam::Vec3 as GlamVec3;
+pub use glam::Vec4 as GlamVec4;
+pub use glam::DVec2 as GlamDVec2;
+pub use glam::DVec3 as GlamDVec3;
+pub use glam::DVec4 as GlamDVec4;
+pub use glam::Mat2 as GlamMat2;
+pub use glam::Mat3 as GlamMat3;
+pub use glam::Mat4 as GlamMat4;
+pub use glam::DMat2 as GlamDMat2;
+pub use glam::DMat3 as GlamDMat3;
+pub use glam::DMat4 as GlamDMat4;
 
-    /// Always BaseBuilder
-    raw: Rc<RawBaseBuilder>,
-    _marker: PhantomData<T>,
+pub use spv_derive::AsStructType;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ShaderStage {
+    Vertex,
+    TessellationEval,
+    TessellationControl,
+    Geometry,
+    Fragment,
+    Compute,
 }
 
-impl<T: specialisation::ShaderTY> Builder<T> {
+impl ShaderStage {
+    pub(crate) fn specialize(&self, b: &mut RSpirvBuilder, spv_fn: u32) {
+        match self {
+            ShaderStage::Fragment => {
+                b.execution_mode(spv_fn, rspirv::spirv::ExecutionMode::OriginUpperLeft, &[]);
+            },
+            _ => (),
+        }
+    }
+
+    pub(crate) fn rspirv(&self) -> rspirv::spirv::ExecutionModel {
+        match self {
+            ShaderStage::Vertex => rspirv::spirv::ExecutionModel::Vertex,
+            ShaderStage::TessellationEval => rspirv::spirv::ExecutionModel::TessellationEvaluation,
+            ShaderStage::TessellationControl => rspirv::spirv::ExecutionModel::TessellationControl,
+            ShaderStage::Geometry => rspirv::spirv::ExecutionModel::Geometry,
+            ShaderStage::Fragment => rspirv::spirv::ExecutionModel::Fragment,
+            ShaderStage::Compute => rspirv::spirv::ExecutionModel::GLCompute,
+        }
+    }
+}
+
+pub struct Builder {
+    inner: Arc<Mutex<BuilderInner>>,
+}
+
+impl Builder {
     pub fn new() -> Self {
-        Self {
-            raw: Rc::new(RawBaseBuilder::new()),
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn get_instructions(&self) -> Vec<builder::Instruction> {
-        (*self.raw.main.borrow()).clone()
-    }
-
-    pub fn get_inputs(
-        &self,
-    ) -> Vec<(
-        PrimitiveType,
-        Either<(u32, bool), rspirv::spirv::BuiltIn>,
-        Option<&'static str>,
-    )> {
-        (*self.raw.inputs.borrow()).clone()
-    }
-
-    pub fn get_outputs(
-        &self,
-    ) -> Vec<(
-        PrimitiveType,
-        Either<(u32, bool), rspirv::spirv::BuiltIn>,
-        Option<&'static str>,
-    )> {
-        (*self.raw.outputs.borrow()).clone()
-    }
-
-    pub fn get_push_constant(&self) -> Option<(DataType, u32, Option<&'static str>)> {
-        (*self.raw.push_constant.borrow()).clone()
-    }
-
-    pub fn get_uniforms(&self) -> Vec<(DataType, u32, u32, Option<&'static str>)> {
-        (*self.raw.uniforms.borrow()).clone()
-    }
-
-    pub fn get_storage(
-        &self,
-    ) -> Vec<(DataType, u32, u32, StorageAccessDesc, Option<&'static str>)> {
-        (*self.raw.storages.borrow()).clone()
-    }
-
-    pub fn get_textures(
-        &self,
-    ) -> Vec<(
-        rspirv::spirv::Dim,
-        crate::texture::Component,
-        bool,
-        u32,
-        u32,
-        Option<&'static str>,
-    )> {
-        (*self.raw.textures.borrow()).clone()
-    }
-
-    pub fn get_samplers(&self) -> Vec<(u32, u32, Option<&'static str>)> {
-        (*self.raw.samplers.borrow()).clone()
-    }
-
-    pub fn get_sampled_textures(
-        &self,
-    ) -> Vec<(
-        rspirv::spirv::Dim,
-        crate::texture::Component,
-        bool,
-        u32,
-        u32,
-        Option<&'static str>,
-    )> {
-        (*self.raw.sampled_textures.borrow()).clone()
-    }
-
-    #[cfg(feature = "gpu")]
-    pub fn get_descriptor_layout_entry(
-        &self,
-        set: u32,
-        binding: u32,
-    ) -> Option<(gpu::DescriptorLayoutEntry, Option<&'static str>)> {
-        self.raw.map.borrow().get(&(set, binding)).cloned()
-    }
-
-    #[cfg(feature = "gpu")]
-    pub fn get_descriptor_layout_entries(
-        &self,
-    ) -> HashMap<(u32, u32), (gpu::DescriptorLayoutEntry, Option<&'static str>)> {
-        (*self.raw.map.borrow()).clone()
-    }
-
-    pub fn get_functions(&self) -> HashMap<usize, Vec<Instruction>> {
-        (*self.raw.functions.borrow()).clone()
-    }
-
-    pub fn spv_fn<R: data::DataRef, F: FnOnce(&builder::FnHandle) -> () + 'static>(
-        &self,
-        f: F,
-    ) -> function::Function<R> {
-        let id = 0;
-
-        let b = builder::FnHandle {
-            raw: Rc::new(builder::RawFnBuilder {
-                builder: Rc::clone(&self.raw),
-                id,
-                instructions: RefCell::new(Vec::new()),
-                variables: RefCell::default(),
-            }),
-        };
-
-        f(&b);
-
-        function::Function {
-            id,
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn input<P: IsPrimitiveType>(
-        &self,
-        location: u32,
-        flat: bool,
-        name: Option<&'static str>,
-    ) -> Input<P> {
-        let index = self.raw.inputs.borrow().len();
-        self.raw
-            .inputs
-            .borrow_mut()
-            .push((P::TY, Left((location, flat)), name));
-        Input {
-            index,
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn output<P: IsPrimitiveType>(
-        &self,
-        location: u32,
-        flat: bool,
-        name: Option<&'static str>,
-    ) -> Output<P> {
-        let index = self.raw.outputs.borrow().len();
-        self.raw
-            .outputs
-            .borrow_mut()
-            .push((P::TY, Left((location, flat)), name));
-        Output {
-            index,
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn push_constant<D: IsDataType>(&self, offset: Option<u32>, name: Option<&'static str>) {
-        if self.raw.push_constant.borrow().is_some() {
-            panic!("ERROR: Cannot create shader module with more than one set of push constants");
-        }
-        *self.raw.push_constant.borrow_mut() = Some((D::TY, offset.unwrap_or(0), name))
-    }
-
-    pub fn uniform<D: IsDataType>(
-        &self,
-        set: u32,
-        binding: u32,
-        name: Option<&'static str>,
-    ) -> Uniform<D> {
-        let index = self.raw.uniforms.borrow().len();
-        self.raw
-            .uniforms
-            .borrow_mut()
-            .push((D::TY, set, binding, name));
-        #[cfg(feature = "gpu")]
-        self.raw.map.borrow_mut().insert(
-            (set, binding),
-            (
-                gpu::DescriptorLayoutEntry {
-                    ty: gpu::DescriptorLayoutEntryType::UniformBuffer,
-                    stage: T::GPU_STAGE,
-                    count: std::num::NonZeroU32::new(1).unwrap(),
-                },
-                name,
-            ),
-        );
-        Uniform {
-            index,
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn uniform_struct<S: AsSpvStruct>(
-        &self,
-        set: u32,
-        binding: u32,
-        name: Option<&'static str>,
-    ) -> Uniform<Struct<S>> {
-        self.uniform(set, binding, name)
-    }
-
-    pub fn storage<D: IsDataType>(
-        &self,
-        desc: StorageAccessDesc,
-        set: u32,
-        binding: u32,
-        name: Option<&'static str>,
-    ) -> Storage<D> {
-        let index = self.raw.storages.borrow().len();
-        self.raw
-            .storages
-            .borrow_mut()
-            .push((D::TY, set, binding, desc, name));
-        #[cfg(feature = "gpu")]
-        self.raw.map.borrow_mut().insert(
-            (set, binding),
-            (
-                gpu::DescriptorLayoutEntry {
-                    ty: gpu::DescriptorLayoutEntryType::StorageBuffer {
-                        read_only: !desc.write,
-                    },
-                    stage: T::GPU_STAGE,
-                    count: std::num::NonZeroU32::new(1).unwrap(),
-                },
-                name,
-            ),
-        );
-        Storage {
-            _marker: PhantomData,
-            index,
-        }
-    }
-
-    pub fn storage_struct<S: AsSpvStruct>(
-        &self,
-        desc: StorageAccessDesc,
-        set: u32,
-        binding: u32,
-        name: Option<&'static str>,
-    ) -> Storage<Struct<S>> {
-        self.storage(desc, set, binding, name)
-    }
-
-    pub fn sampler(&self, set: u32, binding: u32, name: Option<&'static str>) -> Sampler {
-        let index = self.raw.samplers.borrow().len();
-        self.raw.samplers.borrow_mut().push((set, binding, name));
-        #[cfg(feature = "gpu")]
-        self.raw.map.borrow_mut().insert(
-            (set, binding),
-            (
-                gpu::DescriptorLayoutEntry {
-                    ty: gpu::DescriptorLayoutEntryType::Sampler,
-                    stage: T::GPU_STAGE,
-                    count: std::num::NonZeroU32::new(1).unwrap(),
-                },
-                name,
-            ),
-        );
-        Sampler { index }
-    }
-
-    pub fn main<F: FnOnce(&builder::MainHandle) -> ()>(&self, f: F) {
-        let b = builder::MainHandle {
-            raw: Rc::new(builder::RawMainBuilder {
-                builder: Rc::clone(&self.raw),
-                instructions: RefCell::new(Vec::new()),
-                variables: RefCell::default(),
-            }),
-        };
-
-        f(&b)
+        Self { inner: Arc::new(Mutex::new(BuilderInner::new())) }
     }
 
     pub fn compile(&self) -> Vec<u32> {
-        let mut builder = rspirv::dr::Builder::new();
+        self.inner.lock().unwrap().compile()
+    }
 
-        //let _ext = builder.ext_inst_import("GLSL.std.450");
-        builder.set_version(1, 0);
-        builder.capability(rspirv::spirv::Capability::Shader);
-        // builder.capability(rspirv::spirv::Capability::Kernel);
-        builder.memory_model(
-            rspirv::spirv::AddressingModel::Logical,
-            rspirv::spirv::MemoryModel::GLSL450,
-        );
-        let ext = builder.ext_inst_import("GLSL.std.450");
-        builder.source(
-            rspirv::spirv::SourceLanguage::GLSL,
-            450,
-            None,
-            Option::<String>::None,
-        );
+    pub fn __inner<'a>(&'a self) -> &'a Arc<Mutex<BuilderInner>> {
+        &self.inner
+    }
 
-        // map from my function id to rspirv function id
-        let mut function_map = HashMap::new();
-        let mut struct_map = HashMap::new();
+    pub fn get_entry_name(&self, entry: ShaderStage) -> Option<&'static str> {
+        let inner = self.inner.lock().unwrap();
+        let f = inner.entry_points.get(&entry)?;
+        inner.functions.get(f)?.name
+    }
 
-        // for (_, function) in self.functions() {
+    pub fn get_inputs(&self) -> Vec<IOData> {
+        let inner = self.inner.lock().unwrap();
+        inner.inputs.clone()
+    }
 
-        // }
+    pub fn get_outputs(&self) -> Vec<IOData> {
+        let inner = self.inner.lock().unwrap();
+        inner.outputs.clone()
+    }
 
-        let mut var_map = HashMap::new();
+    pub fn get_uniforms(&self) -> Vec<UniformData> {
+        let inner = self.inner.lock().unwrap();
+        inner.uniforms.clone()
+    }
 
-        let void = builder.type_void();
-        let void_f = builder.type_function(void, []);
-        let main = builder
-            .begin_function(void, None, rspirv::spirv::FunctionControl::empty(), void_f)
-            .unwrap();
-        builder.name(main, "main");
+    pub fn get_storages(&self) -> Vec<StorageData> {
+        let inner = self.inner.lock().unwrap();
+        inner.storages.clone()
+    }
 
-        let uniforms =
-            process_uniforms(&*self.raw.uniforms.borrow(), &mut builder, &mut struct_map);
-        let storages = process_storages(&mut builder, &self.raw.storages.borrow(), &mut struct_map);
-        let textures = process_textures(&mut builder, &self.raw.textures.borrow());
-        let samplers = process_samplers(&mut builder, &self.raw.samplers.borrow());
-        let sampled_textures =
-            process_sampled_textures(&mut builder, &self.raw.sampled_textures.borrow());
-        let inputs = process_io(
-            &mut builder,
-            &self.raw.inputs.borrow(),
-            rspirv::spirv::StorageClass::Input,
-        );
-        let outputs = process_io(
-            &mut builder,
-            &self.raw.outputs.borrow(),
-            rspirv::spirv::StorageClass::Output,
-        );
-        let push_constant = process_push_constant(
-            &mut builder,
-            &self.raw.push_constant.borrow(),
-            &mut struct_map,
-        );
+    pub fn get_textures(&self) -> Vec<TextureData> {
+        let inner = self.inner.lock().unwrap();
+        inner.textures.clone()
+    }
 
-        let mut interface = inputs.clone();
-        interface.extend_from_slice(&outputs);
+    pub fn get_sampled_textures(&self) -> Vec<SampledTextureData> {
+        let inner = self.inner.lock().unwrap();
+        inner.sampled_textures.clone()
+    }
 
-        builder.entry_point(T::TY, main, "main", interface);
+    pub fn get_samplers(&self) -> Vec<SamplerData> {
+        let inner = self.inner.lock().unwrap();
+        inner.samplers.clone()
+    }
 
-        T::specialize(&mut builder, main);
+    pub fn get_push_constants(&self) -> Option<PushData> {
+        let inner = self.inner.lock().unwrap();
+        inner.push_constants.clone()
+    }
+}
 
-        builder.begin_block(None).unwrap();
-        let var_block = builder.selected_block().unwrap();
+// io
+// ================================================================================
+// ================================================================================
+// ================================================================================
 
-        let mut s = crate::builder::instruction::CompileState {
-            var_map: &mut var_map,
-            function_map: &mut function_map,
-            struct_map: &mut struct_map,
-            uniforms: &uniforms,
-            storages: &storages,
-            inputs: &inputs,
-            outputs: &outputs,
-            textures: &textures,
-            samplers: &samplers,
-            sampled_textures: &sampled_textures,
-            push_constant,
-            var_block,
-            glsl_ext: ext,
+impl Builder {
+    pub fn input<T: AsIOTypeConst>(&self, location: u32, flat: bool, name: Option<&'static str>) -> Input<T> {
+        let mut inner = self.inner.lock().unwrap();
+        assert!(inner.scope.is_none(), "Error cannot declare input: {{ location: {}, flat: {}, name: {:?} }} when builder is in a function", location, flat, name);
+        let id = inner.inputs.len();
+        inner.inputs.push(IOData {
+            ty: T::IO_TY,
+            location: Left(location),
+            flat,
+            name,
+        });
+        drop(inner);
+        Input { 
+            id, 
+            inner: Arc::clone(&self.inner), 
+            marker: std::marker::PhantomData,
+        }
+    }
+
+    pub fn output<T: AsIOTypeConst>(&self, location: u32, flat: bool, name: Option<&'static str>) -> Output<T> {
+        let mut inner = self.inner.lock().unwrap();
+        assert!(inner.scope.is_none(), "Error cannot declare output: {{ location: {}, flat: {}, name: {:?} }} when builder is in a function", location, flat, name);
+        let id = inner.outputs.len();
+        inner.outputs.push(IOData {
+            ty: T::IO_TY,
+            location: Left(location),
+            flat,
+            name,
+        });
+        drop(inner);
+        Output {
+            id,
+            inner: Arc::clone(&self.inner),
+            marker: std::marker::PhantomData,
+        }
+    }
+    
+    fn built_in_input<T: AsIOTypeConst>(&self, built_in: rspirv::spirv::BuiltIn, name: &'static str) -> Input<T> {
+        let mut inner = self.inner.lock().unwrap();
+        assert!(inner.scope.is_none(), "Error cannot declare input: {:?} when builder is in a function", built_in);
+        let id = inner.inputs.len();
+        inner.inputs.push(IOData {
+            ty: T::IO_TY,
+            location: Right(built_in),
+            flat: false,
+            name: Some(name),
+        });
+        drop(inner);
+        Input { 
+            id, 
+            inner: Arc::clone(&self.inner), 
+            marker: std::marker::PhantomData,
+        }
+    }
+
+    fn built_in_output<T: AsIOTypeConst>(&self, built_in: rspirv::spirv::BuiltIn, name: &'static str) -> Output<T> {
+        let mut inner = self.inner.lock().unwrap();
+        assert!(inner.scope.is_none(), "Error cannot declare built in output: {:?} when builder is in a function", built_in);
+        let id = inner.outputs.len();
+        inner.outputs.push(IOData {
+            ty: T::IO_TY,
+            location: Right(built_in),
+            flat: false,
+            name: Some(name),
+        });
+        drop(inner);
+        Output {
+            id,
+            inner: Arc::clone(&self.inner),
+            marker: std::marker::PhantomData,
+        }
+    }
+}
+
+macro_rules! impl_io {
+    ($($name:ident, $f_in:ident, $f_flat_in:ident, $f_out:ident, $f_flat_out:ident,)*) => {
+        $(
+            pub fn $f_in(&self, location: u32, name: &'static str) -> Input<$name> {
+                self.input(location, false, Some(name))
+            }
+    
+            pub fn $f_flat_in(&self, location: u32, name: &'static str) -> Input<$name> {
+                self.input(location, true, Some(name))
+            }
+    
+            pub fn $f_out(&self, location: u32, name: &'static str) -> Output<$name> {
+                self.output(location, false, Some(name))
+            }
+    
+            pub fn $f_flat_out(&self, location: u32, name: &'static str) -> Output<$name> {
+                self.output(location, true, Some(name))
+            }
+        )*
+    };
+}
+
+macro_rules! impl_built_in_input {
+    ($($f:ident, $ty:ident, $built_in:ident,)*) => {
+        $(
+            pub fn $f(&self) -> Input<$ty> {
+                self.built_in_input(rspirv::spirv::BuiltIn::$built_in, stringify!($built_in))
+            }
+        )*
+    };
+}
+
+macro_rules! impl_built_in_output {
+    ($($f:ident, $ty:ident, $built_in:ident,)*) => {
+        $(
+            pub fn $f(&self) -> Output<$ty> {
+                self.built_in_output(rspirv::spirv::BuiltIn::$built_in, stringify!($built_in))
+            }
+        )*
+    };
+}
+
+impl Builder {
+    #[rustfmt::skip]
+    impl_io!(
+        IOFloat, in_float, in_flat_float, out_float, out_flat_float,
+        IOVec2, in_vec2, in_flat_vec2, out_vec2, out_flat_vec2,
+        IOVec3, in_vec3, in_flat_vec3, out_vec3, out_flat_vec3,
+        IOVec4, in_vec4, in_flat_vec4, out_vec4, out_flat_vec4,
+    );
+
+    #[rustfmt::skip]
+    impl_built_in_input!(
+        vertex_id, IOInt, VertexId,
+        instance_index, IOInt, InstanceIndex,
+        draw_index, IOInt, DrawIndex,
+        base_vertex, IOInt, BaseVertex,
+
+        patch_vertices, IOInt, PatchVertices,
+        primitive_id, IOInt, PrimitiveId,
+        invocation_id, IOInt, InvocationId,
+
+        tess_coord, IOVec3, TessCoord,
+        
+        frag_coord, IOVec4, FragCoord,
+        point_coord, IOVec2, PointCoord,
+        layer, IOInt, Layer,
+
+        num_work_groups, IOUVec3, NumWorkgroups,
+        work_group_id, IOUVec3, WorkgroupId,
+        local_invocation_id, IOUVec3, LocalInvocationId,
+        global_invocation_id, IOUVec3, GlobalInvocationId,
+        local_invocation_index, IOUInt, LocalInvocationIndex,
+    );
+
+    #[rustfmt::skip]
+    impl_built_in_output!(
+        vk_position, IOVec4, Position,
+        point_size, IOFloat, PointSize,
+
+        frag_depth, IOFloat, FragDepth,
+    );
+}
+
+// functions
+// ================================================================================
+// ================================================================================
+// ================================================================================
+
+impl Builder {
+    pub fn func<T: IsTypeConst, F: FnOnce()>(&self, name: Option<&'static str>, f: F) -> Func<T> {
+        let mut inner = self.inner.lock().unwrap();
+        assert!(inner.scope.is_none(), "Error cannot declare function: {{ name: {:?} }} when builder is in a function", name);
+        let func_id = inner.functions.len();
+        inner.functions.insert(func_id, FuncData { 
+            ret: T::TY, 
+            arguments: Vec::new(),
+            instructions: Vec::new(), 
+            name,
+        });
+
+        let scope = FuncScope::new();
+
+        inner.scope = Some(Box::new(scope));
+
+        drop(inner);
+
+        f();
+
+        let mut inner = self.inner.lock().unwrap();
+
+        let instructions = match inner.scope.take().unwrap().downcast::<FuncScope>() {
+            Ok(scope) => scope.instructions,
+            Err(_) => unreachable!(),
         };
+        
+        let func_data = inner.functions.get_mut(&func_id).unwrap();
+        func_data.instructions = instructions;
 
-        let mut discard = false;
-        for instruction in self.get_instructions() {
-            match instruction {
-                Instruction::Discard => {
-                    discard = true;
-                }
-                mut i => i.process(&mut builder, &mut s, None, None),
-            }
+        drop(inner);
+
+        Func {
+            id: func_id,
+            inner: Arc::clone(&self.inner),
+            marker: std::marker::PhantomData,
         }
+    }
 
-        if discard {
-            builder.kill().unwrap();
+    pub fn entry<F: FnOnce()>(&self, stage: ShaderStage, name: &'static str, f: F) {
+        let main = self.func::<Void, _>(Some(name), f);
+
+        let mut inner = self.inner.lock().unwrap();
+
+        inner.entry_points.insert(stage, main.id);
+    }
+}
+
+// set const
+// ================================================================================
+// ================================================================================
+// ================================================================================
+
+impl Builder {
+    pub fn const_struct<'a, T: RustStructType>(&'a self, val: T) -> T::Spv<'a> {
+        let mut inner = self.inner.lock().unwrap();
+        if let Some(scope) = &mut inner.scope {
+            let id = val.struct_id(&mut **scope);
+            drop(scope);
+            drop(inner);
+            T::Spv::from_id(id, &self.inner)
         } else {
-            builder.ret().unwrap();
-        }
-
-        builder.end_function().unwrap();
-
-        builder.module().assemble()
-    }
-}
-
-fn process_push_constant(
-    builder: &mut rspirv::dr::Builder,
-    borrow: &std::cell::Ref<Option<(DataType, u32, Option<&str>)>>,
-    struct_map: &mut HashMap<std::any::TypeId, u32>,
-) -> Option<(u32, DataType)> {
-    borrow.map(|b| {
-        let base_type = b.0.base_type(builder, struct_map);
-        let outer_type = builder.type_struct([base_type]);
-
-        builder.decorate(outer_type, rspirv::spirv::Decoration::Block, None);
-        builder.member_decorate(
-            outer_type,
-            0,
-            rspirv::spirv::Decoration::Offset,
-            [rspirv::dr::Operand::LiteralInt32(b.1)],
-        );
-
-        let pointer_type =
-            builder.type_pointer(None, rspirv::spirv::StorageClass::PushConstant, outer_type);
-
-        let variable = builder.variable(
-            pointer_type,
-            None,
-            rspirv::spirv::StorageClass::PushConstant,
-            None,
-        );
-
-        if let Some(name) = b.2 {
-            builder.name(variable, name)
-        }
-
-        (variable, b.0)
-    })
-}
-
-fn decorate_matrix(uniform: &DataType, builder: &mut rspirv::dr::Builder, raw_outer_ty: u32) {
-    if let DataType::Primitive(p) = uniform {
-        if p.is_matrix() {
-            builder.member_decorate(raw_outer_ty, 0, rspirv::spirv::Decoration::ColMajor, None);
-
-            builder.member_decorate(
-                raw_outer_ty,
-                0,
-                rspirv::spirv::Decoration::Offset,
-                Some(rspirv::dr::Operand::LiteralInt32(0)),
-            );
-
-            builder.member_decorate(
-                raw_outer_ty,
-                0,
-                rspirv::spirv::Decoration::MatrixStride,
-                Some(rspirv::dr::Operand::LiteralInt32(
-                    p.matrix_stride().unwrap(),
-                )),
-            );
+            panic!("Cannot declare const struct when not in function");
         }
     }
 }
 
-fn process_uniforms(
-    uniforms: &[(DataType, u32, u32, Option<&'static str>)],
-    builder: &mut rspirv::dr::Builder,
-    struct_map: &mut HashMap<std::any::TypeId, u32>,
-) -> Vec<u32> {
-    uniforms
-        .iter()
-        .map(|(uniform, set, binding, name)| {
-            let raw_inner_ty = uniform.base_type(builder, struct_map);
-            let raw_outer_ty = builder.type_struct([raw_inner_ty]);
+impl Builder {
+    fn set_const(&self, val: Val) -> usize {
+        let mut inner = self.inner.lock().unwrap();
+        assert!(inner.scope.is_some(), "Cannot declare new variable {:?} when not in function", val);
 
-            decorate_matrix(uniform, builder, raw_outer_ty);
+        let scope = inner.scope.as_mut().unwrap();
 
-            builder.decorate(raw_outer_ty, rspirv::spirv::Decoration::Block, None);
-            builder.member_decorate(
-                raw_outer_ty,
-                0,
-                rspirv::spirv::Decoration::Offset,
-                [rspirv::dr::Operand::LiteralInt32(0)],
-            );
+        let store = scope.get_new_id();
 
-            let p_ty =
-                builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, raw_outer_ty);
-            let variable = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Uniform, None);
+        scope.push_instruction(Instruction::SetConst(OpSetConst {
+            val: val,
+            store,
+        }));
 
-            builder.decorate(
-                variable,
-                rspirv::spirv::Decoration::DescriptorSet,
-                Some(rspirv::dr::Operand::LiteralInt32(*set)),
-            );
-            builder.decorate(
-                variable,
-                rspirv::spirv::Decoration::Binding,
-                Some(rspirv::dr::Operand::LiteralInt32(*binding)),
-            );
+        drop(scope);
+        drop(inner);
 
-            if let Some(name) = *name {
-                builder.name(variable, name)
-            }
-
-            variable
-        })
-        .collect::<Vec<_>>()
+        store
+    }
 }
 
-fn process_storages(
-    builder: &mut rspirv::dr::Builder,
-    borrow: &[(DataType, u32, u32, StorageAccessDesc, Option<&str>)],
-    struct_map: &mut HashMap<std::any::TypeId, u32>,
-) -> Vec<u32> {
-    borrow
-        .iter()
-        .map(|(ty, set, binding, desc, name)| {
-            let raw_inner_ty = ty.base_type(builder, struct_map);
-            let raw_array_ty = builder.type_runtime_array(raw_inner_ty);
-
-            builder.decorate(
-                raw_array_ty,
-                rspirv::spirv::Decoration::ArrayStride,
-                Some(rspirv::dr::Operand::LiteralInt32(ty.size())),
-            );
-
-            let raw_outer_ty = builder.type_struct([raw_array_ty]);
-
-            decorate_matrix(ty, builder, raw_outer_ty);
-
-            builder.decorate(raw_outer_ty, rspirv::spirv::Decoration::BufferBlock, None);
-            builder.member_decorate(
-                raw_outer_ty,
-                0,
-                rspirv::spirv::Decoration::Offset,
-                [rspirv::dr::Operand::LiteralInt32(0)],
-            );
-
-            if !desc.read {
-                builder.member_decorate(
-                    raw_outer_ty,
-                    0,
-                    rspirv::spirv::Decoration::NonReadable,
-                    None,
-                );
-            }
-
-            if !desc.write {
-                builder.member_decorate(
-                    raw_outer_ty,
-                    0,
-                    rspirv::spirv::Decoration::NonWritable,
-                    None,
-                );
-            }
-
-            let p_ty =
-                builder.type_pointer(None, rspirv::spirv::StorageClass::Uniform, raw_outer_ty);
-            let variable = builder.variable(p_ty, None, rspirv::spirv::StorageClass::Uniform, None);
-
-            builder.decorate(
-                variable,
-                rspirv::spirv::Decoration::DescriptorSet,
-                Some(rspirv::dr::Operand::LiteralInt32(*set)),
-            );
-            builder.decorate(
-                variable,
-                rspirv::spirv::Decoration::Binding,
-                Some(rspirv::dr::Operand::LiteralInt32(*binding)),
-            );
-
-            if let Some(name) = *name {
-                builder.name(variable, name)
-            }
-
-            variable
-        })
-        .collect()
-}
-
-fn process_textures(
-    builder: &mut rspirv::dr::Builder,
-    textures: &[(
-        rspirv::spirv::Dim,
-        crate::texture::Component,
-        bool,
-        u32,
-        u32,
-        Option<&'static str>,
-    )],
-) -> Vec<(u32, u32)> {
-    textures
-        .iter()
-        .map(|(dimension, component, arrayed, set, binding, name)| {
-            let c_type = component.base_type(builder);
-            let t_type = builder.type_image(
-                c_type,
-                *dimension,
-                0,
-                if *arrayed { 1 } else { 0 },
-                0,
-                1,
-                rspirv::spirv::ImageFormat::Unknown,
-                None,
-            );
-
-            let p_type =
-                builder.type_pointer(None, rspirv::spirv::StorageClass::UniformConstant, t_type);
-
-            let variable = builder.variable(
-                p_type,
-                None,
-                rspirv::spirv::StorageClass::UniformConstant,
-                None,
-            );
-
-            builder.decorate(
-                variable,
-                rspirv::spirv::Decoration::DescriptorSet,
-                Some(rspirv::dr::Operand::LiteralInt32(*set)),
-            );
-
-            builder.decorate(
-                variable,
-                rspirv::spirv::Decoration::Binding,
-                Some(rspirv::dr::Operand::LiteralInt32(*binding)),
-            );
-
-            if let Some(name) = *name {
-                builder.name(variable, name)
-            }
-
-            (variable, t_type)
-        })
-        .collect::<Vec<_>>()
-}
-
-fn process_samplers(
-    builder: &mut rspirv::dr::Builder,
-    samplers: &[(u32, u32, Option<&'static str>)],
-) -> Vec<(u32, u32)> {
-    samplers
-        .iter()
-        .map(|(set, binding, name)| {
-            let b_type = builder.type_sampler();
-            let p_type =
-                builder.type_pointer(None, rspirv::spirv::StorageClass::UniformConstant, b_type);
-            let variable = builder.variable(
-                p_type,
-                None,
-                rspirv::spirv::StorageClass::UniformConstant,
-                None,
-            );
-
-            builder.decorate(
-                variable,
-                rspirv::spirv::Decoration::DescriptorSet,
-                Some(rspirv::dr::Operand::LiteralInt32(*set)),
-            );
-
-            builder.decorate(
-                variable,
-                rspirv::spirv::Decoration::Binding,
-                Some(rspirv::dr::Operand::LiteralInt32(*binding)),
-            );
-
-            if let Some(name) = *name {
-                builder.name(variable, name)
-            }
-
-            (variable, b_type)
-        })
-        .collect::<Vec<_>>()
-}
-
-fn process_sampled_textures(
-    builder: &mut rspirv::dr::Builder,
-    textures: &[(
-        rspirv::spirv::Dim,
-        crate::texture::Component,
-        bool,
-        u32,
-        u32,
-        Option<&'static str>,
-    )],
-) -> Vec<(u32, u32)> {
-    textures
-        .iter()
-        .map(|(dimension, component, arrayed, set, binding, name)| {
-            let c_type = component.base_type(builder);
-            let t_type = builder.type_image(
-                c_type,
-                *dimension,
-                0,
-                if *arrayed { 1 } else { 0 },
-                0,
-                1,
-                rspirv::spirv::ImageFormat::Unknown,
-                None,
-            );
-
-            let st_type = builder.type_sampled_image(t_type);
-
-            let p_type =
-                builder.type_pointer(None, rspirv::spirv::StorageClass::UniformConstant, st_type);
-
-            let variable = builder.variable(
-                p_type,
-                None,
-                rspirv::spirv::StorageClass::UniformConstant,
-                None,
-            );
-
-            builder.decorate(
-                variable,
-                rspirv::spirv::Decoration::DescriptorSet,
-                Some(rspirv::dr::Operand::LiteralInt32(*set)),
-            );
-
-            builder.decorate(
-                variable,
-                rspirv::spirv::Decoration::Binding,
-                Some(rspirv::dr::Operand::LiteralInt32(*binding)),
-            );
-
-            if let Some(name) = *name {
-                builder.name(variable, name)
-            }
-
-            (variable, st_type)
-        })
-        .collect::<Vec<_>>()
-}
-
-fn process_io(
-    builder: &mut rspirv::dr::Builder,
-    io: &[(
-        PrimitiveType,
-        Either<(u32, bool), rspirv::spirv::BuiltIn>,
-        Option<&'static str>,
-    )],
-    storage: rspirv::spirv::StorageClass,
-) -> Vec<u32> {
-    let inputs = io
-        .iter()
-        .map(|(v, t, name)| {
-            let ty = v.base_type(builder);
-            let pointer_ty = builder.type_pointer(None, storage, ty);
-            let variable = builder.variable(pointer_ty, None, storage, None);
-
-            match t {
-                Left((location, flat)) => {
-                    builder.decorate(
-                        variable,
-                        rspirv::spirv::Decoration::Location,
-                        [rspirv::dr::Operand::LiteralInt32(*location)],
-                    );
-                    if *flat {
-                        builder.decorate(variable, rspirv::spirv::Decoration::Flat, []);
-                    }
-                }
-                Right(built_in) => builder.decorate(
-                    variable,
-                    rspirv::spirv::Decoration::BuiltIn,
-                    [rspirv::dr::Operand::BuiltIn(*built_in)],
-                ),
-            }
-
-            if let Some(name) = name {
-                builder.name(variable, *name);
-            }
-            variable
-        })
-        .collect::<Vec<_>>();
-    inputs
-}
-
-macro_rules! io_interp_types {
-    ($($i_name:ident, $o_name:ident, $t_name:ident,)*) => {
-        impl<T: specialisation::ShaderTY> Builder<T> {
-            $(
-                pub fn $i_name(&self, location: u32, flat: bool, name: Option<&'static str>) -> Input<$t_name> {
-                    self.input(location, flat, name)
-                }
-
-                pub fn $o_name(&self, location: u32, flat: bool, name: Option<&'static str>) -> Output<$t_name> {
-                    self.output(location, flat, name)
-                }
-            )*
-        }
-    };
-}
-
-#[rustfmt::skip]
-io_interp_types!(
-    in_float, out_float, Float, 
-    in_vec2, out_vec2, Vec2, 
-    in_vec3, out_vec3, Vec3, 
-    in_vec4, out_vec4, Vec4, 
-    in_double, out_double, Double, 
-    in_dvec2, out_dvec2, DVec2, 
-    in_dvec3, out_dvec3, DVec3, 
-    in_dvec4, out_dvec4, DVec4,
-);
-
-macro_rules! io_no_interp_types {
-    ($($i_name:ident, $o_name:ident, $t_name:ident,)*) => {
-        impl<T: specialisation::ShaderTY> Builder<T> {
-            $(
-                pub fn $i_name(&self, location: u32, name: Option<&'static str>) -> Input<$t_name> {
-                    self.input(location, true, name)
-                }
-
-                pub fn $o_name(&self, location: u32, name: Option<&'static str>) -> Output<$t_name> {
-                    self.output(location, true, name)
-                }
-            )*
-        }
-    };
-}
-
-#[rustfmt::skip]
-io_no_interp_types!(
-    in_bool, out_bool, Bool, 
-    in_int, out_int, Int, 
-    in_ivec2, out_ivec2, IVec2, 
-    in_ivec3, out_ivec3, IVec3, 
-    in_ivec4, out_ivec4, IVec4, 
-    in_uint, out_uint, UInt, 
-    in_uvec2, out_uvec2, UVec2,
-    in_uvec3, out_uvec3, UVec3, 
-    in_uvec4, out_uvec4, UVec4,
-);
-
-macro_rules! impl_texture {
-    ($($fn_name:ident, $alias:ident, $s_name:ident, $comp:ident,)*) => {
+macro_rules! impl_set {
+    ($($name:ident, $f:ident, $rust:ident, $enum:ident, $stct:ident,)*) => {
         $(
-            pub fn $fn_name(
-                &self,
-                set: u32,
-                binding: u32,
-                name: Option<&'static str>
-            ) -> $alias {
-                $s_name(self.raw_texture(set, binding, Component::$comp, name))
+            pub fn $f(&self, val: $rust) -> $name {
+                let id = self.set_const(Val::$enum($stct::$name(val)));
+                $name {
+                    id,
+                    b: &self.inner
+                }
             }
         )*
     };
 }
 
-macro_rules! impl_sampled_texture {
-    ($($fn_name:ident, $alias:ident, $s_name:ident, $comp:ident,)*) => {
+impl Builder {
+    #[rustfmt::skip]
+    impl_set!(
+        Int, const_int, i32, Scalar, ScalarVal,
+        UInt, const_uint, u32, Scalar, ScalarVal,
+        Float, const_float, f32, Scalar, ScalarVal,
+        Double, const_double, f64, Scalar, ScalarVal,
+        IVec2, const_ivec2, GlamIVec2, Vector, VectorVal,
+        IVec3, const_ivec3, GlamIVec3, Vector, VectorVal,
+        IVec4, const_ivec4, GlamIVec4, Vector, VectorVal,
+        UVec2, const_uvec2, GlamUVec2, Vector, VectorVal,
+        UVec3, const_uvec3, GlamUVec3, Vector, VectorVal,
+        UVec4, const_uvec4, GlamUVec4, Vector, VectorVal,
+        Vec2, const_vec2, GlamVec2, Vector, VectorVal,
+        Vec3, const_vec3, GlamVec3, Vector, VectorVal,
+        Vec4, const_vec4, GlamVec4, Vector, VectorVal,
+        DVec2, const_dvec2, GlamDVec2, Vector, VectorVal,
+        DVec3, const_dvec3, GlamDVec3, Vector, VectorVal,
+        DVec4, const_dvec4, GlamDVec4, Vector, VectorVal,
+        Mat2, const_mat2, GlamMat2, Matrix, MatrixVal,
+        Mat3, const_mat3, GlamMat3, Matrix, MatrixVal,
+        Mat4, const_mat4, GlamMat4, Matrix, MatrixVal,
+        DMat2, const_dmat2, GlamDMat2, Matrix, MatrixVal,
+        DMat3, const_dmat3, GlamDMat3, Matrix, MatrixVal,
+        DMat4, const_dmat4, GlamDMat4, Matrix, MatrixVal,
+    );
+}
+
+// construct
+// ================================================================================
+// ================================================================================
+// ================================================================================
+
+impl Builder {
+    fn composite<'a>(&self, ty: Type, constituents: impl IntoIterator<Item=&'a dyn AsType>) -> usize {
+        let mut inner = self.inner.lock().unwrap();
+        if let Some(scope) = &mut inner.scope {
+            let new_id = scope.get_new_id();
+
+            let constituents = constituents.into_iter()
+                .map(|c| {
+                    (c.id(&mut **scope), c.ty())
+                })
+                .collect();
+
+            scope.push_instruction(Instruction::Composite(OpComposite {
+                ty,
+                id: new_id,
+                constituents,
+            }));
+
+            new_id
+        } else {
+            panic!("Cannot make construct vector when in scope");
+        }
+    }
+}
+
+macro_rules! make2 {
+    ($($name:ident, $f:ident, $c:ident, $elem:ident,)*) => {
         $(
-            pub fn $fn_name(
-                &self,
-                set: u32,
-                binding: u32,
-                name: Option<&'static str>
-            ) -> $alias {
-                $s_name(self.sampled_raw_texture(set, binding, Component::$comp, name))
+            pub fn $f<'a>(&'a self, x: &dyn SpvRustEq<$elem<'a>>, y: &dyn SpvRustEq<$elem<'a>>) -> $name<'a> {
+                let id = self.composite(Type::$c, [x.as_ty_ref(), y.as_ty_ref()]);
+                $name {
+                    id,
+                    b: &self.inner
+                }
             }
         )*
     };
 }
 
-/// Texture impls
-impl<T: specialisation::ShaderTY> Builder<T> {
+macro_rules! make3 {
+    ($($name:ident, $f:ident, $c:ident, $elem:ident,)*) => {
+        $(
+            pub fn $f<'a>(&'a self, x: &dyn SpvRustEq<$elem<'a>>, y: &dyn SpvRustEq<$elem<'a>>, z: &dyn SpvRustEq<$elem<'a>>) -> $name<'a> {
+                let id = self.composite(Type::$c, [x.as_ty_ref(), y.as_ty_ref(), z.as_ty_ref()]);
+                $name {
+                    id,
+                    b: &self.inner
+                }
+            }
+        )*
+    };
+}
+
+macro_rules! make4 {
+    ($($name:ident, $f:ident, $c:ident, $elem:ident,)*) => {
+        $(
+            pub fn $f<'a>(&'a self, x: &dyn SpvRustEq<$elem<'a>>, y: &dyn SpvRustEq<$elem<'a>>, z: &dyn SpvRustEq<$elem<'a>>, w: &dyn SpvRustEq<$elem<'a>>) -> $name<'a> {
+                let id = self.composite(Type::$c, [x.as_ty_ref(), y.as_ty_ref(), z.as_ty_ref(), w.as_ty_ref()]);
+                $name {
+                    id,
+                    b: &self.inner
+                }
+            }
+        )*
+    };
+}
+
+impl Builder {
     #[rustfmt::skip]
-    impl_texture!(
-        texture_1d, Texture1D, Texture, Float,
-        d_texture_1d, DTexture1D, DTexture, Double,
-        i_texture_1d, ITexture1D, ITexture, Int,
-        u_texture_1d, UTexture1D, UTexture, UInt,
-        texture_1d_array, Texture1DArray, Texture, Float,
-        d_texture_1d_array, DTexture1DArray, DTexture, Double,
-        i_texture_1d_array, ITexture1DArray, ITexture, Int,
-        u_texture_1d_array, UTexture1DArray, UTexture, UInt,
-        texture_2d, Texture2D, Texture, Float,
-        d_texture_2d, DTexture2D, DTexture, Double,
-        i_texture_2d, ITexture2D, ITexture, Int,
-        u_texture_2d, UTexture2D, UTexture, UInt,
-        texture_2d_array, Texture2DArray, Texture, Float,
-        d_texture_2d_array, DTexture2DArray, DTexture, Double,
-        i_texture_2d_array, ITexture2DArray, ITexture, Int,
-        u_texture_2d_array, UTexture2DArray, UTexture, UInt,
-        texture_3d, Texture3D, Texture, Float,
-        d_texture_3d, DTexture3D, DTexture, Double,
-        i_texture_3d, ITexture3D, ITexture, Int,
-        u_texture_3d, UTexture3D, UTexture, UInt,
-        texture_cube, TextureCube, Texture, Float,
-        d_texture_cube, DTextureCube, DTexture, Double,
-        i_texture_cube, ITextureCube, ITexture, Int,
-        u_texture_cube, UTextureCube, UTexture, UInt,
-        texture_cube_array, TextureCubeArray, Texture, Float,
-        d_texture_cube_array, DTextureCubeArray, DTexture, Double,
-        i_texture_cube_array, ITextureCubeArray, ITexture, Int,
-        u_texture_cube_array, UTextureCubeArray, UTexture, UInt,
+    make2!(
+        IVec2, ivec2, IVEC2, Int,
+        UVec2, uvec2, UVEC2, UInt,
+        Vec2, vec2, VEC2, Float,
+        DVec2, dvec2, DVEC2, Double,
+        Mat2, mat2, MAT2, Vec2,
+        DMat2, dmat2, DMAT2, DVec2,
     );
 
-    pub fn texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        name: Option<&'static str>,
-    ) -> Texture<D> {
-        Texture(self.raw_texture(set, binding, Component::Float, name))
-    }
+    #[rustfmt::skip]
+    make3!(
+        IVec3, ivec3, IVEC3, Int,
+        UVec3, uvec3, UVEC3, UInt,
+        Vec3, vec3, VEC3, Float,
+        DVec3, dvec3, DVEC3, Double,
+        Mat3, mat3, MAT3, Vec3,
+        DMat3, dmat3, DMAT3, DVec3,
+    );
 
-    pub fn d_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        name: Option<&'static str>,
-    ) -> DTexture<D> {
-        DTexture(self.raw_texture(set, binding, Component::Double, name))
-    }
+    #[rustfmt::skip]
+    make4!(
+        IVec4, ivec4, IVEC4, Int,
+        UVec4, uvec4, UVEC4, UInt,
+        Vec4, vec4, VEC4, Float,
+        DVec4, dvec4, DVEC4, Double,
+        Mat4, mat4, MAT4, Vec4,
+        DMat4, dmat4, DMAT4, DVec4,
+    );
+}
 
-    pub fn i_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        name: Option<&'static str>,
-    ) -> ITexture<D> {
-        ITexture(self.raw_texture(set, binding, Component::Int, name))
-    }
+// bindings
+// ================================================================================
+// ================================================================================
+// ================================================================================
 
-    pub fn u_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        name: Option<&'static str>,
-    ) -> UTexture<D> {
-        UTexture(self.raw_texture(set, binding, Component::UInt, name))
-    }
+impl Builder {
+    pub fn push_constants<T: IsTypeConst>(&self, name: Option<&'static str>) -> PushConstants<T> {
+        let mut inner = self.inner.lock().unwrap();
 
-    fn raw_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        component: Component,
-        name: Option<&'static str>,
-    ) -> RawTexture<D> {
-        let index = self.raw.textures.borrow().len();
-        self.raw
-            .textures
-            .borrow_mut()
-            .push((D::DIM, component, D::ARRAYED, set, binding, name));
-        #[cfg(feature = "gpu")]
-        self.raw.map.borrow_mut().insert(
-            (set, binding),
-            (
-                gpu::DescriptorLayoutEntry {
-                    ty: gpu::DescriptorLayoutEntryType::SampledTexture,
-                    stage: T::GPU_STAGE,
-                    count: std::num::NonZeroU32::new(1).unwrap(),
-                },
-                name,
-            ),
-        );
-        RawTexture {
-            index,
-            _dmarker: PhantomData,
+        inner.push_constants = Some(PushData { 
+            ty: T::TY, 
+            name 
+        });
+
+        drop(inner);
+        PushConstants { 
+            b: Arc::clone(&self.inner), 
+            marker: std::marker::PhantomData 
         }
     }
 
-    #[rustfmt::skip]
-    impl_sampled_texture!(
-        sampled_texture_1d, SampledTexture1D, SampledTexture, Float,
-        sampled_d_texture_1d, SampledDTexture1D, SampledDTexture, Double,
-        sampled_i_texture_1d, SampledITexture1D, SampledITexture, Int,
-        sampled_u_texture_1d, SampledUTexture1D, SampledUTexture, UInt,
-        sampled_texture_1d_array, SampledTexture1DArray, SampledTexture, Float,
-        sampled_d_texture_1d_array, SampledDTexture1DArray, SampledDTexture, Double,
-        sampled_i_texture_1d_array, SampledITexture1DArray, SampledITexture, Int,
-        sampled_u_texture_1d_array, SampledUTexture1DArray, SampledUTexture, UInt,
-        sampled_texture_2d, SampledTexture2D, SampledTexture, Float,
-        sampled_d_texture_2d, SampledDTexture2D, SampledDTexture, Double,
-        sampled_i_texture_2d, SampledITexture2D, SampledITexture, Int,
-        sampled_u_texture_2d, SampledUTexture2D, SampledUTexture, UInt,
-        sampled_texture_2d_array, SampledTexture2DArray, SampledTexture, Float,
-        sampled_d_texture_2d_array, SampledDTexture2DArray, SampledDTexture, Double,
-        sampled_i_texture_2d_array, SampledITexture2DArray, SampledITexture, Int,
-        sampled_u_texture_2d_array, SampledUTexture2DArray, SampledUTexture, UInt,
-        sampled_texture_3d, SampledTexture3D, SampledTexture, Float,
-        sampled_d_texture_3d, SampledDTexture3D, SampledDTexture, Double,
-        sampled_i_texture_3d, SampledITexture3D, SampledITexture, Int,
-        sampled_u_texture_3d, SampledUTexture3D, SampledUTexture, UInt,
-        sampled_texture_cube, SampledTextureCube, SampledTexture, Float,
-        sampled_d_texture_cube, SampledDTextureCube, SampledDTexture, Double,
-        sampled_i_texture_cube, SampledITextureCube, SampledITexture, Int,
-        sampled_u_texture_cube, SampledUTextureCube, SampledUTexture, UInt,
-        sampled_texture_cube_array, SampledTextureCubeArray, SampledTexture, Float,
-        sampled_d_texture_cube_array, SampledDTextureCubeArray, SampledDTexture, Double,
-        sampled_i_texture_cube_array, SampledITextureCubeArray, SampledITexture, Int,
-        sampled_u_texture_cube_array, SampledUTextureCubeArray, SampledUTexture, UInt,
+    pub fn uniform<T: IsTypeConst>(&self, set: u32, binding: u32, name: Option<&'static str>) -> Uniform<T> {
+        let mut inner = self.inner.lock().unwrap();
 
-    );
-
-    pub fn sampled_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        name: Option<&'static str>,
-    ) -> SampledTexture<D> {
-        SampledTexture(self.sampled_raw_texture(set, binding, Component::Float, name))
-    }
-
-    pub fn sampled_d_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        name: Option<&'static str>,
-    ) -> SampledDTexture<D> {
-        SampledDTexture(self.sampled_raw_texture(set, binding, Component::Double, name))
-    }
-
-    pub fn sampled_i_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        name: Option<&'static str>,
-    ) -> SampledITexture<D> {
-        SampledITexture(self.sampled_raw_texture(set, binding, Component::Int, name))
-    }
-
-    pub fn sampled_u_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        name: Option<&'static str>,
-    ) -> SampledUTexture<D> {
-        SampledUTexture(self.sampled_raw_texture(set, binding, Component::UInt, name))
-    }
-
-    fn sampled_raw_texture<D: AsDimension>(
-        &self,
-        set: u32,
-        binding: u32,
-        component: Component,
-        name: Option<&'static str>,
-    ) -> SampledRawTexture<D> {
-        let index = self.raw.sampled_textures.borrow().len();
-        self.raw.sampled_textures.borrow_mut().push((
-            D::DIM,
-            component,
-            D::ARRAYED,
+        let id = inner.uniforms.len();
+        inner.uniforms.push(UniformData {
+            ty: T::TY,
             set,
             binding,
             name,
-        ));
-        #[cfg(feature = "gpu")]
-        self.raw.map.borrow_mut().insert(
-            (set, binding),
-            (
-                gpu::DescriptorLayoutEntry {
-                    ty: gpu::DescriptorLayoutEntryType::CombinedTextureSampler,
-                    stage: T::GPU_STAGE,
-                    count: std::num::NonZeroU32::new(1).unwrap(),
-                },
-                name,
-            ),
-        );
-        SampledRawTexture {
-            id: Left(index),
-            _dmarker: PhantomData,
+        });
+
+        drop(inner);
+        Uniform { 
+            id, 
+            b: Arc::clone(&self.inner), 
+            marker: std::marker::PhantomData 
+        }
+    }
+
+    fn raw_storage<T: IsTypeConst>(&self, set: u32, binding: u32, read: bool, write: bool, name: Option<&'static str>) -> Storage<T> {
+        let mut inner = self.inner.lock().unwrap();
+
+        let id = inner.storages.len();
+        inner.storages.push(StorageData { 
+            ty: T::TY, 
+            read, 
+            write, 
+            set, 
+            binding, 
+            name, 
+        });
+
+        drop(inner);
+        Storage {
+            id,
+            b: Arc::clone(&self.inner),
+            marker: std::marker::PhantomData,
+        }
+    }
+
+    pub fn storage<T: IsTypeConst>(&self, set: u32, binding: u32, name: Option<&'static str>) -> Storage<T> {
+        self.raw_storage(set, binding, true, true, name)
+    }
+
+    pub fn readonly_storage<T: IsTypeConst>(&self, set: u32, binding: u32, name: Option<&'static str>) -> Storage<T> {
+        self.raw_storage(set, binding, true, false, name)
+    }
+
+    pub fn writeonly_storage<T: IsTypeConst>(&self, set: u32, binding: u32, name: Option<&'static str>) -> Storage<T> {
+        self.raw_storage(set, binding, false, true, name)
+    }
+}
+
+// texture
+// ================================================================================
+// ================================================================================
+// ================================================================================
+
+impl Builder {
+    pub fn sampler(&self, set: u32, binding: u32, name: Option<&'static str>) -> Sampler {
+        let mut inner = self.inner.lock().unwrap();
+
+        let id = inner.samplers.len();
+        inner.samplers.push(SamplerData { 
+            set, 
+            binding, 
+            name 
+        });
+
+        Sampler {
+            id,
+        }
+    }
+
+    fn raw_texture<D: AsDimension, T: GTexture<D>>(&self, set: u32, binding: u32, name: Option<&'static str>) -> T {
+        let mut inner = self.inner.lock().unwrap();
+
+        let id = inner.textures.len();
+        inner.textures.push(TextureData {
+            ty: T::TEXTURE_TY,
+            set,
+            binding,
+            name,
+        });
+
+        drop(inner);
+        T::new(id, Arc::clone(&self.inner))
+    }
+
+    fn raw_sampled_texture<D: AsDimension, T: SampledGTexture<D>>(&self, set: u32, binding: u32, name: Option<&'static str>) -> T {
+        let mut inner = self.inner.lock().unwrap();
+
+        let id = inner.sampled_textures.len();
+        inner.sampled_textures.push(SampledTextureData {
+            ty: T::Texture::TEXTURE_TY,
+            set,
+            binding,
+            name,
+        });
+
+        drop(inner);
+        T::from_uniform(id, Arc::clone(&self.inner))
+    }
+
+    pub fn itexture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> ITexture<D> {
+        self.raw_texture(set, binding, name)
+    }
+
+    pub fn utexture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> UTexture<D> {
+        self.raw_texture(set, binding, name)
+    }
+
+    pub fn texture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> Texture<D> {
+        self.raw_texture(set, binding, name)
+    }
+
+    pub fn dtexture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> DTexture<D> {
+        self.raw_texture(set, binding, name)
+    }
+}
+
+macro_rules! impl_texture {
+    ($($name:ident, $f:ident,)*) => {
+        $(
+            pub fn $f(&self, set: u32, binding: u32, name: Option<&'static str>) -> $name {
+                self.raw_texture(set, binding, name)
+            }
+        )*
+    };
+}
+
+impl Builder {
+    #[rustfmt::skip]
+    impl_texture!(
+        ITexture1D, itexture1d,
+        ITexture2D, itexture2d,
+        ITexture2DMs, itexture2d_ms,
+        ITexture2DArray, itexture2d_array,
+        ITexture2DMsArray, itexture2d_ms_array,
+        ITextureCube, itexture_cube,
+        ITextureCubeArray, itexture_cube_array,
+
+        UTexture1D, utexture1d,
+        UTexture1DArray, utexture1d_array,
+        UTexture2D, utexture2d,
+        UTexture2DMs, utexture2d_ms,
+        UTexture2DArray, utexture2d_array,
+        UTexture2DMsArray, utexture2d_ms_array,
+        UTextureCube, utexture_cube,
+        UTextureCubeArray, utexture_cube_array,
+
+        Texture1D, texture1d,
+        Texture1DArray, texture1d_array,
+        Texture2D, texture2d,
+        Texture2DMs, texture2d_ms,
+        Texture2DArray, texture2d_array,
+        Texture2DMsArray, texture2d_ms_array,
+        TextureCube, texture_cube,
+        TextureCubeArray, texture_cube_array,
+
+        DTexture1D, dtexture1d,
+        DTexture1DArray, dtexture1d_array,
+        DTexture2D, dtexture2d,
+        DTexture2DMs, dtexture2d_ms,
+        DTexture2DArray, dtexture2d_array,
+        DTexture2DMsArray, dtexture2d_ms_array,
+        DTextureCube, dtexture_cube,
+        DTextureCubeArray, dtexture_cube_array,
+    );
+}
+
+macro_rules! impl_sampled_texture {
+    ($($name:ident, $f:ident,)*) => {
+        $(
+            pub fn $f(&self, set: u32, binding: u32, name: Option<&'static str>) -> $name {
+                self.raw_sampled_texture(set, binding, name)
+            }
+        )*
+    };
+}
+
+impl Builder {
+    #[rustfmt::skip]
+    impl_sampled_texture!(
+        SampledITexture1D, sampled_itexture1d,
+        SampledITexture2D, sampled_itexture2d,
+        SampledITexture2DMs, sampled_itexture2d_ms,
+        SampledITexture2DArray, sampled_itexture2d_array,
+        SampledITexture2DMsArray, sampled_itexture2d_ms_array,
+        SampledITextureCube, sampled_itexture_cube,
+        SampledITextureCubeArray, sampled_itexture_cube_array,
+
+        SampledUTexture1D, sampled_utexture1d,
+        SampledUTexture1DArray, sampled_utexture1d_array,
+        SampledUTexture2D, sampled_utexture2d,
+        SampledUTexture2DMs, sampled_utexture2d_ms,
+        SampledUTexture2DArray, sampled_utexture2d_array,
+        SampledUTexture2DMsArray, sampled_utexture2d_ms_array,
+        SampledUTextureCube, sampled_utexture_cube,
+        SampledUTextureCubeArray, sampled_utexture_cube_array,
+
+        SampledTexture1D, sampled_texture1d,
+        SampledTexture1DArray, sampled_texture1d_array,
+        SampledTexture2D, sampled_texture2d,
+        SampledTexture2DMs, sampled_texture2d_ms,
+        SampledTexture2DArray, sampled_texture2d_array,
+        SampledTexture2DMsArray, sampled_texture2d_ms_array,
+        SampledTextureCube, sampled_texture_cube,
+        SampledTextureCubeArray, sampled_texture_cube_array,
+
+        SampledDTexture1D, sampled_dtexture1d,
+        SampledDTexture1DArray, sampled_dtexture1d_array,
+        SampledDTexture2D, sampled_dtexture2d,
+        SampledDTexture2DMs, sampled_dtexture2d_ms,
+        SampledDTexture2DArray, sampled_dtexture2d_array,
+        SampledDTexture2DMsArray, sampled_dtexture2d_ms_array,
+        SampledDTextureCube, sampled_dtexture_cube,
+        SampledDTextureCubeArray, sampled_dtexture_cube_array,
+    );
+}
+
+pub fn combine<D: AsDimension, T: GTexture<D>>(texture: &T, sampler: Sampler) -> T::Sampler {
+    let mut inner = texture.b().lock().unwrap();
+    if let Some(scope) = &mut inner.scope {
+        let new_id = scope.get_new_id();
+
+        scope.push_instruction(Instruction::Combine(OpCombine {
+            tex_ty: T::TEXTURE_TY,
+            texture: texture.texture_id(),
+            sampler: sampler.id,
+            store: new_id,
+        }));
+        
+        drop(scope);
+        drop(inner);
+        T::Sampler::from_combine(new_id, Arc::clone(&texture.b()))
+    } else {
+        panic!("Cannot combine texture and sampler when not in function");
+    }
+}
+
+pub fn sample<'a, 'b, D: AsDimension, S: SampledGTexture<D>>(sampled_texture: &'a S, coord: D::Coordinate<'b>) -> S::Sample<'a> {
+    let mut inner = sampled_texture.b().lock().unwrap();
+    if let Some(scope) = &mut inner.scope {
+        let new_id = scope.get_new_id();
+
+        let coord_id = coord.id(&mut **scope);
+
+        scope.push_instruction(Instruction::Sample(OpSample {
+            tex_ty: S::Texture::TEXTURE_TY,
+            sampled_texture: sampled_texture.sampled_texture_id(),
+            coordinate: (coord_id, D::Coordinate::TY),
+            store: (new_id, S::Sample::TY),
+            explict_lod: false,
+        }));
+        
+        drop(scope);
+        drop(inner);
+
+        S::Sample::from_id(new_id, sampled_texture.b())
+    } else {
+        panic!("Cannot combine texture and sampler when not in function");
+    }
+}
+
+// loop
+// ================================================================================
+// ================================================================================
+// ================================================================================
+
+// pub fn loop_while<F: FnOnce()>(b: Builder, f: F) {
+
+// }
+
+pub struct IfChain<'a> {
+    builder: &'a Arc<Mutex<BuilderInner>>,
+    then: Arc<Mutex<Option<Either<Box<OpIf>, OpElse>>>>,
+}
+
+pub fn spv_if<'a, F: FnOnce()>(b: Bool<'a>, f: F) -> IfChain<'a> {
+    let mut inner = b.b.lock().unwrap();
+
+    if let Some(scope) = inner.scope.take() {
+        let if_scope = IfScope {
+            instructions: Vec::new(),
+            outer: scope,
+        };
+
+        inner.scope = Some(Box::new(if_scope));
+
+        drop(inner);
+
+        f();
+        
+        let mut inner = b.b.lock().unwrap();
+
+        let mut if_scope = if let Ok(t) = inner.scope.take().unwrap().downcast::<IfScope>() {
+            t
+        } else {
+            unreachable!()
+        };
+
+        let then = Arc::default();
+
+        if_scope.outer.push_instruction(crate::Instruction::If(OpIf {
+            condition: b.id,
+            instructions: if_scope.instructions,
+            then: Arc::clone(&then),
+        }));
+
+        inner.scope = Some(if_scope.outer);
+
+        IfChain {
+            builder: b.b,
+            then,
+        }
+    } else {
+        panic!("Cannot branch if not in function");
+    }
+}
+
+impl<'a> IfChain<'a> {
+    pub fn spv_else_if<'b, F: FnOnce()>(self, b: Bool<'b>, f: F) -> IfChain<'a> {
+        let mut inner = b.b.lock().unwrap();
+
+        if let Some(scope) = inner.scope.take() {
+            let if_scope = IfScope {
+                instructions: Vec::new(),
+                outer: scope,
+            };
+
+            inner.scope = Some(Box::new(if_scope));
+
+            drop(inner);
+
+            f();
+
+            let mut inner = b.b.lock().unwrap();
+            
+            let if_scope = if let Ok(t) = inner.scope.take().unwrap().downcast::<IfScope>() {
+                t
+            } else {
+                unreachable!()
+            };
+
+            let new_then = Arc::default();
+
+            let mut then = self.then.lock().unwrap();
+            *then = Some(Left(Box::new(OpIf {
+                condition: b.id,
+                instructions: if_scope.instructions,
+                then: Arc::clone(&new_then),
+            })));
+
+            inner.scope = Some(if_scope.outer);
+
+            IfChain {
+                builder: self.builder,
+                then: new_then,
+            }
+        } else {
+            panic!("Cannot branch if not in function");
+        }
+    }
+
+    pub fn spv_else<F: FnOnce()>(self, f: F) {
+        let mut inner = self.builder.lock().unwrap();
+
+        if let Some(scope) = inner.scope.take() {
+            let if_scope = IfScope {
+                instructions: Vec::new(),
+                outer: scope,
+            };
+
+            inner.scope = Some(Box::new(if_scope));
+
+            drop(inner);
+
+            f();
+
+            let mut inner = self.builder.lock().unwrap();
+            
+            let if_scope = if let Ok(t) = inner.scope.take().unwrap().downcast::<IfScope>() {
+                t
+            } else {
+                unreachable!()
+            };
+
+            let mut then = self.then.lock().unwrap();
+            *then = Some(Right(OpElse {
+                instructions: if_scope.instructions,
+            }));
+
+            inner.scope = Some(if_scope.outer);
+        } else {
+            panic!("Cannot branch if not in function");
         }
     }
 }

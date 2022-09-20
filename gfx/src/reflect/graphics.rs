@@ -115,9 +115,9 @@ impl std::fmt::Debug for ReflectedGraphics {
 impl ReflectedGraphics {
     pub fn from_builders(
         device: &gpu::Device,
-        vertex: &spv::VertexBuilder,
-        geometry: Option<&spv::GeometryBuilder>,
-        fragment: Option<&spv::FragmentBuilder>,
+        vertex: &spv::Builder,
+        geometry: Option<&spv::Builder>,
+        fragment: Option<&spv::Builder>,
         rasterizer: gpu::Rasterizer,
         blend_states: &[gpu::BlendState],
         depth_stencil: Option<gpu::DepthStencilState>,
@@ -131,19 +131,20 @@ impl ReflectedGraphics {
         let mut push_constant_names = HashMap::new();
 
         if let Some(geometry) = &geometry {
-            super::spirv_raw::check_stage_compatibility(&vertex, geometry)?;
+            super::spirv_raw::check_stage_compatibility(&vertex, spv::ShaderStage::Vertex, geometry, spv::ShaderStage::Geometry)?;
 
             if let Some(fragment) = &fragment {
-                super::spirv_raw::check_stage_compatibility(geometry, fragment)?;
+                super::spirv_raw::check_stage_compatibility(geometry, spv::ShaderStage::Geometry, fragment, spv::ShaderStage::Fragment)?;
             }
         } else {
             if let Some(fragment) = &fragment {
-                super::spirv_raw::check_stage_compatibility(&vertex, fragment)?;
+                super::spirv_raw::check_stage_compatibility(&vertex, spv::ShaderStage::Vertex, fragment, spv::ShaderStage::Fragment)?;
             }
         }
 
         super::spirv_raw::process_shader(
             &vertex,
+            spv::ShaderStage::Vertex,
             &mut descriptor_set_layouts,
             &mut descriptor_set_names,
             &mut push_constants,
@@ -161,6 +162,7 @@ impl ReflectedGraphics {
             .map(|g| {
                 super::spirv_raw::process_shader(
                     &g,
+                    spv::ShaderStage::Geometry,
                     &mut descriptor_set_layouts,
                     &mut descriptor_set_names,
                     &mut push_constants,
@@ -179,6 +181,7 @@ impl ReflectedGraphics {
             .map(|f| {
                 super::spirv_raw::process_shader(
                     &f,
+                    spv::ShaderStage::Fragment,
                     &mut descriptor_set_layouts,
                     &mut descriptor_set_names,
                     &mut push_constants,

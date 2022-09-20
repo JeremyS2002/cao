@@ -1,4 +1,3 @@
-use spv::prelude::*;
 
 use winit::{
     event::{Event, WindowEvent},
@@ -69,26 +68,22 @@ fn main() {
         .unwrap();
 
     let vertex_spv = {
-        let builder = spv::VertexBuilder::new();
+        let b = spv::Builder::new();
 
-        let in_pos = builder.in_vec2(0, false, Some("in_pos"));
-        let in_col = builder.in_vec3(1, false, Some("in_color"));
+        let in_pos = b.in_vec2(0, "in_pos");
+        let in_col = b.in_vec3(1, "in_color");
 
-        let position = builder.position();
-        let out_col = builder.out_vec3(0, false, Some("out_color"));
+        let vk_pos = b.vk_position();
+        let out_col = b.out_vec3(0, "out_color");
 
-        builder.main(|b| {
-            let pos = b.load_in(in_pos);
-            let x = pos.x(b);
-            let y = pos.y(b);
-            let pos = b.vec4(&x, &y, &0.0, &1.0);
-            b.store_out(position, pos);
+        b.entry(spv::ShaderStage::Vertex, "main", || {
+            let pos = in_pos.load();
+            vk_pos.store(b.vec4(&pos.x(), &pos.y(), &0.0, &1.0));
 
-            let col = b.load_in(in_col);
-            b.store_out(out_col, col);
+            out_col.store(in_col.load());
         });
 
-        builder.compile()
+        b.compile()
     };
 
     let vertex_shader = device
@@ -100,18 +95,17 @@ fn main() {
         .unwrap();
 
     let fragment_spv = {
-        let builder = spv::FragmentBuilder::new();
+        let b = spv::Builder::new();
 
-        let in_col = builder.in_vec3(0, false, Some("in_color"));
+        let in_col = b.in_vec3(0, "in_col");
 
-        let out_col = builder.out_vec3(0, false, Some("out_color"));
+        let out_col = b.out_vec3(0, "out_col");
 
-        builder.main(|b| {
-            let col = b.load_in(in_col);
-            b.store_out(out_col, col);
+        b.entry(spv::ShaderStage::Fragment, "main", || {
+            out_col.store(in_col.load());
         });
 
-        builder.compile()
+        b.compile()
     };
 
     let fragment_shader = device

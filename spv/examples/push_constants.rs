@@ -1,4 +1,3 @@
-use spv::prelude::*;
 
 use winit::{
     event::{Event, WindowEvent},
@@ -15,26 +14,14 @@ pub struct Vertex {
 unsafe impl bytemuck::Pod for Vertex {}
 unsafe impl bytemuck::Zeroable for Vertex {}
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, spv::AsStructType)]
 #[repr(C)]
 pub struct PushConstants {
-    pub color: [f32; 4],
+    pub color: glam::Vec4,
 }
 
-unsafe impl bytemuck::Pod for PushConstants {}
-unsafe impl bytemuck::Zeroable for PushConstants {}
-
-unsafe impl spv::AsSpvStruct for PushConstants {
-    const DESC: spv::StructDesc = spv::StructDesc {
-        name: "PushConstants",
-        names: &["color"],
-        fields: &[spv::DataType::Primitive(spv::PrimitiveType::Vec4)],
-    };
-
-    fn fields<'a>(&'a self) -> Vec<&'a dyn spv::AsData> {
-        vec![&self.color]
-    }
-}
+unsafe impl bytemuck::Pod for PushConstants { }
+unsafe impl bytemuck::Zeroable for PushConstants { }
 
 fn main() {
     let instance = gpu::Instance::new(&gpu::InstanceDesc::default()).unwrap();
@@ -78,21 +65,18 @@ fn main() {
         .unwrap();
 
     let vertex_spv = {
-        let builder = spv::VertexBuilder::new();
+        let b = spv::Builder::new();
 
-        let in_pos = builder.in_vec2(0, false, Some("in_pos"));
+        let in_pos = b.in_vec2(0, "in_pos");
 
-        let position = builder.position();
+        let vk_pos = b.vk_position();
 
-        builder.main(|b| {
-            let pos = b.load_in(in_pos);
-            let x = pos.x(b);
-            let y = pos.y(b);
-            let pos = b.vec4(&x, &y, &0.0, &1.0);
-            b.store_out(position, pos);
+        b.entry(spv::ShaderStage::Vertex, "main", || {
+            let pos = in_pos.load();
+            vk_pos.store(b.vec4(&pos.x(), &pos.y(), &0.0, &1.0));
         });
 
-        builder.compile()
+        b.compile()
     };
     let vertex_shader = device
         .create_shader_module(&gpu::ShaderModuleDesc {
@@ -103,20 +87,19 @@ fn main() {
         .unwrap();
 
     let fragment_spv = {
-        let builder = spv::FragmentBuilder::new();
+        let b = spv::Builder::new();
 
-        builder.push_constant::<spv::Struct<PushConstants>>(None, Some("p_data"));
+        let constants = b.push_constants::<SpvPushConstants>(Some("p_data"));
 
-        let out_col = builder.out_vec4(0, false, Some("out_color"));
+        let out_col = b.out_vec4(0, "out_color");
 
-        builder.main(|b| {
-            // load the field
-            let col = b.load_push_constant_field::<spv::Vec4>("color");
-            // store composite into output
-            b.store_out(out_col, col);
+        b.entry(spv::ShaderStage::Fragment, "main", || {
+            let constants = constants.load();
+            let col = constants.color();
+            out_col.store(col);
         });
 
-        builder.compile()
+        b.compile()
     };
 
     let fragment_shader = device
@@ -206,7 +189,7 @@ fn main() {
     let mut resized = false;
 
     let mut constants = PushConstants {
-        color: [0.0, 0.0, 0.0, 1.0],
+        color: glam::vec4(0.0, 0.0, 0.0, 1.0),
     };
 
     let start = std::time::Instant::now();
@@ -259,12 +242,12 @@ fn main() {
                 let mut elapsed = start.elapsed().as_secs_f32();
                 elapsed /= 5.0;
 
-                constants.color = [
+                constants.color = glam::vec4(
                     elapsed.cos().abs(),
                     elapsed.sin().abs(),
                     (elapsed.cos() * elapsed.sin()).abs(),
                     1.0,
-                ];
+                );
 
                 let view = match swapchain.acquire(!0) {
                     Ok((view, _)) => view,
