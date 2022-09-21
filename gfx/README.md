@@ -1,6 +1,6 @@
 # gfx
 
-# examples
+# Examples
 run from inside `cao/gfx` (to avoid path errors in loading files)
 |Name                       |Command                      |Description                                                                                                            |
 |---------------------------|-----------------------------|-----------------------------------------------------------------------------------------------------------------------|
