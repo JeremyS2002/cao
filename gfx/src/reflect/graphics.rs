@@ -131,20 +131,20 @@ impl ReflectedGraphics {
         let mut push_constant_names = HashMap::new();
 
         if let Some(geometry) = &geometry {
-            super::spirv_raw::check_stage_compatibility(&vertex, spv::ShaderStage::Vertex, geometry, spv::ShaderStage::Geometry)?;
+            super::spirv_raw::check_stage_compatibility(&vertex, spv::Stage::Vertex, geometry, spv::Stage::Geometry)?;
 
             if let Some(fragment) = &fragment {
-                super::spirv_raw::check_stage_compatibility(geometry, spv::ShaderStage::Geometry, fragment, spv::ShaderStage::Fragment)?;
+                super::spirv_raw::check_stage_compatibility(geometry, spv::Stage::Geometry, fragment, spv::Stage::Fragment)?;
             }
         } else {
             if let Some(fragment) = &fragment {
-                super::spirv_raw::check_stage_compatibility(&vertex, spv::ShaderStage::Vertex, fragment, spv::ShaderStage::Fragment)?;
+                super::spirv_raw::check_stage_compatibility(&vertex, spv::Stage::Vertex, fragment, spv::Stage::Fragment)?;
             }
         }
 
         super::spirv_raw::process_shader(
             &vertex,
-            spv::ShaderStage::Vertex,
+            spv::Stage::Vertex,
             &mut descriptor_set_layouts,
             &mut descriptor_set_names,
             &mut push_constants,
@@ -162,7 +162,7 @@ impl ReflectedGraphics {
             .map(|g| {
                 super::spirv_raw::process_shader(
                     &g,
-                    spv::ShaderStage::Geometry,
+                    spv::Stage::Geometry,
                     &mut descriptor_set_layouts,
                     &mut descriptor_set_names,
                     &mut push_constants,
@@ -181,7 +181,7 @@ impl ReflectedGraphics {
             .map(|f| {
                 super::spirv_raw::process_shader(
                     &f,
-                    spv::ShaderStage::Fragment,
+                    spv::Stage::Fragment,
                     &mut descriptor_set_layouts,
                     &mut descriptor_set_names,
                     &mut push_constants,

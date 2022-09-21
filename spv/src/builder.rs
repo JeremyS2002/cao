@@ -96,7 +96,7 @@ pub struct BuilderInner {
     pub(crate) sampled_textures: Vec<SampledTextureData>,
     pub(crate) samplers: Vec<SamplerData>,
     pub(crate) functions: HashMap<usize, FuncData>,
-    pub(crate) entry_points: HashMap<crate::ShaderStage, usize>,
+    pub(crate) entry_points: HashMap<crate::Stage, usize>,
     pub(crate) scope: Option<Box<dyn crate::Scope>>,
 }
 

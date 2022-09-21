@@ -82,19 +82,19 @@ pub(crate) fn combine_descriptor_set_layouts(
 
 pub(crate) fn process_shader(
     builder: &spv::Builder,
-    stage: spv::ShaderStage,
+    stage: spv::Stage,
     descriptor_set_layouts: &mut HashMap<u32, HashMap<u32, gpu::DescriptorLayoutEntry>>,
     descriptor_set_names: &mut HashMap<String, (usize, usize)>,
     push_constants: &mut Vec<gpu::PushConstantRange>,
     push_constant_names: &mut HashMap<String, (u32, gpu::ShaderStages, std::any::TypeId)>,
 ) {
     let stages = match stage {
-        spv::ShaderStage::Vertex => gpu::ShaderStages::VERTEX,
-        spv::ShaderStage::TessellationEval => gpu::ShaderStages::TESSELLATION_EVAL,
-        spv::ShaderStage::TessellationControl => gpu::ShaderStages::TESSELLATION_CONTROL,
-        spv::ShaderStage::Geometry => gpu::ShaderStages::GEOMETRY,
-        spv::ShaderStage::Fragment => gpu::ShaderStages::FRAGMENT,
-        spv::ShaderStage::Compute => gpu::ShaderStages::COMPUTE,
+        spv::Stage::Vertex => gpu::ShaderStages::VERTEX,
+        spv::Stage::TessellationEval => gpu::ShaderStages::TESSELLATION_EVAL,
+        spv::Stage::TessellationControl => gpu::ShaderStages::TESSELLATION_CONTROL,
+        spv::Stage::Geometry => gpu::ShaderStages::GEOMETRY,
+        spv::Stage::Fragment => gpu::ShaderStages::FRAGMENT,
+        spv::Stage::Compute => gpu::ShaderStages::COMPUTE,
     };
 
     let mut spv_descriptor_set_layouts = HashMap::new();
@@ -169,12 +169,12 @@ pub(crate) fn process_shader(
 
     if let Some(p) = builder.get_push_constants() {
         let stages = match stage {
-            spv::ShaderStage::Vertex => gpu::ShaderStages::VERTEX,
-            spv::ShaderStage::TessellationEval => gpu::ShaderStages::TESSELLATION_EVAL,
-            spv::ShaderStage::TessellationControl => gpu::ShaderStages::TESSELLATION_CONTROL,
-            spv::ShaderStage::Geometry => gpu::ShaderStages::GEOMETRY,
-            spv::ShaderStage::Fragment => gpu::ShaderStages::FRAGMENT,
-            spv::ShaderStage::Compute => gpu::ShaderStages::COMPUTE,
+            spv::Stage::Vertex => gpu::ShaderStages::VERTEX,
+            spv::Stage::TessellationEval => gpu::ShaderStages::TESSELLATION_EVAL,
+            spv::Stage::TessellationControl => gpu::ShaderStages::TESSELLATION_CONTROL,
+            spv::Stage::Geometry => gpu::ShaderStages::GEOMETRY,
+            spv::Stage::Fragment => gpu::ShaderStages::FRAGMENT,
+            spv::Stage::Compute => gpu::ShaderStages::COMPUTE,
         };
 
         let new = gpu::PushConstantRange {
@@ -469,9 +469,9 @@ fn process_push_constant_ty(
 
 pub(crate) fn check_stage_compatibility(
     src: &spv::Builder,
-    src_stage: spv::ShaderStage,
+    src_stage: spv::Stage,
     dst: &spv::Builder,
-    dst_stage: spv::ShaderStage,
+    dst_stage: spv::Stage,
 ) -> Result<(), error::BuilderConfigError> {
     let src_o = src.get_outputs();
 

@@ -62,9 +62,9 @@ fn main() {
 
         let vk_pos = b.vk_position();
 
-        b.entry(spv::ShaderStage::Vertex, "main", || {
+        b.entry(spv::Stage::Vertex, "main", || {
             let pos = in_pos.load();
-            vk_pos.store(b.vec4(&pos.x(), &pos.y(), &0.0, &1.0));
+            vk_pos.store(b.vec4(pos.x(), pos.y(), 0.0, 1.0));
         });
 
         b.compile()
@@ -84,13 +84,13 @@ fn main() {
 
         let out_col = b.out_vec4(0, "out_color");
 
-        b.entry(spv::ShaderStage::Fragment, "main", || {
+        b.entry(spv::Stage::Fragment, "main", || {
             let data = push_data.load();
 
-            spv::spv_if(data.eq(&0), || {
-                out_col.store(b.vec4(&0.0, &1.0, &0.0, &1.0));
+            spv::spv_if(data.eq(0), || {
+                out_col.store(b.vec4(0.0, 1.0, 0.0, 1.0));
             }).spv_else(|| {
-                out_col.store(b.vec4(&1.0, &0.0, &0.0, &1.0));
+                out_col.store(b.vec4(1.0, 0.0, 0.0, 1.0));
             });
         });
 

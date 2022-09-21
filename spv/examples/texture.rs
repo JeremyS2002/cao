@@ -98,9 +98,9 @@ fn main() {
         let vk_pos = b.vk_position();
         let out_uv = b.out_vec2(0, "out_uv");
 
-        b.entry(spv::ShaderStage::Vertex, "main", || {
+        b.entry(spv::Stage::Vertex, "main", || {
             let pos = in_pos.load();
-            vk_pos.store(b.vec4(&pos.x(), &pos.y(), &0.0, &1.0));
+            vk_pos.store(b.vec4(pos.x(), pos.y(), 0.0, 1.0));
 
             out_uv.store(in_uv.load());
         });
@@ -126,7 +126,7 @@ fn main() {
         let texture = b.texture2d(0, 0, Some("u_color"));
         let sampler = b.sampler(0, 1, Some("u_sampler"));
 
-        b.entry(spv::ShaderStage::Fragment, "main", || {
+        b.entry(spv::Stage::Fragment, "main", || {
             let uv = in_uv.load();
             let combined = spv::combine(&texture, sampler);
             let col = spv::sample(&combined, uv);

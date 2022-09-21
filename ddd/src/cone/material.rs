@@ -143,16 +143,16 @@ impl<'a> MaterialBuilder<'a> {
 
         let b = &self.vertex;
 
-        self.vertex.entry(spv::ShaderStage::Vertex, "main", || {
+        self.vertex.entry(spv::Stage::Vertex, "main", || {
             let camera = camera.load();
             let projection = camera.projection();
             let view = camera.view();
 
             let idx = instance_idx.load();
 
-            let model = instances.load_element(&idx).model();
+            let model = instances.load_element(idx).model();
             let pos = in_pos.load();
-            let world_pos = model * b.vec4(&pos.x(), &pos.y(), &pos.z(), &1.0);
+            let world_pos = model * b.vec4(pos.x(), pos.y(), pos.z(), 1.0);
             out_world_pos.store(world_pos.xyz());
             let view_pos = view * world_pos;
             out_view_pos.store(view_pos.xyz());
@@ -163,7 +163,7 @@ impl<'a> MaterialBuilder<'a> {
             let model_x = model.col(0).xyz();
             let model_y = model.col(1).xyz();
             let model_z = model.col(2).xyz();
-            let model3 = b.mat3(&model_x, &model_y, &model_z);
+            let model3 = b.mat3(model_x, model_y, model_z);
             let normal = model3 * normal;
             out_normal.store(normal.normalized());
 
@@ -213,17 +213,17 @@ impl<'a> MaterialBuilder<'a> {
 
         let b = &self.vertex;
 
-        self.vertex.entry(spv::ShaderStage::Vertex, "main", || {
+        self.vertex.entry(spv::Stage::Vertex, "main", || {
             let camera = camera.load();
             let projection = camera.projection();
             let view = camera.view();
 
             let idx = instance_idx.load();
 
-            let model = instances.load_element(&idx).model();
+            let model = instances.load_element(idx).model();
             
             let pos = in_pos.load();
-            let world_pos = model * b.vec4(&pos.x(), &pos.y(), &pos.z(), &1.0);
+            let world_pos = model * b.vec4(pos.x(), pos.y(), pos.z(), 1.0);
             out_world_pos.store(world_pos.xyz());
             let view_pos = view * world_pos;
             out_view_pos.store(view_pos.xyz());
@@ -231,11 +231,11 @@ impl<'a> MaterialBuilder<'a> {
             vk_pos.store(screen_pos);
 
             let tangent = in_tangent.load();
-            let tangent = (model * b.vec4(&tangent.x(), &tangent.y(), &tangent.z(), &0.0)).xyz().normalized();
+            let tangent = (model * b.vec4(tangent.x(), tangent.y(), tangent.z(), 0.0)).xyz().normalized();
             let normal = in_normal.load();
-            let normal = (model * b.vec4(&normal.x(), &normal.y(), &normal.z(), &0.0)).xyz().normalized();
-            let tangent = (tangent - (tangent.dot(&normal) * normal)).normalized();
-            let bitangent = normal.cross(&tangent);
+            let normal = (model * b.vec4(normal.x(), normal.y(), normal.z(), 0.0)).xyz().normalized();
+            let tangent = (tangent - (tangent.dot(normal) * normal)).normalized();
+            let bitangent = normal.cross(tangent);
 
             out_t.store(tangent);
             out_b.store(bitangent);
@@ -302,7 +302,7 @@ impl<'a> MaterialBuilder<'a> {
 
         let b = &self.fragment;
 
-        b.entry(spv::ShaderStage::Fragment, "main", || {
+        b.entry(spv::Stage::Fragment, "main", || {
             let params = params.load();
             self.world_pos.store(world_pos.load());
             self.view_pos.store(view_pos.load());
@@ -312,8 +312,8 @@ impl<'a> MaterialBuilder<'a> {
             self.metallic.store(params.roughness());
             let subsurface = params.subsurface();
             let tmp = (-1.0 / subsurface.xyz()).exp();
-            self.subsurface.store(b.vec4(&tmp.x(), &tmp.y(), &tmp.z(), &subsurface.w()));
-            self.uv.store(b.vec2(&0.0, &0.0));
+            self.subsurface.store(b.vec4(tmp.x(), tmp.y(), tmp.z(), subsurface.w()));
+            self.uv.store(b.vec2(0.0, 0.0));
         });
     }
 
@@ -331,7 +331,7 @@ impl<'a> MaterialBuilder<'a> {
         tmp = (-1.0 / tmp).exp();
         let subsurface = glam::vec4(tmp.x, tmp.y, tmp.z, constants.subsurface.w);
         let b = &self.fragment;
-        b.entry(spv::ShaderStage::Fragment, "main", || {
+        b.entry(spv::Stage::Fragment, "main", || {
             self.world_pos.store(world_pos.load());
             self.view_pos.store(view_pos.load());
             self.normal.store(normal.load());
@@ -339,7 +339,7 @@ impl<'a> MaterialBuilder<'a> {
             self.roughness.store(b.const_float(constants.roughness));
             self.metallic.store(b.const_float(constants.metallic));
             self.subsurface.store(b.const_vec4(subsurface));
-            self.uv.store(b.vec2(&0.0, &0.0));
+            self.uv.store(b.vec2(0.0, 0.0));
         });
     }
 
@@ -402,7 +402,7 @@ impl<'a> MaterialBuilder<'a> {
 
         let b = &self.fragment;
 
-        b.entry(spv::ShaderStage::Fragment, "main", || {
+        b.entry(spv::Stage::Fragment, "main", || {
             self.world_pos.store(world_pos.load());
             self.view_pos.store(view_pos.load());
             let uv = uv.load();
@@ -416,11 +416,11 @@ impl<'a> MaterialBuilder<'a> {
                     let tangent = t.load();
                     let bitangent = bi.load();
                     let normal = n.load();
-                    let tbn = b.mat3(&tangent, &bitangent, &normal);
+                    let tbn = b.mat3(tangent, bitangent, normal);
                     let combined = spv::combine(&map, sampler);
                     let mut sampled = spv::sample(&combined, uv).xyz();
                     sampled *= 2.0;
-                    sampled -= b.vec3(&1.0, &1.0, &1.0);
+                    sampled -= b.vec3(1.0, 1.0, 1.0);
                     self.normal.store(tbn * sampled);
                 }
             };
@@ -453,11 +453,11 @@ impl<'a> MaterialBuilder<'a> {
                 let combined = spv::combine(&subsurface, sampler);
                 let subsurface = spv::sample(&combined, uv);
                 let tmp = (-1.0 / subsurface.xyz()).exp();
-                self.subsurface.store(b.vec4(&tmp.x(), &tmp.y(), &tmp.z(), &subsurface.w()));
+                self.subsurface.store(b.vec4(tmp.x(), tmp.y(), tmp.z(), subsurface.w()));
             } else {
                 let subsurface = b.const_vec4(defaults.subsurface);
                 let tmp = (-1.0 / subsurface.xyz()).exp();
-                self.subsurface.store(b.vec4(&tmp.x(), &tmp.y(), &tmp.z(), &subsurface.w()));
+                self.subsurface.store(b.vec4(tmp.x(), tmp.y(), tmp.z(), subsurface.w()));
             };
             
         });

@@ -1,3 +1,127 @@
+//! # spv
+//! 
+//! Build spir-v module at runtime in rust code with rust like syntax
+//! If your shaders are know at compile time it's better and easier to include pre-compiled spir-v but that isn't always possible
+//! 
+//! # Motivation
+//! 
+//! For example the motivation for writing this for me was user defined materials which obviously requires building shaders at runtime.
+//! One option is giving compilete control and just accepting user supplied spir-v (or more realistically compiling glsl at runtime), 
+//! however I wanted to offer pre defined flexible materials that could be created like:
+//! ```
+//! let material = Material::new(MaterialDesc {
+//!     albedo: Left(albedo_texture),
+//!     metallic: Right(0.0),
+//!     roughness: Left(roughness_texture),
+//!     subsurface: Right(vec4(0.0)),
+//! })
+//! ```
+//! Implementing this with formatting glsl and then compiling became overly complex rapidly and using [rspirv](https://crates.io/crates/rspirv)
+//! directly proved too error prone and tedious. This lead to the creation of this crate which is essentially a wrapper around [`rspirv::dr::Builder`]
+//! 
+//! # Example
+//! 
+//! Build a vertex module that takes as input position, normal, uv as well as uniform view projection and model matrices and transforms them to pass to the fragment shader.
+//! 
+//! ```
+//! let vertex_spv: Vec<u32> = {
+//!     let b = spv::Builder::new();
+//! 
+//!     let in_pos = b.in_vec3(0, "in_pos");
+//!     let in_normal = b.in_vec3(1, "in_normal");
+//!     let in_uv = b.in_vec2(2, "in_uv");
+//! 
+//!     let vk_pos = b.vk_position();
+//!     
+//!     let out_pos = b.out_vec3(0, "out_pos");
+//!     let out_normal = b.out_vec3(1, "out_normal");
+//!     let out_uv = b.out_vec2(2, "out_uv");
+//! 
+//!     let u_model = b.uniform::<spv::Mat4>(0, 0, Some("u_model"));
+//!     let u_view = b.uniform::<spv::Mat4>(0, 1, Some("u_view"));
+//!     let u_projection = b.uniform::<spv::Mat4>(0, 2, Some("u_projection"));
+//! 
+//!     b.entry(spv::Stage::Vertex, "main", || {
+//!         let pos = in_pos.load();
+//!         let normal = in_normal.load();
+//!         let uv = in_uv.load();
+//! 
+//!         let projection = u_projection.load();
+//!         let view = u_view.load();
+//!         let model = u_model.load();
+//! 
+//!         let world_pos = model * b.vec4(pos.x(), pos.y(), pos.z(), 1.0);
+//!         out_pos.store(world_pos.xyz());
+//!         vk_pos.store(projection * view * world_pos);
+//!         
+//!         let model3: spv::Mat3 = model.into();
+//!         out_normal.store(model3 * normal);
+//! 
+//!         out_uv.store(uv);
+//!     });
+//! 
+//!     b.compile();
+//! };
+//! ```
+//! 
+//! Build a fragment module that takes as input world_pos, normal, uv as well as texture and light data and outputs color
+//! 
+//! ```
+//! let fragment_spv: Vec<u32> = {
+//!     let b = spv::Builder::new();
+//! 
+//!     let in_pos = b.in_vec3(0, "in_pos");
+//!     let in_normal = b.in_vec3(1, "in_normal");
+//!     let in_uv = b.in_vec2(2, "in_uv");
+//! 
+//!     let out_color = b.out_vec4(0, "out_color");
+//! 
+//!     let u_light = b.uniform::<spv::Vec3>(0, 0, Some("u_light"))
+//!     
+//!     let u_texture = b.texture2d(0, 1, Some("u_texture"));
+//!     let u_sampler = b.sampler(0, 2, Some("u_sampler"));
+//! 
+//!     b.entry(spv::Stage::Fragment, "main", || {
+//!         let pos = in_pos.load();
+//!         let normal = in_normal.load();
+//!         let uv = in_uv.load();
+//! 
+//!         let light_pos = u_light.load();
+//! 
+//!         let mut to_light = light_pos - pos;
+//!         let dist = to_light.length();
+//!         to_light.normalize();
+//! 
+//!         let attenuation = 1.0 / (dist * dist);
+//!         
+//!         let diffuse = normal.dot(to_light); 
+//! 
+//!         let combined = spv::combine(&u_texture, u_sampler);
+//!         let mut color = spv::sample(&combined, uv);
+//!         color *= attenuation;
+//!         color *= diffuse;
+//!         
+//!         out_color.store(color);
+//!     })
+//! };
+//! ```
+//! 
+//! See the examples for specifc features usage of this crate
+//! 
+//! # Things to be aware of
+//! 
+//! - code like ```let mut x = b.float(0.0); x = b.float(1.0);``` doesn't do exactly what it appears to, from first glance it would look like it
+//! creates a variable named x, assigns a value of 0 to it then assigns a value of 1. However in the generated spir-v module it will actually generate
+//! two variables one with value 0 and one with value 1. Most times this isn't important but if when writing loops the condition is assigned to as before 
+//! it won't change the value checked for each iteration, instead creating a new variable each time through the loop which will result in infinity loops on 
+//! running the resulting shader. The correct way of assigning to variables is to use the store method.
+//! - comparisons are peformed with the methods eq, neq, lt, gt, le, ge not the rust traits in [`std::cmp`]
+//! - boolean operations of && and || are implemented on the bit operations & and | instead due to requirements of the rust std library traits
+//! - Conditions to be evaulated in shader use the function [`spv_if`] using normal if statements will obviously be evaluated on the cpu
+//! - Storage buffers are all runtime arrays but this is subject to change
+//! 
+//! This library is not at all usable in it's current state, while it does basically work, everything is subject to change and it is far too untested for me 
+//! to recommend anybody use it. (There are definitly some nasty bugs I haven't found yet)
 
 pub use either;
 use either::*;
@@ -43,7 +167,7 @@ pub use glam::DMat4 as GlamDMat4;
 pub use spv_derive::AsStructType;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum ShaderStage {
+pub enum Stage {
     Vertex,
     TessellationEval,
     TessellationControl,
@@ -52,10 +176,10 @@ pub enum ShaderStage {
     Compute,
 }
 
-impl ShaderStage {
+impl Stage {
     pub(crate) fn specialize(&self, b: &mut RSpirvBuilder, spv_fn: u32) {
         match self {
-            ShaderStage::Fragment => {
+            Stage::Fragment => {
                 b.execution_mode(spv_fn, rspirv::spirv::ExecutionMode::OriginUpperLeft, &[]);
             },
             _ => (),
@@ -64,12 +188,12 @@ impl ShaderStage {
 
     pub(crate) fn rspirv(&self) -> rspirv::spirv::ExecutionModel {
         match self {
-            ShaderStage::Vertex => rspirv::spirv::ExecutionModel::Vertex,
-            ShaderStage::TessellationEval => rspirv::spirv::ExecutionModel::TessellationEvaluation,
-            ShaderStage::TessellationControl => rspirv::spirv::ExecutionModel::TessellationControl,
-            ShaderStage::Geometry => rspirv::spirv::ExecutionModel::Geometry,
-            ShaderStage::Fragment => rspirv::spirv::ExecutionModel::Fragment,
-            ShaderStage::Compute => rspirv::spirv::ExecutionModel::GLCompute,
+            Stage::Vertex => rspirv::spirv::ExecutionModel::Vertex,
+            Stage::TessellationEval => rspirv::spirv::ExecutionModel::TessellationEvaluation,
+            Stage::TessellationControl => rspirv::spirv::ExecutionModel::TessellationControl,
+            Stage::Geometry => rspirv::spirv::ExecutionModel::Geometry,
+            Stage::Fragment => rspirv::spirv::ExecutionModel::Fragment,
+            Stage::Compute => rspirv::spirv::ExecutionModel::GLCompute,
         }
     }
 }
@@ -91,7 +215,7 @@ impl Builder {
         &self.inner
     }
 
-    pub fn get_entry_name(&self, entry: ShaderStage) -> Option<&'static str> {
+    pub fn get_entry_name(&self, entry: Stage) -> Option<&'static str> {
         let inner = self.inner.lock().unwrap();
         let f = inner.entry_points.get(&entry)?;
         inner.functions.get(f)?.name
@@ -144,6 +268,14 @@ impl Builder {
 // ================================================================================
 
 impl Builder {
+    /// declare an input to this shader
+    /// ```no_run
+    /// b.input::<T>(&self, location, flat, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(location = location) (flat?) in T name;
+    /// ```
     pub fn input<T: AsIOTypeConst>(&self, location: u32, flat: bool, name: Option<&'static str>) -> Input<T> {
         let mut inner = self.inner.lock().unwrap();
         assert!(inner.scope.is_none(), "Error cannot declare input: {{ location: {}, flat: {}, name: {:?} }} when builder is in a function", location, flat, name);
@@ -162,6 +294,14 @@ impl Builder {
         }
     }
 
+    /// declare an output to this shader
+    /// ```no_run
+    /// b.output::<T>(&self, location, flat, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(location = location) (flat?) out T name;
+    /// ```
     pub fn output<T: AsIOTypeConst>(&self, location: u32, flat: bool, name: Option<&'static str>) -> Output<T> {
         let mut inner = self.inner.lock().unwrap();
         assert!(inner.scope.is_none(), "Error cannot declare output: {{ location: {}, flat: {}, name: {:?} }} when builder is in a function", location, flat, name);
@@ -220,18 +360,22 @@ impl Builder {
 macro_rules! impl_io {
     ($($name:ident, $f_in:ident, $f_flat_in:ident, $f_out:ident, $f_flat_out:ident,)*) => {
         $(
+            /// see [`Builder::input`]
             pub fn $f_in(&self, location: u32, name: &'static str) -> Input<$name> {
                 self.input(location, false, Some(name))
             }
     
+            /// see [`Builder::input`]
             pub fn $f_flat_in(&self, location: u32, name: &'static str) -> Input<$name> {
                 self.input(location, true, Some(name))
             }
     
+            /// see [`Builder::output`]
             pub fn $f_out(&self, location: u32, name: &'static str) -> Output<$name> {
                 self.output(location, false, Some(name))
             }
     
+            /// see [`Builder::output`]
             pub fn $f_flat_out(&self, location: u32, name: &'static str) -> Output<$name> {
                 self.output(location, true, Some(name))
             }
@@ -345,7 +489,7 @@ impl Builder {
         }
     }
 
-    pub fn entry<F: FnOnce()>(&self, stage: ShaderStage, name: &'static str, f: F) {
+    pub fn entry<F: FnOnce()>(&self, stage: Stage, name: &'static str, f: F) {
         let main = self.func::<Void, _>(Some(name), f);
 
         let mut inner = self.inner.lock().unwrap();
@@ -469,7 +613,7 @@ impl Builder {
 macro_rules! make2 {
     ($($name:ident, $f:ident, $c:ident, $elem:ident,)*) => {
         $(
-            pub fn $f<'a>(&'a self, x: &dyn SpvRustEq<$elem<'a>>, y: &dyn SpvRustEq<$elem<'a>>) -> $name<'a> {
+            pub fn $f<'a>(&'a self, x: impl SpvRustEq<$elem<'a>>, y: impl SpvRustEq<$elem<'a>>) -> $name<'a> {
                 let id = self.composite(Type::$c, [x.as_ty_ref(), y.as_ty_ref()]);
                 $name {
                     id,
@@ -483,7 +627,7 @@ macro_rules! make2 {
 macro_rules! make3 {
     ($($name:ident, $f:ident, $c:ident, $elem:ident,)*) => {
         $(
-            pub fn $f<'a>(&'a self, x: &dyn SpvRustEq<$elem<'a>>, y: &dyn SpvRustEq<$elem<'a>>, z: &dyn SpvRustEq<$elem<'a>>) -> $name<'a> {
+            pub fn $f<'a>(&'a self, x: impl SpvRustEq<$elem<'a>>, y: impl SpvRustEq<$elem<'a>>, z: impl SpvRustEq<$elem<'a>>) -> $name<'a> {
                 let id = self.composite(Type::$c, [x.as_ty_ref(), y.as_ty_ref(), z.as_ty_ref()]);
                 $name {
                     id,
@@ -497,7 +641,7 @@ macro_rules! make3 {
 macro_rules! make4 {
     ($($name:ident, $f:ident, $c:ident, $elem:ident,)*) => {
         $(
-            pub fn $f<'a>(&'a self, x: &dyn SpvRustEq<$elem<'a>>, y: &dyn SpvRustEq<$elem<'a>>, z: &dyn SpvRustEq<$elem<'a>>, w: &dyn SpvRustEq<$elem<'a>>) -> $name<'a> {
+            pub fn $f<'a>(&'a self, x: impl SpvRustEq<$elem<'a>>, y: impl SpvRustEq<$elem<'a>>, z: impl SpvRustEq<$elem<'a>>, w: impl SpvRustEq<$elem<'a>>) -> $name<'a> {
                 let id = self.composite(Type::$c, [x.as_ty_ref(), y.as_ty_ref(), z.as_ty_ref(), w.as_ty_ref()]);
                 $name {
                     id,
@@ -546,6 +690,16 @@ impl Builder {
 // ================================================================================
 
 impl Builder {
+    /// Declare push constants for this shader
+    /// ```no_run
+    /// b.push_constants<T>(&self, name: Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(push_constant) PushData {
+    ///     T name;
+    /// };
+    /// ```
     pub fn push_constants<T: IsTypeConst>(&self, name: Option<&'static str>) -> PushConstants<T> {
         let mut inner = self.inner.lock().unwrap();
 
@@ -561,6 +715,16 @@ impl Builder {
         }
     }
 
+    /// Declare a uniform buffer for this shader
+    /// ```no_run
+    /// b.uniform::<T>(s, b, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(set = s, binding = b) uniform UData {
+    ///     T data;
+    /// } name;
+    /// ```
     pub fn uniform<T: IsTypeConst>(&self, set: u32, binding: u32, name: Option<&'static str>) -> Uniform<T> {
         let mut inner = self.inner.lock().unwrap();
 
@@ -601,14 +765,44 @@ impl Builder {
         }
     }
 
+    /// Declare a storage buffer for the shader
+    /// ```no_run
+    /// b.storage::<T>(s, b, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(set = s, binding = b) buffer SData {
+    ///     T data[];
+    /// } name;
+    /// ```
     pub fn storage<T: IsTypeConst>(&self, set: u32, binding: u32, name: Option<&'static str>) -> Storage<T> {
         self.raw_storage(set, binding, true, true, name)
     }
 
+    /// Declare a readonly storage buffer for the shader
+    /// ```no_run
+    /// b.storage::<T>(s, b, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(set = s, binding = b) readonly buffer SData {
+    ///     T data[];
+    /// } name;
+    /// ```
     pub fn readonly_storage<T: IsTypeConst>(&self, set: u32, binding: u32, name: Option<&'static str>) -> Storage<T> {
         self.raw_storage(set, binding, true, false, name)
     }
 
+    /// Declare a writeonly storage buffer for the shader
+    /// ```no_run
+    /// b.storage::<T>(s, b, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(set = s, binding = b) writeonly buffer SData {
+    ///     T data[];
+    /// } name;
+    /// ```
     pub fn writeonly_storage<T: IsTypeConst>(&self, set: u32, binding: u32, name: Option<&'static str>) -> Storage<T> {
         self.raw_storage(set, binding, false, true, name)
     }
@@ -620,6 +814,14 @@ impl Builder {
 // ================================================================================
 
 impl Builder {
+    /// Declare a sampler for the shader
+    /// ```no_run
+    /// b.sampler(s, b, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(set = s, binding = b) uniform sampler name;
+    /// ```
     pub fn sampler(&self, set: u32, binding: u32, name: Option<&'static str>) -> Sampler {
         let mut inner = self.inner.lock().unwrap();
 
@@ -650,6 +852,54 @@ impl Builder {
         T::new(id, Arc::clone(&self.inner))
     }
 
+    /// Declare an itextureD for the shader
+    /// ```no_run
+    /// b.itexture<D>(s, b, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(set = s, binding = b) uniform itextureD name;
+    /// ```
+    pub fn itexture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> ITexture<D> {
+        self.raw_texture(set, binding, name)
+    }
+
+    /// Declare a utextureD for the shader
+    /// ```no_run
+    /// b.utexture<D>(s, b, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(set = s, binding = b) uniform utextureD name;
+    /// ```
+    pub fn utexture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> UTexture<D> {
+        self.raw_texture(set, binding, name)
+    }
+
+    /// Declare a textureD for the shader
+    /// ```no_run
+    /// b.texture<D>(s, b, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(set = s, binding = b) uniform textureD name;
+    /// ```
+    pub fn texture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> Texture<D> {
+        self.raw_texture(set, binding, name)
+    }
+
+    /// Declare a dtextureD for the shader
+    /// ```no_run
+    /// b.dtexture<D>(s, b, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(set = s, binding = b) uniform dtextureD name;
+    /// ```
+    pub fn dtexture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> DTexture<D> {
+        self.raw_texture(set, binding, name)
+    }
+
     fn raw_sampled_texture<D: AsDimension, T: SampledGTexture<D>>(&self, set: u32, binding: u32, name: Option<&'static str>) -> T {
         let mut inner = self.inner.lock().unwrap();
 
@@ -665,26 +915,59 @@ impl Builder {
         T::from_uniform(id, Arc::clone(&self.inner))
     }
 
-    pub fn itexture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> ITexture<D> {
-        self.raw_texture(set, binding, name)
+    /// Declare an itextureD for the shader
+    /// ```no_run
+    /// b.sampled_itexture<D>(s, b, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(set = s, binding = b) uniform isamplereD name;
+    /// ```
+    pub fn sampled_itexture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> SampledITexture<D> {
+        self.raw_sampled_texture(set, binding, name)
     }
 
-    pub fn utexture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> UTexture<D> {
-        self.raw_texture(set, binding, name)
+    /// Declare a utextureD for the shader
+    /// ```no_run
+    /// b.sampled_utexture<D>(s, b, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(set = s, binding = b) uniform usamplereD name;
+    /// ```
+    pub fn sampled_utexture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> SampledUTexture<D> {
+        self.raw_sampled_texture(set, binding, name)
     }
 
-    pub fn texture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> Texture<D> {
-        self.raw_texture(set, binding, name)
+    /// Declare a textureD for the shader
+    /// ```no_run
+    /// b.sampled_texture<D>(s, b, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(set = s, binding = b) uniform samplerD name;
+    /// ```
+    pub fn sampled_texture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> SampledTexture<D> {
+        self.raw_sampled_texture(set, binding, name)
     }
 
-    pub fn dtexture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> DTexture<D> {
-        self.raw_texture(set, binding, name)
+    /// Declare a dtextureD for the shader
+    /// ```no_run
+    /// b.sampled_dtexture<D>(s, b, Some(name));
+    /// ```
+    /// is equivalent to the glsl
+    /// ```glsl
+    /// layout(set = s, binding = b) uniform dsamplereD name;
+    /// ```
+    pub fn sampled_dtexture<D: AsDimension>(&self, set: u32, binding: u32, name: Option<&'static str>) -> SampledDTexture<D> {
+        self.raw_sampled_texture(set, binding, name)
     }
 }
 
 macro_rules! impl_texture {
     ($($name:ident, $f:ident,)*) => {
         $(
+            /// see one of [`Builder::itexture`] [`Builder::utexture`] [`Builder::texture`] [`Builder::dtexture`]
             pub fn $f(&self, set: u32, binding: u32, name: Option<&'static str>) -> $name {
                 self.raw_texture(set, binding, name)
             }
@@ -735,6 +1018,7 @@ impl Builder {
 macro_rules! impl_sampled_texture {
     ($($name:ident, $f:ident,)*) => {
         $(
+            /// see one of [`Builder::sampled_itexture`] [`Builder::sampled_utexture`] [`Builder::sampled_texture`] [`Builder::sampled_dtexture`]
             pub fn $f(&self, set: u32, binding: u32, name: Option<&'static str>) -> $name {
                 self.raw_sampled_texture(set, binding, name)
             }
@@ -782,6 +1066,8 @@ impl Builder {
     );
 }
 
+/// combine a texture and sampler into a sampled_texture
+/// equivalent to the glsl constructor `isamplerD`, `usamplerD`, `samplerD` and `dsamplerD`
 pub fn combine<D: AsDimension, T: GTexture<D>>(texture: &T, sampler: Sampler) -> T::Sampler {
     let mut inner = texture.b().lock().unwrap();
     if let Some(scope) = &mut inner.scope {
@@ -802,6 +1088,8 @@ pub fn combine<D: AsDimension, T: GTexture<D>>(texture: &T, sampler: Sampler) ->
     }
 }
 
+/// sample from a sampled_texture
+/// equivalent to the glsl function `texture`
 pub fn sample<'a, 'b, D: AsDimension, S: SampledGTexture<D>>(sampled_texture: &'a S, coord: D::Coordinate<'b>) -> S::Sample<'a> {
     let mut inner = sampled_texture.b().lock().unwrap();
     if let Some(scope) = &mut inner.scope {
@@ -840,6 +1128,8 @@ pub struct IfChain<'a> {
     then: Arc<Mutex<Option<Either<Box<OpIf>, OpElse>>>>,
 }
 
+/// Inserts an If block in the the spir-v module
+/// returns a structure that allows else or else_if to be appended to the if block
 pub fn spv_if<'a, F: FnOnce()>(b: Bool<'a>, f: F) -> IfChain<'a> {
     let mut inner = b.b.lock().unwrap();
 
@@ -883,6 +1173,7 @@ pub fn spv_if<'a, F: FnOnce()>(b: Bool<'a>, f: F) -> IfChain<'a> {
 }
 
 impl<'a> IfChain<'a> {
+    /// appends an else if block to the if block that this chain was formed by
     pub fn spv_else_if<'b, F: FnOnce()>(self, b: Bool<'b>, f: F) -> IfChain<'a> {
         let mut inner = b.b.lock().unwrap();
 
@@ -926,6 +1217,7 @@ impl<'a> IfChain<'a> {
         }
     }
 
+    /// appends an else block to the if block that this chain was formed by
     pub fn spv_else<F: FnOnce()>(self, f: F) {
         let mut inner = self.builder.lock().unwrap();
 

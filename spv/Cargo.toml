@@ -25,3 +25,6 @@ name = "uniform"
 
 [[example]]
 name = "push_constants"
+
+[[example]]
+name = "camera"

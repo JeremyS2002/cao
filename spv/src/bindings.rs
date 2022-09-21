@@ -132,7 +132,7 @@ pub struct Storage<T: crate::IsTypeConst> {
 }
 
 impl<T: crate::IsTypeConst> Storage<T> {
-    pub fn load_element<'a>(&'a self, element: &dyn SpvRustEq<crate::Int>) -> T::T<'a> {
+    pub fn load_element<'a>(&'a self, element: impl SpvRustEq<crate::Int<'a>>) -> T::T<'a> {
         let mut inner = self.b.lock().unwrap();
         if let Some(scope) = &mut inner.scope {
             let new_id = scope.get_new_id();
@@ -154,7 +154,7 @@ impl<T: crate::IsTypeConst> Storage<T> {
 }
 
 impl<T: crate::IsTypeConst + crate::IsStructTypeConst> Storage<T> {
-    pub fn load_field_by_index<'a, R: crate::IsTypeConst>(&'a self, element: &dyn SpvRustEq<crate::Int>, field: u32) -> R::T<'a> {
+    pub fn load_field_by_index<'a, R: crate::IsTypeConst>(&'a self, element: impl SpvRustEq<crate::Int<'a>>, field: u32) -> R::T<'a> {
         let mut inner = self.b.lock().unwrap();
         if let Some(scope) = &mut inner.scope {
             let new_id = scope.get_new_id();
@@ -174,7 +174,7 @@ impl<T: crate::IsTypeConst + crate::IsStructTypeConst> Storage<T> {
         }
     }
 
-    pub fn load_field<'a, R: crate::IsTypeConst>(&'a self, element: &dyn SpvRustEq<crate::Int>, field: &str) -> R::T<'a> {
+    pub fn load_field<'a, R: crate::IsTypeConst>(&'a self, element: impl SpvRustEq<crate::Int<'a>>, field: &str) -> R::T<'a> {
         let field = T::STRUCT_TY
             .members
             .iter()

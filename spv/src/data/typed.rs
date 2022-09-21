@@ -740,7 +740,7 @@ impl<'a> std::ops::BitOr<Bool<'a>> for bool {
 }
 
 impl<'a> Bool<'a> {
-    fn cmp(&self, rhs: &dyn SpvRustEq<Bool<'a>>, ty: crate::OpLhsRhsType) -> Bool<'a> {
+    fn cmp(&self, rhs: impl SpvRustEq<Bool<'a>>, ty: crate::OpLhsRhsType) -> Bool<'a> {
         let mut inner = self.b.lock().unwrap();
         if let Some(scope) = &mut inner.scope {
             let new_id = scope.get_new_id();
@@ -767,11 +767,11 @@ impl<'a> Bool<'a> {
         }
     }
 
-    pub fn eq(&self, rhs: &dyn SpvRustEq<Bool<'a>>) -> Bool<'a> {
+    pub fn eq(&self, rhs: impl SpvRustEq<Bool<'a>>) -> Bool<'a> {
         self.cmp(rhs, crate::OpLhsRhsType::LogicalEqual)
     }
 
-    pub fn neq(&self, rhs: &dyn SpvRustEq<Bool<'a>>) -> Bool<'a> {
+    pub fn neq(&self, rhs: impl SpvRustEq<Bool<'a>>) -> Bool<'a> {
         self.cmp(rhs, crate::OpLhsRhsType::LogicalNotEqual)
     }
 }
@@ -1263,7 +1263,7 @@ macro_rules! impl_cmp {
     ($($name:ident,)*) => {
         $(
             impl<'a> $name<'a> {
-                fn cmp(&self, other: &dyn SpvRustEq<$name<'a>>, cmp_ty: crate::CmpType) -> Bool<'a> {
+                fn cmp(&self, other: impl SpvRustEq<$name<'a>>, cmp_ty: crate::CmpType) -> Bool<'a> {
                     let mut inner = self.b.lock().unwrap();
                     if let Some(scope) = &mut inner.scope {
                         let new_id = scope.get_new_id();
@@ -1288,27 +1288,27 @@ macro_rules! impl_cmp {
                     }
                 }
 
-                pub fn eq(&self, other: &dyn SpvRustEq<$name<'a>>) -> Bool<'a> {
+                pub fn eq(&self, other: impl SpvRustEq<$name<'a>>) -> Bool<'a> {
                     self.cmp(other, crate::CmpType::Eq)
                 }
 
-                pub fn neq(&self, other: &dyn SpvRustEq<$name<'a>>) -> Bool<'a> {
+                pub fn neq(&self, other: impl SpvRustEq<$name<'a>>) -> Bool<'a> {
                     self.cmp(other, crate::CmpType::NEq)
                 }
 
-                pub fn lt(&self, other: &dyn SpvRustEq<$name<'a>>) -> Bool<'a> {
+                pub fn lt(&self, other: impl SpvRustEq<$name<'a>>) -> Bool<'a> {
                     self.cmp(other, crate::CmpType::Lt)
                 }
 
-                pub fn gt(&self, other: &dyn SpvRustEq<$name<'a>>) -> Bool<'a> {
+                pub fn gt(&self, other: impl SpvRustEq<$name<'a>>) -> Bool<'a> {
                     self.cmp(other, crate::CmpType::Gt)
                 }
 
-                pub fn le(&self, other: &dyn SpvRustEq<$name<'a>>) -> Bool<'a> {
+                pub fn le(&self, other: impl SpvRustEq<$name<'a>>) -> Bool<'a> {
                     self.cmp(other, crate::CmpType::Le)
                 }
 
-                pub fn ge(&self, other: &dyn SpvRustEq<$name<'a>>) -> Bool<'a> {
+                pub fn ge(&self, other: impl SpvRustEq<$name<'a>>) -> Bool<'a> {
                     self.cmp(other, crate::CmpType::Ge)
                 }
             }
@@ -1484,7 +1484,7 @@ macro_rules! impl_math_func_lhs_rhs {
     ($($name:ident, $rhs:ident, $ret:ident, $f:ident, $op:ident,)*) => {
         $(
             impl<'a> $name<'a> {
-                pub fn $f(&self, rhs: &dyn SpvRustEq<$rhs<'a>>) -> $ret<'a> {
+                pub fn $f(&self, rhs: impl SpvRustEq<$rhs<'a>>) -> $ret<'a> {
                     let mut inner = self.b.lock().unwrap();
                     if let Some(scope) = &mut inner.scope {
                         let new_id = scope.get_new_id();
@@ -2421,7 +2421,7 @@ pub struct Array<'a, T: IsTypeConst, const N: usize> {
 impl<'a, T: IsTypeConst, const N: usize> Array<'a, T, N> {
     const ELEMENT_TY: &'static crate::Type = &T::TY;
 
-    pub fn index(&self, index: &dyn SpvRustEq<Int>) -> T::T<'a> {
+    pub fn index(&self, index: impl SpvRustEq<Int<'a>>) -> T::T<'a> {
         let mut b = self.b.lock().unwrap();
         if let Some(scope) = &mut b.scope {
             let new_id = scope.get_new_id();

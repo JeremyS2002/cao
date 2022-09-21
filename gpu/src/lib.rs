@@ -10,7 +10,7 @@
 //!
 //! Surface creation is abstracted thanks to [`raw_window_handle`]
 //!
-//! This is not at all tested well enough to use for anything serious, I'm not kidding don't use this.
+//! This is not at all tested well enough to use for anything serious, do not use this!
 //!
 //! This is still lacking support for ray tracing, variable shading rates, mesh shading as well as many other extensions.
 //!
