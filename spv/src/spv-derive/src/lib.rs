@@ -276,7 +276,7 @@ pub fn spv_struct(input: TokenStream) -> TokenStream {
 
         #vis struct #spv_name<'a> {
             id: usize,
-            b: &'a ::std::sync::Arc<::std::sync::Mutex<::spv::BuilderInner>>,
+            b: &'a ::std::rc::Rc<::std::cell::RefCell<::spv::BuilderInner>>,
         }
 
         impl<'a, 'b> ::spv::SpvRustEq<#spv_name<'b>> for #spv_name<'a> {
@@ -298,7 +298,7 @@ pub fn spv_struct(input: TokenStream) -> TokenStream {
                     #field_names2: &dyn ::spv::SpvRustEq<#field_static_spv_types>,
                 )*
             ) -> Self {
-                let mut inner = __b.__inner().lock().unwrap();
+                let mut inner = __b.__inner().borrow_mut();
                 if let Some(scope) = inner.__scope() {
                     use ::spv::SpvRustEq;
                     use ::spv::Scope;
@@ -331,7 +331,7 @@ pub fn spv_struct(input: TokenStream) -> TokenStream {
 
             #(
                 pub fn #field_names4(&self) -> #field_static_spv_types2<'a> {
-                    let mut inner = self.b.lock().unwrap();
+                    let mut inner = self.b.borrow_mut();
                     if let Some(scope) = inner.__scope() {
                         use ::spv::FromId;
                         let new_id = scope.get_new_id();
@@ -357,7 +357,7 @@ pub fn spv_struct(input: TokenStream) -> TokenStream {
         }
 
         impl<'a> ::spv::FromId<'a> for #spv_name<'a> {
-            fn from_id(id: usize, b: &'a ::std::sync::Arc<::std::sync::Mutex<::spv::BuilderInner>>) -> Self {
+            fn from_id(id: usize, b: &'a ::std::rc::Rc<::std::cell::RefCell<::spv::BuilderInner>>) -> Self {
                 Self {
                     id,
                     b

@@ -1,8 +1,8 @@
 
 use either::*;
 use std::marker::PhantomData;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[rustfmt::skip]
 use crate::{
@@ -87,7 +87,7 @@ pub trait IsTypeConst: AsTypeConst {
 }
 
 pub trait FromId<'a>: IsTypeConst {
-    fn from_id(id: usize, b: &'a Arc<Mutex<crate::BuilderInner>>) -> Self;
+    fn from_id(id: usize, b: &'a Rc<RefCell<crate::BuilderInner>>) -> Self;
 }
 
 pub trait AsType {
@@ -115,7 +115,7 @@ impl IsTypeConst for Void {
 }
 
 impl<'a> FromId<'a> for Void {
-    fn from_id(_: usize, _: &'a Arc<Mutex<crate::BuilderInner>>) -> Self {
+    fn from_id(_: usize, _: &'a Rc<RefCell<crate::BuilderInner>>) -> Self {
         panic!("Cannot construct instance of void");
     }
 }
@@ -132,7 +132,7 @@ macro_rules! impl_scalar_ty {
             #[derive(Clone, Copy)]
             pub struct $name<'a> {
                 pub(crate) id: usize,
-                pub(crate) b: &'a Arc<Mutex<crate::BuilderInner>>,
+                pub(crate) b: &'a Rc<RefCell<crate::BuilderInner>>,
             }
 
             impl<'a> AsScalarTypeConst for $name<'a> {
@@ -166,7 +166,7 @@ macro_rules! impl_scalar_ty {
             }
 
             impl<'a> FromId<'a> for $name<'a> {
-                fn from_id(id: usize, b: &'a Arc<Mutex<crate::BuilderInner>>) -> Self {
+                fn from_id(id: usize, b: &'a Rc<RefCell<crate::BuilderInner>>) -> Self {
                     Self {
                         id,
                         b,
@@ -268,7 +268,7 @@ macro_rules! impl_vector_ty {
             #[derive(Clone, Copy)]
             pub struct $name<'a> {
                 pub(crate) id: usize,
-                pub(crate) b: &'a Arc<Mutex<crate::BuilderInner>>,
+                pub(crate) b: &'a Rc<RefCell<crate::BuilderInner>>,
             }
 
             impl<'a> AsVectorTypeConst for $name<'a> {
@@ -305,7 +305,7 @@ macro_rules! impl_vector_ty {
             }
 
             impl<'a> FromId<'a> for $name<'a> {
-                fn from_id(id: usize, b: &'a Arc<Mutex<crate::BuilderInner>>) -> Self {
+                fn from_id(id: usize, b: &'a Rc<RefCell<crate::BuilderInner>>) -> Self {
                     Self {
                         id,
                         b,
@@ -417,7 +417,7 @@ macro_rules! impl_matrix_ty {
             #[derive(Clone, Copy)]
             pub struct $name<'a> {
                 pub(crate) id: usize,
-                pub(crate) b: &'a Arc<Mutex<crate::BuilderInner>>,
+                pub(crate) b: &'a Rc<RefCell<crate::BuilderInner>>,
             }
 
             impl<'a> AsMatrixTypeConst for $name<'a> {
@@ -457,7 +457,7 @@ macro_rules! impl_matrix_ty {
             }
 
             impl<'a> FromId<'a> for $name<'a> {
-                fn from_id(id: usize, b: &'a Arc<Mutex<crate::BuilderInner>>) -> Self {
+                fn from_id(id: usize, b: &'a Rc<RefCell<crate::BuilderInner>>) -> Self {
                     Self {
                         id,
                         b,
@@ -564,7 +564,7 @@ macro_rules! impl_convert {
         $(
             impl<'a> std::convert::From::<$src<'a>> for $dst<'a> {
                 fn from(v: $src<'a>) -> Self {
-                    let mut b = v.b.lock().unwrap();
+                    let mut b = v.b.borrow_mut();
                     if let Some(scope) = &mut b.scope {
                         let new_id = scope.get_new_id();
 
@@ -615,7 +615,7 @@ macro_rules! impl_store {
         $(
             impl<'a> $name<'a> {
                 pub fn store<'b>(&mut self, v: $name<'b>) {
-                    let mut inner = self.b.lock().unwrap();
+                    let mut inner = self.b.borrow_mut();
                     if let Some(scope) = &mut inner.scope {
                         scope.push_instruction(crate::Instruction::LoadStore(crate::OpLoadStore {
                             ty: <Self as AsTypeConst>::TY,
@@ -665,7 +665,7 @@ impl<'a, 'b> std::ops::BitAnd<Bool<'b>> for Bool<'a> {
     type Output = Bool<'a>;
 
     fn bitand(self, rhs: Bool<'b>) -> Self::Output {
-        let mut b = self.b.lock().unwrap();
+        let mut b = self.b.borrow_mut();
         let id = basic_op(&mut b, &self, &rhs, crate::Type::BOOL, crate::OpLhsRhsType::LogicalAnd);
         Bool {
             id,
@@ -678,7 +678,7 @@ impl<'a> std::ops::BitAnd<bool> for Bool<'a> {
     type Output = Bool<'a>;
 
     fn bitand(self, rhs: bool) -> Self::Output {
-        let mut b = self.b.lock().unwrap();
+        let mut b = self.b.borrow_mut();
         let id = basic_op(&mut b, &self, &rhs, crate::Type::BOOL, crate::OpLhsRhsType::LogicalAnd);
         Bool {
             id,
@@ -691,7 +691,7 @@ impl<'a> std::ops::BitAnd<Bool<'a>> for bool {
     type Output = Bool<'a>;
 
     fn bitand(self, rhs: Bool<'a>) -> Self::Output {
-        let mut b = rhs.b.lock().unwrap();
+        let mut b = rhs.b.borrow_mut();
         let id = basic_op(&mut b, &self, &rhs, crate::Type::BOOL, crate::OpLhsRhsType::LogicalAnd);
         Bool {
             id,
@@ -704,7 +704,7 @@ impl<'a, 'b> std::ops::BitOr<Bool<'b>> for Bool<'a> {
     type Output = Bool<'a>;
 
     fn bitor(self, rhs: Bool<'b>) -> Self::Output {
-        let mut b = self.b.lock().unwrap();
+        let mut b = self.b.borrow_mut();
         let id = basic_op(&mut b, &self, &rhs, crate::Type::BOOL, crate::OpLhsRhsType::LogicalOr);
         Bool {
             id,
@@ -717,7 +717,7 @@ impl<'a> std::ops::BitOr<bool> for Bool<'a> {
     type Output = Bool<'a>;
 
     fn bitor(self, rhs: bool) -> Self::Output {
-        let mut b = self.b.lock().unwrap();
+        let mut b = self.b.borrow_mut();
         let id = basic_op(&mut b, &self, &rhs, crate::Type::BOOL, crate::OpLhsRhsType::LogicalOr);
         Bool {
             id,
@@ -730,7 +730,7 @@ impl<'a> std::ops::BitOr<Bool<'a>> for bool {
     type Output = Bool<'a>;
 
     fn bitor(self, rhs: Bool<'a>) -> Self::Output {
-        let mut b = rhs.b.lock().unwrap();
+        let mut b = rhs.b.borrow_mut();
         let id = basic_op(&mut b, &self, &rhs, crate::Type::BOOL, crate::OpLhsRhsType::LogicalOr);
         Bool {
             id,
@@ -741,7 +741,7 @@ impl<'a> std::ops::BitOr<Bool<'a>> for bool {
 
 impl<'a> Bool<'a> {
     fn cmp(&self, rhs: impl SpvRustEq<Bool<'a>>, ty: crate::OpLhsRhsType) -> Bool<'a> {
-        let mut inner = self.b.lock().unwrap();
+        let mut inner = self.b.borrow_mut();
         if let Some(scope) = &mut inner.scope {
             let new_id = scope.get_new_id();
 
@@ -858,7 +858,7 @@ macro_rules! impl_op {
             type Output = $name<'a>;
 
             fn $f(self, rhs: $name<'b>) -> Self::Output {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $name {
                     id,
@@ -871,7 +871,7 @@ macro_rules! impl_op {
             type Output = $name<'a>;
 
             fn $f(self, rhs: $rust) -> Self::Output {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $name {
                     id,
@@ -884,7 +884,7 @@ macro_rules! impl_op {
             type Output = $name<'a>;
 
             fn $f(self, rhs: $name<'a>) -> Self::Output {
-                let mut b = rhs.b.lock().unwrap();
+                let mut b = rhs.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $name {
                     id,
@@ -908,7 +908,7 @@ macro_rules! impl_assign_op {
     ($name:ident, $rust:ident, $op:ident, $f:ident, $store:ident) => {
         impl<'a, 'b> std::ops::$op<$name<'b>> for $name<'a> {
             fn $f(&mut self, rhs: $name<'b>) {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 $f(&mut b, &*self, &rhs, crate::Type::$store)
             }
         }
@@ -965,7 +965,7 @@ macro_rules! impl_scalar_vec_op {
             type Output = $vec<'a>;
 
             fn $f(self, rhs: $scalar<'b>) -> Self::Output {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $vec {
                     id,
@@ -978,7 +978,7 @@ macro_rules! impl_scalar_vec_op {
             type Output = $vec<'a>;
 
             fn $f(self, rhs: $vec<'b>) -> Self::Output {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $vec {
                     id,
@@ -991,7 +991,7 @@ macro_rules! impl_scalar_vec_op {
             type Output = $vec<'a>;
 
             fn $f(self, rhs: $rust_scalar) -> Self::Output {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $vec {
                     id,
@@ -1004,7 +1004,7 @@ macro_rules! impl_scalar_vec_op {
             type Output = $vec<'a>;
 
             fn $f(self, rhs: $vec<'a>) -> Self::Output {
-                let mut b = rhs.b.lock().unwrap();
+                let mut b = rhs.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $vec {
                     id,
@@ -1017,7 +1017,7 @@ macro_rules! impl_scalar_vec_op {
             type Output = $vec<'a>;
 
             fn $f(self, rhs: $scalar<'a>) -> Self::Output {
-                let mut b = rhs.b.lock().unwrap();
+                let mut b = rhs.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $vec {
                     id,
@@ -1030,7 +1030,7 @@ macro_rules! impl_scalar_vec_op {
             type Output = $vec<'a>;
 
             fn $f(self, rhs: $rust_vec) -> Self::Output {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $vec {
                     id,
@@ -1070,14 +1070,14 @@ macro_rules! impl_scalar_vec_assign_op {
     ($scalar:ident, $rust_scalar:ident, $vec:ident, $op:ident, $f:ident, $store:ident) => {
         impl<'a, 'b> std::ops::$op<$scalar<'b>> for $vec<'a> {
             fn $f(&mut self, rhs: $scalar<'b>) {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 $f(&mut b, self, &rhs, crate::Type::$store);
             }
         }
 
         impl<'a> std::ops::$op<$rust_scalar> for $vec<'a> {
             fn $f(&mut self, rhs: $rust_scalar) {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 $f(&mut b, self, &rhs, crate::Type::$store);
             }
         }
@@ -1115,7 +1115,7 @@ macro_rules! impl_scalar_mat_op {
             type Output = $mat<'a>;
 
             fn $f(self, rhs: $scalar<'b>) -> Self::Output {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $mat {
                     id,
@@ -1128,7 +1128,7 @@ macro_rules! impl_scalar_mat_op {
             type Output = $mat<'a>;
 
             fn $f(self, rhs: $mat<'b>) -> Self::Output {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $mat {
                     id,
@@ -1141,7 +1141,7 @@ macro_rules! impl_scalar_mat_op {
             type Output = $mat<'a>;
 
             fn $f(self, rhs: $rust_scalar) -> Self::Output {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $mat {
                     id,
@@ -1154,7 +1154,7 @@ macro_rules! impl_scalar_mat_op {
             type Output = $mat<'a>;
 
             fn $f(self, rhs: $mat<'a>) -> Self::Output {
-                let mut b = rhs.b.lock().unwrap();
+                let mut b = rhs.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $mat {
                     id,
@@ -1167,7 +1167,7 @@ macro_rules! impl_scalar_mat_op {
             type Output = $mat<'a>;
 
             fn $f(self, rhs: $scalar<'a>) -> Self::Output {
-                let mut b = rhs.b.lock().unwrap();
+                let mut b = rhs.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $mat {
                     id,
@@ -1180,7 +1180,7 @@ macro_rules! impl_scalar_mat_op {
             type Output = $mat<'a>;
 
             fn $f(self, rhs: $rust_mat) -> Self::Output {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 let id = $f(&mut b, &self, &rhs, crate::Type::$store);
                 $mat {
                     id,
@@ -1197,7 +1197,7 @@ macro_rules! impl_vec_mat_op {
             type Output = $vec<'a>;
 
             fn $f(self, rhs: $vec<'b>) -> Self::Output {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 let id = mul(&mut b, &self, &rhs, crate::Type::$store);
                 $vec {
                     id,
@@ -1210,7 +1210,7 @@ macro_rules! impl_vec_mat_op {
             type Output = $vec<'a>;
 
             fn $f(self, rhs: $rust_vec) -> Self::Output {
-                let mut b = self.b.lock().unwrap();
+                let mut b = self.b.borrow_mut();
                 let id = mul(&mut b, &self, &rhs, crate::Type::$store);
                 $vec {
                     id,
@@ -1223,7 +1223,7 @@ macro_rules! impl_vec_mat_op {
             type Output = $vec<'a>;
 
             fn $f(self, rhs: $vec<'a>) -> Self::Output {
-                let mut b = rhs.b.lock().unwrap();
+                let mut b = rhs.b.borrow_mut();
                 let id = mul(&mut b, &self, &rhs, crate::Type::$store);
                 $vec {
                     id,
@@ -1264,7 +1264,7 @@ macro_rules! impl_cmp {
         $(
             impl<'a> $name<'a> {
                 fn cmp(&self, other: impl SpvRustEq<$name<'a>>, cmp_ty: crate::CmpType) -> Bool<'a> {
-                    let mut inner = self.b.lock().unwrap();
+                    let mut inner = self.b.borrow_mut();
                     if let Some(scope) = &mut inner.scope {
                         let new_id = scope.get_new_id();
 
@@ -1330,7 +1330,7 @@ macro_rules! impl_math_func_lhs {
         $(
             impl<'a> $name<'a> {
                 pub fn $f(&self) -> $ret<'a> {
-                    let mut inner = self.b.lock().unwrap();
+                    let mut inner = self.b.borrow_mut();
                     if let Some(scope) = &mut inner.scope {
                         let new_id = scope.get_new_id();
     
@@ -1360,7 +1360,7 @@ macro_rules! impl_math_func_lhs_assign {
         $(
             impl<'a> $name<'a> {
                 pub fn $f(&self) {
-                    let mut inner = self.b.lock().unwrap();
+                    let mut inner = self.b.borrow_mut();
                     if let Some(scope) = &mut inner.scope {    
                         scope.push_instruction(crate::Instruction::Lhs(crate::OpLhs {
                             ty: crate::OpLhsType::$op,
@@ -1485,7 +1485,7 @@ macro_rules! impl_math_func_lhs_rhs {
         $(
             impl<'a> $name<'a> {
                 pub fn $f(&self, rhs: impl SpvRustEq<$rhs<'a>>) -> $ret<'a> {
-                    let mut inner = self.b.lock().unwrap();
+                    let mut inner = self.b.borrow_mut();
                     if let Some(scope) = &mut inner.scope {
                         let new_id = scope.get_new_id();
                         let rhs_id = rhs.id(&mut **scope);
@@ -1533,7 +1533,7 @@ impl_math_func_lhs_rhs!(
 macro_rules! unit {
     ($elem:ident) => {
         fn unit(&self, idx: u32) -> $elem<'a> {
-            let mut inner = self.b.lock().unwrap();
+            let mut inner = self.b.borrow_mut();
             if let Some(scope) = &mut inner.scope {
                 let new_id = scope.get_new_id();
 
@@ -1559,7 +1559,7 @@ macro_rules! unit {
 macro_rules! vec2 {
     ($vec2:ident) => {
         fn vec2(&self, x: u32, y: u32) -> $vec2<'a> {
-            let mut inner = self.b.lock().unwrap();
+            let mut inner = self.b.borrow_mut();
             if let Some(scope) = &mut inner.scope {
                 let new_id = scope.get_new_id();
 
@@ -1583,7 +1583,7 @@ macro_rules! vec2 {
 macro_rules! vec3 {
     ($vec2:ident) => {
         fn vec3(&self, x: u32, y: u32, z: u32) -> $vec2<'a> {
-            let mut inner = self.b.lock().unwrap();
+            let mut inner = self.b.borrow_mut();
             if let Some(scope) = &mut inner.scope {
                 let new_id = scope.get_new_id();
 
@@ -1607,7 +1607,7 @@ macro_rules! vec3 {
 macro_rules! vec4 {
     ($vec2:ident) => {
         fn vec4(&self, x: u32, y: u32, z: u32, w: u32) -> $vec2<'a> {
-            let mut inner = self.b.lock().unwrap();
+            let mut inner = self.b.borrow_mut();
             if let Some(scope) = &mut inner.scope {
                 let new_id = scope.get_new_id();
 
@@ -2265,7 +2265,7 @@ macro_rules! impl_mat_col {
         $(
             impl<'a> $mat<'a> {
                 pub fn col(&self, idx: u32) -> $vec<'a> {
-                    let mut inner = self.b.lock().unwrap();
+                    let mut inner = self.b.borrow_mut();
                     if let Some(scope) = &mut inner.scope {
                         let new_id = scope.get_new_id();
             
@@ -2330,7 +2330,7 @@ pub trait RustStructType: AsStructType {
 pub struct Struct<'a> {
     pub(crate) id: usize,
     pub(crate) ty: crate::StructType,
-    pub(crate) b: &'a Arc<Mutex<crate::BuilderInner>>,
+    pub(crate) b: &'a Rc<RefCell<crate::BuilderInner>>,
 }
 
 impl<'a> AsStructType for Struct<'a> {
@@ -2349,7 +2349,7 @@ impl<'a> AsStructType for Struct<'a> {
 
 impl<'a> Struct<'a> {
     pub fn load_field_by_index<T: IsTypeConst>(&self, field: u32) -> T::T<'a> {
-        let mut inner = self.b.lock().unwrap();
+        let mut inner = self.b.borrow_mut();
         if let Some(scope) = &mut inner.scope {
             let new_id = scope.get_new_id();
             
@@ -2414,7 +2414,7 @@ pub trait IsArrayType: AsArrayType { }
  
 pub struct Array<'a, T: IsTypeConst, const N: usize> {
     pub(crate) id: usize,
-    pub(crate) b: &'a Arc<Mutex<crate::BuilderInner>>,
+    pub(crate) b: &'a Rc<RefCell<crate::BuilderInner>>,
     pub(crate) marker: PhantomData<T>,
 }
 
@@ -2422,7 +2422,7 @@ impl<'a, T: IsTypeConst, const N: usize> Array<'a, T, N> {
     const ELEMENT_TY: &'static crate::Type = &T::TY;
 
     pub fn index(&self, index: impl SpvRustEq<Int<'a>>) -> T::T<'a> {
-        let mut b = self.b.lock().unwrap();
+        let mut b = self.b.borrow_mut();
         if let Some(scope) = &mut b.scope {
             let new_id = scope.get_new_id();
             
@@ -2582,11 +2582,11 @@ pub trait GTexture<D: AsDimension> {
 
     type Sampler: SampledGTexture<D>;
 
-    fn new(id: usize, b: Arc<Mutex<crate::BuilderInner>>) -> Self;
+    fn new(id: usize, b: Rc<RefCell<crate::BuilderInner>>) -> Self;
 
     fn texture_id(&self) -> usize;
 
-    fn b<'a>(&'a self) -> &'a Arc<Mutex<crate::BuilderInner>>;
+    fn b<'a>(&'a self) -> &'a Rc<RefCell<crate::BuilderInner>>;
 }
 
 macro_rules! impl_g_texture {
@@ -2594,7 +2594,7 @@ macro_rules! impl_g_texture {
         $(
             pub struct $name<D: AsDimension> {
                 pub(crate) id: usize,
-                pub(crate) b: Arc<Mutex<crate::BuilderInner>>,
+                pub(crate) b: Rc<RefCell<crate::BuilderInner>>,
                 pub(crate) marker: PhantomData<D>,
             }
 
@@ -2607,7 +2607,7 @@ macro_rules! impl_g_texture {
 
                 type Sampler = $sampler<D>;
 
-                fn new(id: usize, b: Arc<Mutex<crate::BuilderInner>>) -> Self {
+                fn new(id: usize, b: Rc<RefCell<crate::BuilderInner>>) -> Self {
                     Self {
                         id,
                         b,
@@ -2619,7 +2619,7 @@ macro_rules! impl_g_texture {
                     self.id
                 }
 
-                fn b<'a>(&'a self) -> &'a Arc<Mutex<crate::BuilderInner>> {
+                fn b<'a>(&'a self) -> &'a Rc<RefCell<crate::BuilderInner>> {
                     &self.b
                 }
             }
@@ -2681,14 +2681,14 @@ pub trait SampledGTexture<D: AsDimension> {
 
     type Sample<'a>: FromId<'a>;
 
-    fn from_uniform(id: usize, b: Arc<Mutex<crate::BuilderInner>>) -> Self;
+    fn from_uniform(id: usize, b: Rc<RefCell<crate::BuilderInner>>) -> Self;
 
-    fn from_combine(id: usize, b: Arc<Mutex<crate::BuilderInner>>) -> Self;
+    fn from_combine(id: usize, b: Rc<RefCell<crate::BuilderInner>>) -> Self;
 
     /// Left(uniform) Right(combined)
     fn sampled_texture_id(&self) -> Either<usize, usize>;
 
-    fn b<'a>(&'a self) -> &'a Arc<Mutex<crate::BuilderInner>>;
+    fn b<'a>(&'a self) -> &'a Rc<RefCell<crate::BuilderInner>>;
 }
 
 macro_rules! impl_g_sampler {
@@ -2696,7 +2696,7 @@ macro_rules! impl_g_sampler {
         $(
             pub struct $name<D: AsDimension> {
                 pub(crate) id: Either<usize, usize>,
-                pub(crate) b: Arc<Mutex<crate::BuilderInner>>,
+                pub(crate) b: Rc<RefCell<crate::BuilderInner>>,
                 pub(crate) marker: PhantomData<D>,
             }
 
@@ -2705,7 +2705,7 @@ macro_rules! impl_g_sampler {
 
                 type Sample<'a> = $sample<'a>;
 
-                fn from_uniform(id: usize, b: Arc<Mutex<crate::BuilderInner>>) -> Self {
+                fn from_uniform(id: usize, b: Rc<RefCell<crate::BuilderInner>>) -> Self {
                     Self {
                         id: Left(id),
                         b,
@@ -2713,7 +2713,7 @@ macro_rules! impl_g_sampler {
                     }
                 }
 
-                fn from_combine(id: usize, b: Arc<Mutex<crate::BuilderInner>>) -> Self {
+                fn from_combine(id: usize, b: Rc<RefCell<crate::BuilderInner>>) -> Self {
                     Self {
                         id: Right(id),
                         b,
@@ -2725,7 +2725,7 @@ macro_rules! impl_g_sampler {
                     self.id
                 }
 
-                fn b<'a>(&'a self) -> &'a Arc<Mutex<crate::BuilderInner>> {
+                fn b<'a>(&'a self) -> &'a Rc<RefCell<crate::BuilderInner>> {
                     &self.b
                 }
             }

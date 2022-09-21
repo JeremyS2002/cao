@@ -2,18 +2,18 @@
 use crate::FromId;
 use crate::SpvRustEq;
 
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::rc::Rc;
+use std::cell::RefCell;
 use std::marker::PhantomData;
 
 pub struct PushConstants<T: crate::IsTypeConst> {
-    pub(crate) b: Arc<Mutex<crate::BuilderInner>>,
+    pub(crate) b: Rc<RefCell<crate::BuilderInner>>,
     pub(crate) marker: PhantomData<T>,
 }
 
 impl<T: crate::IsTypeConst> PushConstants<T> {
     pub fn load<'a>(&'a self) -> T::T<'a> {
-        let mut inner = self.b.lock().unwrap();
+        let mut inner = self.b.borrow_mut();
         if let Some(scope) = &mut inner.scope {
             let new_id = scope.get_new_id();
 
@@ -32,7 +32,7 @@ impl<T: crate::IsTypeConst> PushConstants<T> {
 
 impl<T: crate::IsTypeConst + crate::IsStructTypeConst> PushConstants<T> {
     pub fn load_field_by_index<'a, R: crate::IsTypeConst>(&'a self, field: u32) -> R::T<'a> {
-        let mut inner = self.b.lock().unwrap();
+        let mut inner = self.b.borrow_mut();
         if let Some(scope) = &mut inner.scope {
             let new_id = scope.get_new_id();
 
@@ -67,13 +67,13 @@ impl<T: crate::IsTypeConst + crate::IsStructTypeConst> PushConstants<T> {
 
 pub struct Uniform<T: crate::IsTypeConst> {
     pub(crate) id: usize,
-    pub(crate) b: Arc<Mutex<crate::BuilderInner>>,
+    pub(crate) b: Rc<RefCell<crate::BuilderInner>>,
     pub(crate) marker: PhantomData<T>,
 }
 
 impl<T: crate::IsTypeConst> Uniform<T> {
     pub fn load<'a>(&'a self) -> T::T<'a> {
-        let mut inner = self.b.lock().unwrap();
+        let mut inner = self.b.borrow_mut();
         if let Some(scope) = &mut inner.scope {
             let new_id = scope.get_new_id();
 
@@ -92,7 +92,7 @@ impl<T: crate::IsTypeConst> Uniform<T> {
 
 impl<T: crate::IsTypeConst + crate::IsStructTypeConst> Uniform<T> {
     pub fn load_field_by_index<'a, R: crate::IsTypeConst>(&'a self, field: u32) -> R::T<'a> {
-        let mut inner = self.b.lock().unwrap();
+        let mut inner = self.b.borrow_mut();
         if let Some(scope) = &mut inner.scope {
             let new_id = scope.get_new_id();
 
@@ -127,13 +127,13 @@ impl<T: crate::IsTypeConst + crate::IsStructTypeConst> Uniform<T> {
 
 pub struct Storage<T: crate::IsTypeConst> {
     pub(crate) id: usize,
-    pub(crate) b: Arc<Mutex<crate::BuilderInner>>,
+    pub(crate) b: Rc<RefCell<crate::BuilderInner>>,
     pub(crate) marker: PhantomData<T>,
 }
 
 impl<T: crate::IsTypeConst> Storage<T> {
     pub fn load_element<'a>(&'a self, element: impl SpvRustEq<crate::Int<'a>>) -> T::T<'a> {
-        let mut inner = self.b.lock().unwrap();
+        let mut inner = self.b.borrow_mut();
         if let Some(scope) = &mut inner.scope {
             let new_id = scope.get_new_id();
 
@@ -155,7 +155,7 @@ impl<T: crate::IsTypeConst> Storage<T> {
 
 impl<T: crate::IsTypeConst + crate::IsStructTypeConst> Storage<T> {
     pub fn load_field_by_index<'a, R: crate::IsTypeConst>(&'a self, element: impl SpvRustEq<crate::Int<'a>>, field: u32) -> R::T<'a> {
-        let mut inner = self.b.lock().unwrap();
+        let mut inner = self.b.borrow_mut();
         if let Some(scope) = &mut inner.scope {
             let new_id = scope.get_new_id();
 

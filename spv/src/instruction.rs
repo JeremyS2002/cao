@@ -1,6 +1,6 @@
 
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use either::*;
 use rspirv::dr::Builder;
@@ -1058,7 +1058,7 @@ impl OpSample {
 pub struct OpIf {
     pub condition: usize,
     pub instructions: Vec<Instruction>,
-    pub then: Arc<Mutex<Option<Either<Box<OpIf>, OpElse>>>>,
+    pub then: Rc<RefCell<Option<Either<Box<OpIf>, OpElse>>>>,
 }
 
 impl OpIf {
@@ -1098,7 +1098,7 @@ impl OpIf {
             end_label, 
         };
 
-        let then = self.then.lock().unwrap();
+        let then = self.then.borrow_mut();
         let bl = if let Some(then) = &*then {
             match then {
                 Left(t) => t.compile(b, shader_info, func_info),

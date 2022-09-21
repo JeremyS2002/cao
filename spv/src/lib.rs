@@ -126,8 +126,8 @@
 pub use either;
 use either::*;
 
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 pub mod data;
 pub mod instruction;
@@ -199,65 +199,65 @@ impl Stage {
 }
 
 pub struct Builder {
-    inner: Arc<Mutex<BuilderInner>>,
+    inner: Rc<RefCell<BuilderInner>>,
 }
 
 impl Builder {
     pub fn new() -> Self {
-        Self { inner: Arc::new(Mutex::new(BuilderInner::new())) }
+        Self { inner: Rc::new(RefCell::new(BuilderInner::new())) }
     }
 
     pub fn compile(&self) -> Vec<u32> {
-        self.inner.lock().unwrap().compile()
+        self.inner.borrow_mut().compile()
     }
 
-    pub fn __inner<'a>(&'a self) -> &'a Arc<Mutex<BuilderInner>> {
+    pub fn __inner<'a>(&'a self) -> &'a Rc<RefCell<BuilderInner>> {
         &self.inner
     }
 
     pub fn get_entry_name(&self, entry: Stage) -> Option<&'static str> {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.inner.borrow_mut();
         let f = inner.entry_points.get(&entry)?;
         inner.functions.get(f)?.name
     }
 
     pub fn get_inputs(&self) -> Vec<IOData> {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.inner.borrow_mut();
         inner.inputs.clone()
     }
 
     pub fn get_outputs(&self) -> Vec<IOData> {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.inner.borrow_mut();
         inner.outputs.clone()
     }
 
     pub fn get_uniforms(&self) -> Vec<UniformData> {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.inner.borrow_mut();
         inner.uniforms.clone()
     }
 
     pub fn get_storages(&self) -> Vec<StorageData> {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.inner.borrow_mut();
         inner.storages.clone()
     }
 
     pub fn get_textures(&self) -> Vec<TextureData> {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.inner.borrow_mut();
         inner.textures.clone()
     }
 
     pub fn get_sampled_textures(&self) -> Vec<SampledTextureData> {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.inner.borrow_mut();
         inner.sampled_textures.clone()
     }
 
     pub fn get_samplers(&self) -> Vec<SamplerData> {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.inner.borrow_mut();
         inner.samplers.clone()
     }
 
     pub fn get_push_constants(&self) -> Option<PushData> {
-        let inner = self.inner.lock().unwrap();
+        let inner = self.inner.borrow_mut();
         inner.push_constants.clone()
     }
 }
@@ -277,7 +277,7 @@ impl Builder {
     /// layout(location = location) (flat?) in T name;
     /// ```
     pub fn input<T: AsIOTypeConst>(&self, location: u32, flat: bool, name: Option<&'static str>) -> Input<T> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
         assert!(inner.scope.is_none(), "Error cannot declare input: {{ location: {}, flat: {}, name: {:?} }} when builder is in a function", location, flat, name);
         let id = inner.inputs.len();
         inner.inputs.push(IOData {
@@ -289,7 +289,7 @@ impl Builder {
         drop(inner);
         Input { 
             id, 
-            inner: Arc::clone(&self.inner), 
+            inner: Rc::clone(&self.inner), 
             marker: std::marker::PhantomData,
         }
     }
@@ -303,7 +303,7 @@ impl Builder {
     /// layout(location = location) (flat?) out T name;
     /// ```
     pub fn output<T: AsIOTypeConst>(&self, location: u32, flat: bool, name: Option<&'static str>) -> Output<T> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
         assert!(inner.scope.is_none(), "Error cannot declare output: {{ location: {}, flat: {}, name: {:?} }} when builder is in a function", location, flat, name);
         let id = inner.outputs.len();
         inner.outputs.push(IOData {
@@ -315,13 +315,13 @@ impl Builder {
         drop(inner);
         Output {
             id,
-            inner: Arc::clone(&self.inner),
+            inner: Rc::clone(&self.inner),
             marker: std::marker::PhantomData,
         }
     }
     
     fn built_in_input<T: AsIOTypeConst>(&self, built_in: rspirv::spirv::BuiltIn, name: &'static str) -> Input<T> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
         assert!(inner.scope.is_none(), "Error cannot declare input: {:?} when builder is in a function", built_in);
         let id = inner.inputs.len();
         inner.inputs.push(IOData {
@@ -333,13 +333,13 @@ impl Builder {
         drop(inner);
         Input { 
             id, 
-            inner: Arc::clone(&self.inner), 
+            inner: Rc::clone(&self.inner), 
             marker: std::marker::PhantomData,
         }
     }
 
     fn built_in_output<T: AsIOTypeConst>(&self, built_in: rspirv::spirv::BuiltIn, name: &'static str) -> Output<T> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
         assert!(inner.scope.is_none(), "Error cannot declare built in output: {:?} when builder is in a function", built_in);
         let id = inner.outputs.len();
         inner.outputs.push(IOData {
@@ -351,7 +351,7 @@ impl Builder {
         drop(inner);
         Output {
             id,
-            inner: Arc::clone(&self.inner),
+            inner: Rc::clone(&self.inner),
             marker: std::marker::PhantomData,
         }
     }
@@ -452,7 +452,7 @@ impl Builder {
 
 impl Builder {
     pub fn func<T: IsTypeConst, F: FnOnce()>(&self, name: Option<&'static str>, f: F) -> Func<T> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
         assert!(inner.scope.is_none(), "Error cannot declare function: {{ name: {:?} }} when builder is in a function", name);
         let func_id = inner.functions.len();
         inner.functions.insert(func_id, FuncData { 
@@ -470,7 +470,7 @@ impl Builder {
 
         f();
 
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
 
         let instructions = match inner.scope.take().unwrap().downcast::<FuncScope>() {
             Ok(scope) => scope.instructions,
@@ -484,7 +484,7 @@ impl Builder {
 
         Func {
             id: func_id,
-            inner: Arc::clone(&self.inner),
+            inner: Rc::clone(&self.inner),
             marker: std::marker::PhantomData,
         }
     }
@@ -492,7 +492,7 @@ impl Builder {
     pub fn entry<F: FnOnce()>(&self, stage: Stage, name: &'static str, f: F) {
         let main = self.func::<Void, _>(Some(name), f);
 
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
 
         inner.entry_points.insert(stage, main.id);
     }
@@ -505,7 +505,7 @@ impl Builder {
 
 impl Builder {
     pub fn const_struct<'a, T: RustStructType>(&'a self, val: T) -> T::Spv<'a> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
         if let Some(scope) = &mut inner.scope {
             let id = val.struct_id(&mut **scope);
             drop(scope);
@@ -519,7 +519,7 @@ impl Builder {
 
 impl Builder {
     fn set_const(&self, val: Val) -> usize {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
         assert!(inner.scope.is_some(), "Cannot declare new variable {:?} when not in function", val);
 
         let scope = inner.scope.as_mut().unwrap();
@@ -587,7 +587,7 @@ impl Builder {
 
 impl Builder {
     fn composite<'a>(&self, ty: Type, constituents: impl IntoIterator<Item=&'a dyn AsType>) -> usize {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
         if let Some(scope) = &mut inner.scope {
             let new_id = scope.get_new_id();
 
@@ -701,7 +701,7 @@ impl Builder {
     /// };
     /// ```
     pub fn push_constants<T: IsTypeConst>(&self, name: Option<&'static str>) -> PushConstants<T> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
 
         inner.push_constants = Some(PushData { 
             ty: T::TY, 
@@ -710,7 +710,7 @@ impl Builder {
 
         drop(inner);
         PushConstants { 
-            b: Arc::clone(&self.inner), 
+            b: Rc::clone(&self.inner), 
             marker: std::marker::PhantomData 
         }
     }
@@ -726,7 +726,7 @@ impl Builder {
     /// } name;
     /// ```
     pub fn uniform<T: IsTypeConst>(&self, set: u32, binding: u32, name: Option<&'static str>) -> Uniform<T> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
 
         let id = inner.uniforms.len();
         inner.uniforms.push(UniformData {
@@ -739,13 +739,13 @@ impl Builder {
         drop(inner);
         Uniform { 
             id, 
-            b: Arc::clone(&self.inner), 
+            b: Rc::clone(&self.inner), 
             marker: std::marker::PhantomData 
         }
     }
 
     fn raw_storage<T: IsTypeConst>(&self, set: u32, binding: u32, read: bool, write: bool, name: Option<&'static str>) -> Storage<T> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
 
         let id = inner.storages.len();
         inner.storages.push(StorageData { 
@@ -760,7 +760,7 @@ impl Builder {
         drop(inner);
         Storage {
             id,
-            b: Arc::clone(&self.inner),
+            b: Rc::clone(&self.inner),
             marker: std::marker::PhantomData,
         }
     }
@@ -823,7 +823,7 @@ impl Builder {
     /// layout(set = s, binding = b) uniform sampler name;
     /// ```
     pub fn sampler(&self, set: u32, binding: u32, name: Option<&'static str>) -> Sampler {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
 
         let id = inner.samplers.len();
         inner.samplers.push(SamplerData { 
@@ -838,7 +838,7 @@ impl Builder {
     }
 
     fn raw_texture<D: AsDimension, T: GTexture<D>>(&self, set: u32, binding: u32, name: Option<&'static str>) -> T {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
 
         let id = inner.textures.len();
         inner.textures.push(TextureData {
@@ -849,7 +849,7 @@ impl Builder {
         });
 
         drop(inner);
-        T::new(id, Arc::clone(&self.inner))
+        T::new(id, Rc::clone(&self.inner))
     }
 
     /// Declare an itextureD for the shader
@@ -901,7 +901,7 @@ impl Builder {
     }
 
     fn raw_sampled_texture<D: AsDimension, T: SampledGTexture<D>>(&self, set: u32, binding: u32, name: Option<&'static str>) -> T {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
 
         let id = inner.sampled_textures.len();
         inner.sampled_textures.push(SampledTextureData {
@@ -912,7 +912,7 @@ impl Builder {
         });
 
         drop(inner);
-        T::from_uniform(id, Arc::clone(&self.inner))
+        T::from_uniform(id, Rc::clone(&self.inner))
     }
 
     /// Declare an itextureD for the shader
@@ -1069,7 +1069,7 @@ impl Builder {
 /// combine a texture and sampler into a sampled_texture
 /// equivalent to the glsl constructor `isamplerD`, `usamplerD`, `samplerD` and `dsamplerD`
 pub fn combine<D: AsDimension, T: GTexture<D>>(texture: &T, sampler: Sampler) -> T::Sampler {
-    let mut inner = texture.b().lock().unwrap();
+    let mut inner = texture.b().borrow_mut();
     if let Some(scope) = &mut inner.scope {
         let new_id = scope.get_new_id();
 
@@ -1082,7 +1082,7 @@ pub fn combine<D: AsDimension, T: GTexture<D>>(texture: &T, sampler: Sampler) ->
         
         drop(scope);
         drop(inner);
-        T::Sampler::from_combine(new_id, Arc::clone(&texture.b()))
+        T::Sampler::from_combine(new_id, Rc::clone(&texture.b()))
     } else {
         panic!("Cannot combine texture and sampler when not in function");
     }
@@ -1091,7 +1091,7 @@ pub fn combine<D: AsDimension, T: GTexture<D>>(texture: &T, sampler: Sampler) ->
 /// sample from a sampled_texture
 /// equivalent to the glsl function `texture`
 pub fn sample<'a, 'b, D: AsDimension, S: SampledGTexture<D>>(sampled_texture: &'a S, coord: D::Coordinate<'b>) -> S::Sample<'a> {
-    let mut inner = sampled_texture.b().lock().unwrap();
+    let mut inner = sampled_texture.b().borrow_mut();
     if let Some(scope) = &mut inner.scope {
         let new_id = scope.get_new_id();
 
@@ -1124,14 +1124,14 @@ pub fn sample<'a, 'b, D: AsDimension, S: SampledGTexture<D>>(sampled_texture: &'
 // }
 
 pub struct IfChain<'a> {
-    builder: &'a Arc<Mutex<BuilderInner>>,
-    then: Arc<Mutex<Option<Either<Box<OpIf>, OpElse>>>>,
+    builder: &'a Rc<RefCell<BuilderInner>>,
+    then: Rc<RefCell<Option<Either<Box<OpIf>, OpElse>>>>,
 }
 
 /// Inserts an If block in the the spir-v module
 /// returns a structure that allows else or else_if to be appended to the if block
 pub fn spv_if<'a, F: FnOnce()>(b: Bool<'a>, f: F) -> IfChain<'a> {
-    let mut inner = b.b.lock().unwrap();
+    let mut inner = b.b.borrow_mut();
 
     if let Some(scope) = inner.scope.take() {
         let if_scope = IfScope {
@@ -1145,7 +1145,7 @@ pub fn spv_if<'a, F: FnOnce()>(b: Bool<'a>, f: F) -> IfChain<'a> {
 
         f();
         
-        let mut inner = b.b.lock().unwrap();
+        let mut inner = b.b.borrow_mut();
 
         let mut if_scope = if let Ok(t) = inner.scope.take().unwrap().downcast::<IfScope>() {
             t
@@ -1153,12 +1153,12 @@ pub fn spv_if<'a, F: FnOnce()>(b: Bool<'a>, f: F) -> IfChain<'a> {
             unreachable!()
         };
 
-        let then = Arc::default();
+        let then = Rc::default();
 
         if_scope.outer.push_instruction(crate::Instruction::If(OpIf {
             condition: b.id,
             instructions: if_scope.instructions,
-            then: Arc::clone(&then),
+            then: Rc::clone(&then),
         }));
 
         inner.scope = Some(if_scope.outer);
@@ -1175,7 +1175,7 @@ pub fn spv_if<'a, F: FnOnce()>(b: Bool<'a>, f: F) -> IfChain<'a> {
 impl<'a> IfChain<'a> {
     /// appends an else if block to the if block that this chain was formed by
     pub fn spv_else_if<'b, F: FnOnce()>(self, b: Bool<'b>, f: F) -> IfChain<'a> {
-        let mut inner = b.b.lock().unwrap();
+        let mut inner = b.b.borrow_mut();
 
         if let Some(scope) = inner.scope.take() {
             let if_scope = IfScope {
@@ -1189,7 +1189,7 @@ impl<'a> IfChain<'a> {
 
             f();
 
-            let mut inner = b.b.lock().unwrap();
+            let mut inner = b.b.borrow_mut();
             
             let if_scope = if let Ok(t) = inner.scope.take().unwrap().downcast::<IfScope>() {
                 t
@@ -1197,13 +1197,13 @@ impl<'a> IfChain<'a> {
                 unreachable!()
             };
 
-            let new_then = Arc::default();
+            let new_then = Rc::default();
 
-            let mut then = self.then.lock().unwrap();
+            let mut then = self.then.borrow_mut();
             *then = Some(Left(Box::new(OpIf {
                 condition: b.id,
                 instructions: if_scope.instructions,
-                then: Arc::clone(&new_then),
+                then: Rc::clone(&new_then),
             })));
 
             inner.scope = Some(if_scope.outer);
@@ -1219,7 +1219,7 @@ impl<'a> IfChain<'a> {
 
     /// appends an else block to the if block that this chain was formed by
     pub fn spv_else<F: FnOnce()>(self, f: F) {
-        let mut inner = self.builder.lock().unwrap();
+        let mut inner = self.builder.borrow_mut();
 
         if let Some(scope) = inner.scope.take() {
             let if_scope = IfScope {
@@ -1233,7 +1233,7 @@ impl<'a> IfChain<'a> {
 
             f();
 
-            let mut inner = self.builder.lock().unwrap();
+            let mut inner = self.builder.borrow_mut();
             
             let if_scope = if let Ok(t) = inner.scope.take().unwrap().downcast::<IfScope>() {
                 t
@@ -1241,7 +1241,7 @@ impl<'a> IfChain<'a> {
                 unreachable!()
             };
 
-            let mut then = self.then.lock().unwrap();
+            let mut then = self.then.borrow_mut();
             *then = Some(Right(OpElse {
                 instructions: if_scope.instructions,
             }));

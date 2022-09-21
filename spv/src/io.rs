@@ -1,8 +1,8 @@
 
 use core::panic;
 use std::marker::PhantomData;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum IOType {
@@ -158,13 +158,13 @@ impl AsIOTypeConst for IODVec4 {
 
 pub struct Input<T: AsIOTypeConst> {
     pub(crate) id: usize,
-    pub(crate) inner: Arc<Mutex<crate::BuilderInner>>,
+    pub(crate) inner: Rc<RefCell<crate::BuilderInner>>,
     pub(crate) marker: PhantomData<T>,
 }
 
 impl<T: AsIOTypeConst> Input<T> {
     fn raw_load(&self) -> usize {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
         if let Some(scope) = &mut inner.scope {
             let store = scope.get_new_id();
 
@@ -183,13 +183,13 @@ impl<T: AsIOTypeConst> Input<T> {
 
 pub struct Output<T: AsIOTypeConst> {
     pub(crate) id: usize,
-    pub(crate) inner: Arc<Mutex<crate::BuilderInner>>,
+    pub(crate) inner: Rc<RefCell<crate::BuilderInner>>,
     pub(crate) marker: PhantomData<T>, 
 }
 
 impl<T: AsIOTypeConst> Output<T> {
     fn raw_store(&self, id: usize) {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.borrow_mut();
         if let Some(scope) = &mut inner.scope {
             scope.push_instruction(crate::Instruction::LoadStore(crate::OpLoadStore {
                 ty: T::IO_TY.ty(),
