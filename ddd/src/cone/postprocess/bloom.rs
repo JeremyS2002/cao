@@ -89,7 +89,7 @@ impl BloomRenderer {
             gpu::include_spirv!("../../../shaders/cone/postprocess/bloom_prefilter.frag.spv");
 
         let n = name.as_ref().map(|n| format!("{}_prefilter_renderer", n));
-        let prefilter_pipeline = match gfx::ReflectedGraphics::from_spv(
+        let prefilter_pipeline = match gfx::ReflectedGraphics::from_spirv(
             device,
             &vert_spv,
             None,
@@ -199,10 +199,8 @@ impl BloomRenderer {
     /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
     /// This function drops Descriptor sets cached by self
     pub fn clean(&self) {
-        // self.blur_bundles.clear();
-        // self.blur_targets.clear();
-        // self.prefilter_bundles.clear();
-        self.blur_renderer.clean();
+        self.prefilter_pipeline.clear();
+        self.blur_renderer.clear();
         self.prefiltered.lock().unwrap().clear();
     }
 }

@@ -37,7 +37,7 @@ impl GaussBlurRenderer {
             gpu::include_spirv!("../../../shaders/cone/postprocess/full_gauss_blur.frag.spv")
         };
 
-        let pipeline = match gfx::ReflectedGraphics::from_spv(
+        let pipeline = match gfx::ReflectedGraphics::from_spirv(
             device,
             &vert_spv,
             None,
@@ -350,6 +350,11 @@ impl GaussBlurRenderer {
             self.full_pass(encoder, device, src_view, dst_view, clear_dst, radius)
         }
     }
+
+    pub fn clear(&self) {
+        self.bundles.lock().unwrap().clear();
+        self.pipeline.clear();
+    }
 }
 
 /// Postprocessing blur pipeline
@@ -377,7 +382,7 @@ impl ChainBlurRenderer {
         let vert_spv = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let frag_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/chain_blur.frag.spv");
 
-        let pipeline = match gfx::ReflectedGraphics::from_spv(
+        let pipeline = match gfx::ReflectedGraphics::from_spirv(
             device,
             &vert_spv,
             None,
@@ -581,7 +586,8 @@ impl ChainBlurRenderer {
     /// To avoid memory use after free issues vulkan objects are kept alive as long as they can be used
     /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
     /// This function drops Descriptor sets cached by self
-    pub fn clean(&self) {
+    pub fn clear(&self) {
         self.targets.lock().unwrap().clear();
+        self.pipeline.clear();
     }
 }

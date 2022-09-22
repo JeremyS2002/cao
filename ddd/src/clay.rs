@@ -94,7 +94,7 @@ macro_rules! impl_renderer {
                 let frag_spv = gpu::include_spirv!($frag);
 
                 let name = name.map(|n| format!("{}_renderer", n));
-                let g = match gfx::ReflectedGraphics::from_spv(
+                let g = match gfx::ReflectedGraphics::from_spirv(
                     device,
                     &vert_spv,
                     None,

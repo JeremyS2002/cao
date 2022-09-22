@@ -92,7 +92,7 @@ impl GlobalToneMapRenderer {
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../../shaders/screen.vert.spv");
         let frag = gpu::include_spirv!("../../../shaders/cone/postprocess/tonemap_global.frag.spv");
-        match gfx::ReflectedGraphics::from_spv(
+        match gfx::ReflectedGraphics::from_spirv(
             device,
             &vert,
             None,
@@ -157,6 +157,7 @@ impl GlobalToneMapRenderer {
     /// This function drops Descriptor sets cached by self
     pub fn clean(&mut self) {
         self.bundles.lock().unwrap().clear();
+        self.pipeline.clear();
     }
 }
 

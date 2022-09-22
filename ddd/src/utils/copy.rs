@@ -35,7 +35,7 @@ impl CopyRenderer {
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = gpu::include_spirv!("../../shaders/screen.vert.spv");
         let frag = gpu::include_spirv!("../../shaders/copy.frag.spv");
-        match gfx::ReflectedGraphics::from_spv(
+        match gfx::ReflectedGraphics::from_spirv(
             device,
             &vert,
             None,

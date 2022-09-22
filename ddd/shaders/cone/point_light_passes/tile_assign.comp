@@ -1,6 +1,6 @@
 #version 450
 
-#define TILE_SIZE 16
+layout(constant_id = 0) const uint TILE_SIZE = 16;
 
 struct PointLightData {
     float falloff;

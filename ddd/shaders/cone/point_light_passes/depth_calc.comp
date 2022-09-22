@@ -3,7 +3,11 @@
 shared uint min_depth;
 shared uint max_depth;
 
-layout(local_size_x = 16, local_size_y = 16) in;
+// layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(constant_id = 0) const uint TILE_SIZE = 16;
+
+layout(local_size_x_id = 0, local_size_y_id = 0) in;
 
 // pixel position in view space
 layout(set = 0, binding = 0, rgba32f) uniform readonly image2D u_position;

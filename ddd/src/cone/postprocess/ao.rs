@@ -286,7 +286,7 @@ impl AORenderer {
         let calc_spv = gpu::include_spirv!("../../../shaders/cone/postprocess/ao_calc.frag.spv");
 
         let n = name.map(|n| format!("{}_calc_renderer", n));
-        let pipeline = match gfx::ReflectedGraphics::from_spv(
+        let pipeline = match gfx::ReflectedGraphics::from_spirv(
             device,
             &screen_spv,
             None,
@@ -481,7 +481,8 @@ impl AORenderer {
     /// To avoid memory use after free issues vulkan objects are kept alive as long as they can be used
     /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
     /// This function drops Descriptor sets cached by self
-    pub fn clean(&mut self) {
+    pub fn clear(&mut self) {
         self.bundles.lock().unwrap().clear();
+        self.blur_renderer.clear();
     }
 }

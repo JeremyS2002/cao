@@ -13,7 +13,6 @@
 //! see [`PointDepthMapRenderer::multi_pass`] to draw to [`PointDepthMaps`] or [`PointSubsurfaceMaps`]
 
 use crate::cone::*;
-use crate::prelude::*;
 use crate::utils::*;
 
 use std::sync::Arc;
@@ -484,9 +483,10 @@ impl std::ops::DerefMut for PointSubsurfaceMaps {
 /// Used for rendering depth maps that correspond to point lights
 pub struct PointDepthMapRenderer {
     pub pipeline: gfx::ReflectedGraphics,
-    pub multi_shadow_map: Arc<Mutex<HashMap<(u64, usize), gpu::DescriptorSet>>>,
-    pub single_shadow_map: Arc<Mutex<HashMap<u64, gpu::DescriptorSet>>>,
-    pub instances_map: Arc<Mutex<HashMap<u64, gpu::DescriptorSet>>>,
+    /// map from (instances, shadow) to bundle
+    pub single_bundles: Arc<Mutex<HashMap<(u64, u64), gfx::Bundle>>>,
+    /// map from (instances, shadow, index) to bundle
+    pub multi_bundles: Arc<Mutex<HashMap<(u64, u64, usize), gfx::Bundle>>>,    
 }
 
 impl PointDepthMapRenderer {
@@ -507,9 +507,8 @@ impl PointDepthMapRenderer {
         let multi = Self::pipeline(device, cull_face, front_face, cache, name)?;
         Ok(Self {
             pipeline: multi,
-            multi_shadow_map: Arc::default(),
-            single_shadow_map: Arc::default(),
-            instances_map: Arc::default(),
+            multi_bundles: Arc::default(),
+            single_bundles: Arc::default(),
         })
     }
 
@@ -527,7 +526,7 @@ impl PointDepthMapRenderer {
         let fragment_spv =
             gpu::include_spirv!("../../../shaders/cone/shadow_passes/shadow.frag.spv");
 
-        match gfx::ReflectedGraphics::from_spv(
+        match gfx::ReflectedGraphics::from_spirv(
             device,
             &vertex_spv,
             None,
@@ -585,51 +584,29 @@ impl PointDepthMapRenderer {
                 }),
                 &self.pipeline,
             )?;
-            let mut shadow_map = self.single_shadow_map.lock().unwrap();
-            let key = shadow.uniform.buffer.id();
-            if shadow_map.get(&key).is_none() {
-                let s = device.create_descriptor_set(&gpu::DescriptorSetDesc {
-                    name: None,
-                    entries: &[gpu::DescriptorSetEntry::Buffer(
-                        shadow.uniform.buffer.slice_ref(..),
-                    )],
-                    layout: self
-                        .pipeline
-                        .reflect_data
-                        .descriptor_layouts()
-                        .unwrap()
-                        .get(0)
-                        .unwrap(),
-                })?;
-                shadow_map.insert(key, s.clone());
-            }
-            let shadow_set = shadow_map.get(&key).unwrap().clone();
 
-            let mut instances_map = self.instances_map.lock().unwrap();
+            let mut bundles = self.single_bundles.lock().unwrap();
             for (mesh, instance) in &meshes {
-                let key = instance.buffer.id();
+                let key = (instance.buffer.id(), shadow.uniform.buffer.id());
 
-                if instances_map.get(&key).is_none() {
-                    let s = device.create_descriptor_set(&gpu::DescriptorSetDesc {
-                        name: None,
-                        entries: &[gpu::DescriptorSetEntry::Buffer(
-                            instance.buffer.slice_ref(..),
-                        )],
-                        layout: self
-                            .pipeline
-                            .reflect_data
-                            .descriptor_layouts()
-                            .unwrap()
-                            .get(1)
-                            .unwrap(),
-                    })?;
-                    instances_map.insert(key, s.clone());
+                if bundles.get(&key).is_none() {
+                    let b = match self.pipeline.bundle().unwrap()
+                        .set_resource("u_instance", *instance).unwrap()
+                        .set_resource("u_shadow", &shadow.buffer).unwrap()
+                        .build(device) {
+                            Ok(b) => b,
+                            Err(e) => match e {
+                                gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                                e => unreachable!("{}", e)
+                            },
+                        };
+                    bundles.insert(key, b.clone());
                 }
 
-                let instance_set = instances_map.get(&key).unwrap().clone();
+                let bundle = bundles.get(&key).unwrap().clone();
 
                 pass.push_u32("face", face_idx);
-                pass.bind_descriptors_owned(0, vec![shadow_set.clone(), instance_set]);
+                pass.set_bundle_owned(bundle);
                 pass.draw_instanced_mesh_ref(mesh, 0, instance.length as _);
             }
 
@@ -670,55 +647,34 @@ impl PointDepthMapRenderer {
                     }),
                     &self.pipeline,
                 )?;
-                let mut shadow_map = self.multi_shadow_map.lock().unwrap();
-                let key = (shadow.storage.buffer.id(), index);
-                if shadow_map.get(&key).is_none() {
-                    let s = device.create_descriptor_set(&gpu::DescriptorSetDesc {
-                        name: None,
-                        entries: &[gpu::DescriptorSetEntry::Buffer(
-                            shadow.storage.buffer.slice_ref(
+
+                let mut multi_bundles = self.multi_bundles.lock().unwrap();
+                for (mesh, instance) in &meshes {
+                    let key = (instance.buffer.id(), shadow.storage.buffer.id(), index);
+
+                    if multi_bundles.get(&key).is_none() {
+                        let b = match self.pipeline.bundle().unwrap()
+                            .set_resource("u_instance", *instance).unwrap()
+                            .set_buffer("u_shadow", shadow.storage.buffer.slice_ref(
                                 (index as u64 * std::mem::size_of::<PointDepthData>() as u64)
                                     ..((index as u64 + 1)
                                         * std::mem::size_of::<PointDepthData>() as u64),
-                            ),
-                        )],
-                        layout: self
-                            .pipeline
-                            .reflect_data
-                            .descriptor_layouts()
-                            .unwrap()
-                            .get(0)
-                            .unwrap(),
-                    })?;
-                    shadow_map.insert(key, s.clone());
-                }
-                let shadow_set = shadow_map.get(&key).unwrap().clone();
-
-                let mut instances_map = self.instances_map.lock().unwrap();
-                for (mesh, instance) in &meshes {
-                    let key = instance.buffer.id();
-
-                    if instances_map.get(&key).is_none() {
-                        let s = device.create_descriptor_set(&gpu::DescriptorSetDesc {
-                            name: None,
-                            entries: &[gpu::DescriptorSetEntry::Buffer(
-                                instance.buffer.slice_ref(..),
-                            )],
-                            layout: self
-                                .pipeline
-                                .reflect_data
-                                .descriptor_layouts()
-                                .unwrap()
-                                .get(1)
-                                .unwrap(),
-                        })?;
-                        instances_map.insert(key, s.clone());
+                            )).unwrap()
+                            .build(device) {
+                                Ok(b) => b,
+                                Err(e) => match e {
+                                    gfx::BundleBuildError::Gpu(e) => Err(e)?,
+                                    _ => unreachable!()
+                                },
+                            };
+                        multi_bundles.insert(key, b.clone());
                     }
 
-                    let instance_set = instances_map.get(&key).unwrap().clone();
+                    let bundle = multi_bundles.get(&key).unwrap().clone();
 
                     pass.push_u32("face", face_idx);
-                    pass.bind_descriptors_owned(0, vec![shadow_set.clone(), instance_set]);
+                    pass.set_bundle_owned(bundle);
+                    // pass.bind_descriptors_owned(0, vec![shadow_set.clone(), instance_set]);
                     pass.draw_instanced_mesh_ref(mesh, 0, instance.length as _);
                 }
 
@@ -732,9 +688,9 @@ impl PointDepthMapRenderer {
     /// To avoid memory use after free issues vulkan objects are kept alive as long as they can be used
     /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
     /// This function drops Descriptor sets cached by self
-    pub fn clean(&mut self) {
-        self.instances_map.lock().unwrap().clear();
-        self.single_shadow_map.lock().unwrap().clear();
-        self.multi_shadow_map.lock().unwrap().clear();
+    pub fn clear(&mut self) {
+        self.single_bundles.lock().unwrap().clear();
+        self.multi_bundles.lock().unwrap().clear();
+        self.pipeline.clear();
     }
 }

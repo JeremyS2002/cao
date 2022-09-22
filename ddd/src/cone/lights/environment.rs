@@ -124,7 +124,7 @@ impl<'a> SkyBoxGenerator<'a> {
         let vertex_spv = gpu::include_spirv!("../../../shaders/cube_push.vert.spv");
         let fragment_spv = gpu::include_spirv!("../../../shaders/cone/creation/skybox.frag.spv");
 
-        match gfx::ReflectedGraphics::from_spv(
+        match gfx::ReflectedGraphics::from_spirv(
             device,
             &vertex_spv,
             None,
@@ -147,7 +147,7 @@ impl<'a> SkyBoxGenerator<'a> {
         let compute_spv =
             gpu::include_spirv!("../../../shaders/cone/workarounds/rgb32f_to_rgba32f.comp.spv");
 
-        match gfx::ReflectedCompute::new(device, &compute_spv, None, None) {
+        match gfx::ReflectedCompute::from_spirv(device, &compute_spv, None, None) {
             Ok(c) => Ok(c),
             Err(e) => match e {
                 gfx::error::ReflectedError::Gpu(e) => Err(e)?,
@@ -412,7 +412,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
         let brdf_spv = gpu::include_spirv!("../../../shaders/cone/creation/ibl_brdf.frag.spv");
 
         let n = name.map(|n| format!("{}_diffuse_renderer", n));
-        let diffuse = match gfx::ReflectedGraphics::from_spv(
+        let diffuse = match gfx::ReflectedGraphics::from_spirv(
             device,
             &cube_push_vertex_spv,
             None,
@@ -430,7 +430,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
             },
         };
 
-        let specular = match gfx::ReflectedGraphics::from_spv(
+        let specular = match gfx::ReflectedGraphics::from_spirv(
             device,
             &cube_buffer_vertex_spv,
             None,
@@ -448,7 +448,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
             },
         };
 
-        let brdf = match gfx::ReflectedGraphics::from_spv(
+        let brdf = match gfx::ReflectedGraphics::from_spirv(
             device,
             &screen_spv,
             None,
@@ -823,7 +823,7 @@ impl EnvironmentRenderer {
         cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
-        match gfx::ReflectedGraphics::from_spv(
+        match gfx::ReflectedGraphics::from_spirv(
             device,
             &vert,
             None,
@@ -871,7 +871,7 @@ impl EnvironmentRenderer {
         cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
-        match gfx::ReflectedGraphics::from_spv(
+        match gfx::ReflectedGraphics::from_spirv(
             device,
             &gpu::include_spirv!("../../../shaders/cube_buffer.vert.spv"),
             None,
@@ -1181,9 +1181,18 @@ impl EnvironmentRenderer {
     /// To avoid memory use after free issues vulkan objects are kept alive as long as they can be used
     /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
     /// This function drops Descriptor sets cached by self
-    pub fn clean(&mut self) {
+    pub fn clear(&mut self) {
         self.ambient_bundles.lock().unwrap().clear();
         self.environment_bundles.lock().unwrap().clear();
         self.skybox_bundles.lock().unwrap().clear();
+        if let Some(ambient) = self.ambient.as_ref() {
+            ambient.clear();
+        }
+        if let Some(env) = self.environment.as_ref() {
+            env.clear();
+        }
+        if let Some(skybox) = self.skybox.as_ref() {
+            skybox.clear();
+        }
     }
 }

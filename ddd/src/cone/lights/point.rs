@@ -170,7 +170,7 @@ impl PointLightRenderer {
         cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
-        match gfx::ReflectedGraphics::from_spv(
+        match gfx::ReflectedGraphics::from_spirv(
             device,
             &vert,
             None,
@@ -593,10 +593,19 @@ impl PointLightRenderer {
     /// To avoid memory use after free issues vulkan objects are kept alive as long as they can be used
     /// Specifically references in command buffers or descriptor sets keep other objects alive until the command buffer is reset or the descriptor set is destroyed
     /// This function drops Descriptor sets cached by self
-    pub fn clean(&mut self) {
+    pub fn clear(&mut self) {
         self.base_bundles.lock().unwrap().clear();
         self.shadow_bundles.lock().unwrap().clear();
         self.subsurface_bundles.lock().unwrap().clear();
+        if let Some(base) = self.base.as_ref() {
+            base.clear();
+        }
+        if let Some(shadow) = self.shadow.as_ref() {
+            shadow.clear();
+        }
+        if let Some(subsurface) = self.subsurface.as_ref() {
+            subsurface.clear();
+        }
     }
 }
 
@@ -664,7 +673,7 @@ impl PointLightsRenderer {
         let depth_calc_spv =
             gpu::include_spirv!("../../../shaders/cone/point_light_passes/depth_calc.comp.spv");
 
-        let depth_calc = match gfx::ReflectedCompute::new(
+        let depth_calc = match gfx::ReflectedCompute::from_spirv(
             device,
             &depth_calc_spv,
             cache.clone(),
@@ -682,7 +691,7 @@ impl PointLightsRenderer {
         let tile_assign_spv =
             gpu::include_spirv!("../../../shaders/cone/point_light_passes/tile_assign.comp.spv");
 
-        let tile_assign = match gfx::ReflectedCompute::new(
+        let tile_assign = match gfx::ReflectedCompute::from_spirv(
             device,
             &tile_assign_spv,
             cache.clone(),
@@ -703,7 +712,7 @@ impl PointLightsRenderer {
                 gpu::include_spirv!("../../../shaders/cone/point_light_passes/tile_base.comp.spv");
 
             base = Some(
-                match gfx::ReflectedCompute::new(
+                match gfx::ReflectedCompute::from_spirv(
                     device,
                     &base_spv,
                     cache.clone(),
@@ -727,7 +736,7 @@ impl PointLightsRenderer {
             );
 
             shadow = Some(
-                match gfx::ReflectedCompute::new(
+                match gfx::ReflectedCompute::from_spirv(
                     device,
                     &shadow_spv,
                     cache.clone(),
@@ -751,7 +760,7 @@ impl PointLightsRenderer {
             );
 
             subsurface = Some(
-                match gfx::ReflectedCompute::new(
+                match gfx::ReflectedCompute::from_spirv(
                     device,
                     &subsurface_spv,
                     cache,
@@ -803,10 +812,8 @@ impl PointLightsRenderer {
         device: &gpu::Device,
         buffer: &'a GeometryBuffer,
         camera: &'a Camera,
+        tile_size: u32,
     ) -> Result<(gfx::GTexture2D, gfx::GTexture2D), gpu::Error> {
-        // let tile_size = 16u32;
-        let tile_size = 16u32;
-
         let tile_tex_width = buffer.width.div_ceil(tile_size);
         let tile_tex_height = buffer.height.div_ceil(tile_size);
         // get / create tile map
@@ -890,7 +897,11 @@ impl PointLightsRenderer {
 
         // compute pass to get min / max depth and store into texture
         let mut pass = encoder
-            .compute_pass_reflected(device, &self.depth_calc)
+            .compute_pass_specialized(
+                device, 
+                &self.depth_calc, 
+                [("TILE_SIZE", gfx::SpecVal::UInt(tile_size))]
+            )
             .unwrap();
         pass.set_bundle_owned(bundle.clone());
         pass.push_u32("width", buffer.width);
@@ -913,9 +924,8 @@ impl PointLightsRenderer {
         buffer: &'a GeometryBuffer,
         camera: &'a Camera,
         light: &'a PointLights,
+        tile_size: u32,
     ) -> Result<gfx::Storage<u32>, gpu::Error> {
-        let tile_size = 16u32;
-
         let tile_tex_width = buffer.width.div_ceil(tile_size);
         let tile_tex_height = buffer.height.div_ceil(tile_size);
 
@@ -1006,7 +1016,11 @@ impl PointLightsRenderer {
             .unwrap();
 
         // compute pass to assign lights to tiles
-        let mut pass = encoder.compute_pass_reflected(device, &self.tile_assign)?;
+        let mut pass = encoder.compute_pass_specialized(
+            device, 
+            &self.tile_assign,
+            [("TILE_SIZE", gfx::SpecVal::UInt(tile_size))]
+        )?;
         pass.set_bundle_owned(bundle.clone());
         pass.dispatch(tile_tex_width, tile_tex_height, 1);
         pass.finish();
@@ -1033,14 +1047,12 @@ impl PointLightsRenderer {
         lights: impl IntoIterator<Item = &'a PointLights>,
         strength: f32,
         mut clear: bool,
+        tile_size: u32,
     ) -> Result<(), gpu::Error> {
-        // let tile_size = 16u32;
-        let tile_size = 16u32;
-
         let tile_tex_width = buffer.width.div_ceil(tile_size);
         let tile_tex_height = buffer.height.div_ceil(tile_size);
 
-        let (depth_texture, length_texture) = self.calc_tiles(encoder, device, buffer, camera)?;
+        let (depth_texture, length_texture) = self.calc_tiles(encoder, device, buffer, camera, tile_size)?;
 
         // TODO combine assign pass and light pass to have eaech light in iterator
         // drawn as a separate dispatch in one pass rather than separate passes
@@ -1054,6 +1066,7 @@ impl PointLightsRenderer {
                 buffer,
                 camera,
                 light,
+                tile_size,
             )?;
 
             // get / create bundle for base pipeline
@@ -1126,7 +1139,11 @@ impl PointLightsRenderer {
                 .unwrap();
 
             // compute pass to render light contributions
-            let mut pass = encoder.compute_pass_reflected(device, self.base.as_ref().unwrap())?;
+            let mut pass = encoder.compute_pass_specialized(
+                device, 
+                self.base.as_ref().unwrap(),
+                [("TILE_SIZE", gfx::SpecVal::UInt(tile_size))]
+            )?;
             pass.set_bundle_owned(bundle.clone());
             pass.push_f32("strength", strength);
             pass.push_u32("width", buffer.width);
@@ -1164,14 +1181,12 @@ impl PointLightsRenderer {
         lights: impl IntoIterator<Item = (&'a PointLights, &'a PointDepthMaps)>,
         strength: f32,
         mut clear: bool,
+        tile_size: u32,
     ) -> Result<(), gpu::Error> {
-        // let tile_size = 16u32;
-        let tile_size = 16u32;
-
         let tile_tex_width = buffer.width.div_ceil(tile_size);
         let tile_tex_height = buffer.height.div_ceil(tile_size);
 
-        let (depth_texture, length_texture) = self.calc_tiles(encoder, device, buffer, camera)?;
+        let (depth_texture, length_texture) = self.calc_tiles(encoder, device, buffer, camera, tile_size)?;
 
         for (light, shadow) in lights {
             let light_indices = self.assign_pass(
@@ -1182,6 +1197,7 @@ impl PointLightsRenderer {
                 buffer,
                 camera,
                 light,
+                tile_size,
             )?;
 
             // get / create bundle for base pipeline
@@ -1264,7 +1280,11 @@ impl PointLightsRenderer {
                 .unwrap();
 
             // compute pass to render light contributions
-            let mut pass = encoder.compute_pass_reflected(device, self.base.as_ref().unwrap())?;
+            let mut pass = encoder.compute_pass_specialized(
+                device, 
+                self.base.as_ref().unwrap(),
+                [("TILE_SIZE", gfx::SpecVal::UInt(tile_size))]
+            )?;
             pass.set_bundle_owned(bundle.clone());
             pass.push_f32("strength", strength);
             pass.push_u32("width", buffer.width);
@@ -1302,14 +1322,12 @@ impl PointLightsRenderer {
         lights: impl IntoIterator<Item = (&'a PointLights, &'a PointDepthMaps, &'a PointSubsurfaceMaps)>,
         strength: f32,
         mut clear: bool,
+        tile_size: u32,
     ) -> Result<(), gpu::Error> {
-        // let tile_size = 16u32;
-        let tile_size = 16u32;
-
         let tile_tex_width = buffer.width.div_ceil(tile_size);
         let tile_tex_height = buffer.height.div_ceil(tile_size);
 
-        let (depth_texture, length_texture) = self.calc_tiles(encoder, device, buffer, camera)?;
+        let (depth_texture, length_texture) = self.calc_tiles(encoder, device, buffer, camera, tile_size)?;
 
         for (light, shadow, subsurface) in lights {
             let light_indices = self.assign_pass(
@@ -1320,6 +1338,7 @@ impl PointLightsRenderer {
                 buffer,
                 camera,
                 light,
+                tile_size,
             )?;
 
             // get / create bundle for base pipeline
@@ -1411,7 +1430,11 @@ impl PointLightsRenderer {
                 .unwrap();
 
             // compute pass to render light contributions
-            let mut pass = encoder.compute_pass_reflected(device, self.base.as_ref().unwrap())?;
+            let mut pass = encoder.compute_pass_specialized(
+                device, 
+                self.base.as_ref().unwrap(),
+                [("TILE_SIZE", gfx::SpecVal::UInt(tile_size))]
+            )?;
             pass.set_bundle_owned(bundle.clone());
             pass.push_f32("strength", strength);
             pass.push_u32("width", buffer.width);
@@ -1430,9 +1453,24 @@ impl PointLightsRenderer {
         Ok(())
     }
 
-    pub fn tmp(&self) -> gpu::TextureView {
-        let map = self.tile_map.lock().unwrap();
-        let t = map.iter().next().unwrap().1;
-        t.0.view.clone()
+    pub fn clear(&self) {
+        self.base_bundles.lock().unwrap().clear();
+        self.shadow_bundles.lock().unwrap().clear();
+        self.subsurface_bundles.lock().unwrap().clear();
+        self.tile_assign_bundles.lock().unwrap().clear();
+        self.depth_calc_bundles.lock().unwrap().clear();
+        self.tile_map.lock().unwrap().clear();
+        self.indices_map.lock().unwrap().clear();
+        self.depth_calc.clear();
+        self.tile_assign.clear();
+        if let Some(base) = self.base.as_ref() {
+            base.clear();
+        }
+        if let Some(shadow) = self.shadow.as_ref() {
+            shadow.clear();
+        }
+        if let Some(subsurface) = self.subsurface.as_ref() {
+            subsurface.clear();
+        }
     }
 }

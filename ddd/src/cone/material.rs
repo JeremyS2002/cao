@@ -670,11 +670,14 @@ impl<'a> MaterialBuilder<'a> {
             panic!("ERROR: Attempt to build material with less than 7 blend states\nOne state must be supplied for each output write")
         }
 
-        let graphics = gfx::ReflectedGraphics::from_builders(
+        let vertex_spv = self.vertex.compile();
+        let fragment_spv = self.fragment.compile();
+
+        let graphics = gfx::ReflectedGraphics::from_spirv(
             device,
-            &self.vertex,
+            &vertex_spv,
             None,
-            Some(&self.fragment),
+            Some(&fragment_spv),
             rasterizer,
             blend_states,
             Some(gpu::DepthStencilState {

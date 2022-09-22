@@ -349,7 +349,7 @@ impl SMAARenderer {
         })?;
 
         let n = name.as_ref().map(|n| format!("{}_edge_detect", n));
-        let edge_detect = match gfx::ReflectedGraphics::from_spv(
+        let edge_detect = match gfx::ReflectedGraphics::from_spirv(
             device,
             &state.edge_detect_vert(),
             None,
@@ -368,7 +368,7 @@ impl SMAARenderer {
         };
 
         let n = name.as_ref().map(|n| format!("{}_blend_weight", n));
-        let blend_weight = match gfx::ReflectedGraphics::from_spv(
+        let blend_weight = match gfx::ReflectedGraphics::from_spirv(
             device,
             &state.blend_weight_vert(),
             None,
@@ -419,7 +419,7 @@ impl SMAARenderer {
     ) -> Result<gfx::ReflectedGraphics, gpu::Error> {
         let vert = state.neighborhood_blend_vert();
         let frag = state.neighborhood_blend_frag();
-        match gfx::ReflectedGraphics::from_spv(
+        match gfx::ReflectedGraphics::from_spirv(
             device,
             &vert,
             None,
@@ -743,7 +743,12 @@ impl SMAARenderer {
     /// This function drops Descriptor sets cached by self
     pub fn clean(&mut self) {
         self.edge_detect_bundles.lock().unwrap().clear();
+        self.edges_targets.lock().unwrap().clear();
         self.blend_weight_bundles.lock().unwrap().clear();
+        self.blend_targets.lock().unwrap().clear();
         self.neighborhood_blend_bundles.lock().unwrap().clear();
+        self.edge_detect.clear();
+        self.blend_weight.clear();
+        self.neighborhood_blend.clear();
     }
 }
