@@ -439,7 +439,7 @@ pub struct ReflectedGraphicsPass<'a, 'b, V: crate::Vertex> {
     pub(crate) color_attachments: Vec<crate::Attachment<'a>>,
     pub(crate) resolve_attachments: Vec<crate::Attachment<'a>>,
     pub(crate) depth_attachment: Option<crate::Attachment<'a>>,
-    pub(crate) push_constant_names: Option<HashMap<String, (u32, gpu::ShaderStages, TypeId)>>,
+    pub(crate) push_constant_names: Option<HashMap<String, crate::reflect::PushConstantInfo>>,
     pub(crate) commands: Vec<GraphicsPassCommand<'a>>,
     /// The encoder that the graphics pass will be recorded into
     pub encoder: &'b mut crate::CommandEncoder<'a>,
@@ -564,14 +564,14 @@ impl<'a, 'b, V: crate::Vertex> ReflectedGraphicsPass<'a, 'b, V> {
     #[inline(always)]
     pub fn push_constant<T: bytemuck::Pod + std::fmt::Debug>(&mut self, name: &str, constant: T) {
         if let Some(map) = self.push_constant_names.as_ref() {
-            if let Some(&(offset, stages, ty)) = map.get(name) {
+            if let Some(info) = map.get(name) {
                 assert_eq!(
-                    ty,
+                    info.type_id,
                     TypeId::of::<T>(),
                     "ERROR: Call to push_constant with different type of constant than in spirv in pipeline {:?}",
                     self.pipeline
                 );
-                self.push_constants(offset, bytemuck::bytes_of(&constant), stages)
+                self.push_constants(info.offset, bytemuck::bytes_of(&constant), info.stages)
             } else {
                 #[cfg(feature = "logging")]
                 log::error!("Call to push_constant at {} with value {:?}, with no rust type found for field, No action taken", name, constant);

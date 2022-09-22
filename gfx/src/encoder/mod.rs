@@ -249,7 +249,7 @@ impl<'a> CommandEncoder<'a> {
     }
 
     /// Begin a reflected graphics pass owning the data
-    #[cfg(any(feature = "reflect", feature = "spirv"))]
+    #[cfg(feature = "reflect")]
     pub fn graphics_pass_reflected<'b, V: crate::Vertex>(
         &'b mut self,
         device: &gpu::Device,
@@ -330,6 +330,225 @@ impl<'a> CommandEncoder<'a> {
             pass_hash,
             vertex_ty: TypeId::of::<V>(),
             viewport,
+            spec_hash: None,
+        };
+
+        if let None = c.get(&key) {
+            drop(c);
+            let pass_name = graphics
+                .pipeline_data
+                .name
+                .as_ref()
+                .map(|n| format!("{}_pass_{}", n, pass_hash));
+
+            let pass = device.create_render_pass(&gpu::RenderPassDesc {
+                name: pass_name,
+                colors: &colors_desc,
+                resolves: &resolves_desc,
+                depth: depth_desc,
+                samples,
+            })?;
+
+            let vertex_state = gpu::VertexState {
+                stride: std::mem::size_of::<V>() as u32,
+                input_rate: gpu::VertexInputRate::Vertex,
+                attributes: &graphics.vertex_attributes::<V>(),
+            };
+
+            let vertex_states = &[vertex_state];
+
+            let pipeline_name = graphics
+                .pipeline_data
+                .name
+                .as_ref()
+                .map(|n| format!("{}_pipeline", n));
+
+            let mut desc = gpu::GraphicsPipelineDesc {
+                name: pipeline_name,
+                layout: &graphics.pipeline_data.layout,
+                pass: &pass,
+                vertex: (&graphics.pipeline_data.vertex, None),
+                tessellation: None,
+                geometry: graphics.pipeline_data.geometry.as_ref().map(|s| (s, None)),
+                fragment: graphics.pipeline_data.fragment.as_ref().map(|s| (s, None)),
+                rasterizer: graphics.pipeline_data.rasterizer,
+                vertex_states,
+                blend_states: &graphics.pipeline_data.blend_states[..colors.len()],
+                depth_stencil: graphics.pipeline_data.depth_stencil,
+                viewports: &[viewport],
+                cache: None,
+            };
+
+            if std::mem::size_of::<V>() == 0 {
+                desc.vertex_states = &[];
+            }
+
+            let pipeline = device.create_graphics_pipeline(&desc)?;
+            graphics.pipeline_map.write().insert(key, pipeline);
+        }
+
+        let pipeline_map = graphics.pipeline_map.read();
+        let pipeline = pipeline_map.get(&key).unwrap();
+
+        Ok(crate::pass::ReflectedGraphicsPass {
+            parent_id: graphics.id,
+            bundle_needed: graphics.bundle_needed(),
+            push_constant_names: graphics.reflect_data.push_constant_names.clone(),
+            color_attachments: colors.to_vec(),
+            resolve_attachments: resolves.to_vec(),
+            depth_attachment: depth,
+            pipeline: Md::new(Cow::Owned(pipeline.clone())),
+            commands: Vec::new(),
+            encoder: self,
+            marker: std::marker::PhantomData,
+        })
+    }
+
+    /// Begin a reflected graphics pass owning the data
+    #[cfg(feature = "reflect")]
+    pub fn graphics_pass_specialized<'b, 'c, V: crate::Vertex>(
+        &'b mut self,
+        device: &gpu::Device,
+        colors: &[crate::Attachment<'a>],
+        resolves: &[crate::Attachment<'a>],
+        depth: Option<crate::Attachment<'a>>,
+        graphics: &crate::reflect::ReflectedGraphics,
+        spec_constants: impl IntoIterator<Item=(&'c str, crate::SpecVal)>,
+    ) -> Result<crate::pass::ReflectedGraphicsPass<'a, 'b, V>, gpu::Error> {
+        use std::hash::Hasher;
+
+        let spec_constants = spec_constants.into_iter().collect::<HashMap<_, _>>();
+
+        let mut vertex_spec_entries = Vec::new();
+        let mut vertex_spec_data = Vec::<u8>::new();
+        let mut vertex_offset = 0;
+
+        let mut geometry_spec_entries = Vec::new();
+        let mut geometry_spec_data = Vec::<u8>::new();
+        let mut geometry_offset = 0;
+
+        let mut fragment_spec_entries = Vec::new();
+        let mut fragment_spec_data = Vec::<u8>::new();
+        let mut fragment_offset = 0;
+
+        for (name, info) in graphics.reflect_data.specialization_names.as_ref().unwrap() {
+            let entry = spec_constants.get(&**name).expect("ERROR No spec constant entry found");
+            let bytes = entry.bytes();
+            let size = bytes.len();
+            if let Some((vertex_id, _)) = info.stages.iter().find(|(_, s)| s.contains(gpu::ShaderStages::VERTEX)) {
+                vertex_spec_entries.push(gpu::SpecializationEntry {
+                    id: *vertex_id,
+                    offset: vertex_offset,
+                    size,
+                });
+                vertex_spec_data.extend(bytes);
+                vertex_offset += size as u32;
+            }
+            if let Some((geometry_id, _)) = info.stages.iter().find(|(_, s)| s.contains(gpu::ShaderStages::GEOMETRY)) {
+                geometry_spec_entries.push(gpu::SpecializationEntry {
+                    id: *geometry_id,
+                    offset: geometry_offset,
+                    size,
+                });
+                geometry_spec_data.extend(bytes);
+                geometry_offset += size as u32;
+            }
+
+            if let Some((fragment_id, _)) = info.stages.iter().find(|(_, s)| s.contains(gpu::ShaderStages::FRAGMENT)) {
+                fragment_spec_entries.push(gpu::SpecializationEntry {
+                    id: *fragment_id,
+                    offset: fragment_offset,
+                    size,
+                });
+                fragment_spec_data.extend(bytes);
+                fragment_offset += size as u32;
+            }
+        }
+
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+
+        vertex_spec_entries.hash(&mut hasher);
+        vertex_spec_data.hash(&mut hasher);
+
+        geometry_spec_entries.hash(&mut hasher);
+        geometry_spec_data.hash(&mut hasher);
+        
+        fragment_spec_entries.hash(&mut hasher);
+        fragment_spec_data.hash(&mut hasher);
+
+        let spec_hash = hasher.finish();
+
+        if colors.len() > graphics.pipeline_data.blend_states.len() {
+            panic!("Graphics Pipeline {:?} doesn't have enough blend states to begin pass with {} color attachments", graphics, colors.len());
+        }
+
+        let extent = if colors.len() != 0 {
+            colors[0].raw.view().extent()
+        } else if let Some(d) = depth.as_ref() {
+            d.raw.view().extent()
+        } else {
+            panic!("Cannot begin graphics pass with no color or depth attachments");
+        };
+
+        let samples = if colors.len() != 0 {
+            colors[0].raw.view().samples()
+        } else if let Some(d) = depth.as_ref() {
+            d.raw.view().samples()
+        } else {
+            panic!("Cannot begin graphics pass with no color or depth attachments");
+        };
+
+        let colors_desc = colors
+            .iter()
+            .map(|a| gpu::ColorAttachmentDesc {
+                format: a.raw.view().format(),
+                load: a.load,
+                store: a.store,
+                initial_layout: gpu::TextureLayout::ColorAttachmentOptimal,
+                // for normal textures will just return General but for swapchain will return SwapchainPresent
+                final_layout: a.raw.view().texture().initial_layout(),
+            })
+            .collect::<Vec<_>>();
+
+        let resolves_desc = resolves
+            .iter()
+            .map(|a| gpu::ResolveAttachmentDesc {
+                load: a.load,
+                store: a.store,
+                initial_layout: gpu::TextureLayout::ColorAttachmentOptimal,
+                final_layout: a.raw.view().texture().initial_layout(),
+            })
+            .collect::<Vec<_>>();
+
+        let depth_desc = depth.as_ref().map(|a| gpu::DepthAttachmentDesc {
+            format: a.raw.view().format(),
+            load: a.load,
+            store: a.store,
+            initial_layout: gpu::TextureLayout::DepthStencilAttachmentOptimal,
+            final_layout: a.raw.view().texture().initial_layout(),
+        });
+
+        let mut hasher = DefaultHasher::new();
+        colors_desc.hash(&mut hasher);
+        resolves_desc.hash(&mut hasher);
+        depth_desc.hash(&mut hasher);
+        let pass_hash = hasher.finish();
+
+        let viewport = gpu::Viewport {
+            x: 0,
+            y: 0,
+            width: extent.width as _,
+            height: extent.height as _,
+            ..Default::default()
+        };
+
+        let c = graphics.pipeline_map.read();
+
+        let key = crate::reflect::graphics::GraphicsPipelineKey {
+            pass_hash,
+            vertex_ty: TypeId::of::<V>(),
+            viewport,
+            spec_hash: Some(spec_hash),
         };
 
         if let None = c.get(&key) {
@@ -428,13 +647,13 @@ impl<'a> CommandEncoder<'a> {
     }
 
     /// Begin a reflected compute pass without borrowning the ReflectedCompute
-    #[cfg(any(feature = "reflect", feature = "spirv"))]
+    #[cfg(feature = "reflect")]
     pub fn compute_pass_reflected<'b>(
         &'b mut self,
         device: &gpu::Device,
         compute: &crate::reflect::ReflectedCompute,
     ) -> Result<crate::pass::ReflectedComputePass<'a, 'b>, gpu::Error> {
-        let pipeline_map = compute.pipeline_map.read().unwrap();
+        let pipeline_map = compute.pipeline_map.read();
 
         let key = crate::reflect::compute::ComputePipelineKey {
             specialization: None,
@@ -450,10 +669,79 @@ impl<'a> CommandEncoder<'a> {
                 cache: Some(&compute.pipeline_data.cache),
             })?;
 
-            compute.pipeline_map.write().unwrap().insert(key, pipeline);
+            compute.pipeline_map.write().insert(key, pipeline);
         }
 
-        let pipeline = compute.pipeline_map.read().unwrap().get(&key).unwrap().clone();
+        let pipeline = compute.pipeline_map.read().get(&key).unwrap().clone();
+
+        Ok(crate::pass::ReflectedComputePass {
+            parent_id: compute.id,
+            bundle_needed: compute.bundle_needed(),
+            push_constant_names: Cow::Owned(compute.reflect_data.push_constant_names.clone()),
+            pipeline: Md::new(Cow::Owned(pipeline)),
+            commands: Vec::new(),
+            encoder: self,
+        })
+    }
+
+    #[cfg(feature = "reflect")]
+    pub fn compute_pass_specialized<'b, 'c>(
+        &'b mut self,
+        device: &gpu::Device,
+        compute: &crate::reflect::ReflectedCompute,
+        spec_constants: impl IntoIterator<Item=(&'c str, crate::SpecVal)>,
+    ) -> Result<crate::pass::ReflectedComputePass<'a, 'b>, gpu::Error> {
+        use std::hash::Hasher;
+
+        let mut spec_entries = Vec::new();
+        let mut spec_data = Vec::<u8>::new();
+        let spec_constants = spec_constants.into_iter().collect::<HashMap<_, _>>();
+        let mut offset = 0;
+        for (name, info) in compute.reflect_data.specialization_names.as_ref().unwrap() {
+            let entry = spec_constants.get(&**name).expect("ERROR No spec constant entry found");
+            let bytes = entry.bytes();
+            let size = bytes.len();
+            spec_data.extend(bytes);
+
+            let id = info.stages.iter().find(|(_, s)| s.contains(gpu::ShaderStages::COMPUTE)).unwrap().0;
+
+            spec_entries.push(gpu::SpecializationEntry {
+                id,
+                offset,
+                size,
+            });
+
+            offset += size as u32;
+        }
+
+        let pipeline_map = compute.pipeline_map.read();
+
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+
+        spec_entries.hash(&mut hasher);
+        spec_data.hash(&mut hasher);
+
+        let key = crate::reflect::compute::ComputePipelineKey {
+            specialization: Some(hasher.finish()),
+        };
+
+        if pipeline_map.get(&key).is_none() {
+            drop(pipeline_map);
+
+            let pipeline = device.create_compute_pipeline(&gpu::ComputePipelineDesc {
+                name: compute.pipeline_data.name.clone(),
+                layout: &compute.pipeline_data.layout,
+                shader: (&compute.pipeline_data.shader, Some(gpu::Specialization {
+                    entries: &spec_entries,
+                    data: &spec_data,
+                })),
+                cache: Some(&compute.pipeline_data.cache),
+            })?;
+
+            compute.pipeline_map.write().insert(key, pipeline);
+        }
+
+        let pipeline = compute.pipeline_map.read().get(&key).unwrap().clone();
 
         Ok(crate::pass::ReflectedComputePass {
             parent_id: compute.id,

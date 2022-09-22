@@ -252,7 +252,7 @@ pub struct ReflectedComputePass<'a, 'b> {
     pub(crate) parent_id: u64,
     pub(crate) bundle_needed: bool,
     pub(crate) push_constant_names:
-        Cow<'a, Option<HashMap<String, (u32, gpu::ShaderStages, TypeId)>>>,
+        Cow<'a, Option<HashMap<String, crate::reflect::PushConstantInfo>>>,
     /// Pipeline contained inside a manually drop so that it can be taken an moved into the encoder
     pub(crate) pipeline: Md<Cow<'a, gpu::ComputePipeline>>,
     pub(crate) commands: Vec<ComputePassCommand<'a>>,
@@ -338,14 +338,14 @@ impl<'a, 'b> ReflectedComputePass<'a, 'b> {
     /// If the type supplied is different to the type expected this will panic
     pub fn push_constant<T: bytemuck::Pod + std::fmt::Debug>(&mut self, name: &str, constant: T) {
         if let Some(map) = self.push_constant_names.as_ref() {
-            if let Some(&(offset, stages, ty)) = map.get(name) {
+            if let Some(info) = map.get(name) {
                 assert_eq!(
-                    ty,
+                    info.type_id,
                     TypeId::of::<T>(),
                     "ERROR: Call to push_constant with different type of constant than in spirv in pipeline {:?}",
                     self.pipeline
                 );
-                self.push_constants(offset, bytemuck::bytes_of(&constant), stages)
+                self.push_constants(info.offset, bytemuck::bytes_of(&constant), info.stages)
             } else {
                 #[cfg(feature = "logging")]
                 log::error!("Call to push_constant at {} with value {:?}, with different type than expected", name, constant);

@@ -5,9 +5,6 @@ pub enum ReflectedError {
     /// An error from spirv-reflect
     #[cfg(feature = "reflect")]
     Parse(ParseSpirvError),
-    /// An error from invalid builder
-    #[cfg(feature = "spirv")]
-    Builder(BuilderConfigError),
     /// An error from the gpu
     Gpu(gpu::Error),
 }
@@ -16,19 +13,12 @@ impl std::fmt::Display for ReflectedError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Parse(e) => writeln!(f, "{}", e),
-            Self::Builder(e) => writeln!(f, "{}", e),
             Self::Gpu(e) => writeln!(f, "{}", e),
         }
     }
 }
 
 impl std::error::Error for ReflectedError {}
-
-impl From<BuilderConfigError> for ReflectedError {
-    fn from(e: BuilderConfigError) -> Self {
-        Self::Builder(e)
-    }
-}
 
 impl From<ParseSpirvError> for ReflectedError {
     fn from(e: ParseSpirvError) -> Self {
@@ -43,37 +33,6 @@ impl From<gpu::Error> for ReflectedError {
 }
 
 #[derive(Debug)]
-pub enum BuilderConfigError {
-    StageIncompatibility {
-        location: u32,
-        src_stage_name: String,
-        dst_stage_name: String,
-        src_type: spv::Type,
-        dst_type: spv::Type,
-    },
-}
-
-impl std::error::Error for BuilderConfigError {}
-
-impl std::fmt::Display for BuilderConfigError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            BuilderConfigError::StageIncompatibility {
-                location,
-                src_stage_name,
-                dst_stage_name,
-                src_type,
-                dst_type,
-            } => writeln!(
-                f,
-                "ERROR: Stage Incompatibility, location: {}, src: ({:?}, {:?}), dst: ({:?}, {:?})",
-                location, src_stage_name, src_type, dst_stage_name, dst_type
-            ),
-        }
-    }
-}
-
-#[derive(Debug)]
 pub enum ParseSpirvError {
     /// See message from reflect
     ReflectError(ReflectError),
@@ -84,7 +43,7 @@ pub enum ParseSpirvError {
     /// Set name confilct set self.0, binding self.1
     SetConflict(u32, u32, String, String),
     /// One name points to multiple locations
-    DescriptorNameUndecidable(String, usize, usize, usize, usize),
+    DescriptorNameUndecidable(String, u32, u32, u32, u32),
     /// one name for push constants points to different data
     PushNameConflict(String, u32, TypeId, u32, TypeId),
     /// set self.0 binding self.1 mismatch in types wanted

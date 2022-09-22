@@ -18,6 +18,7 @@ pub struct GraphicsPipelineKey {
     pub pass_hash: u64,
     pub viewport: gpu::Viewport,
     pub vertex_ty: TypeId,
+    pub spec_hash: Option<u64>,
 }
 
 impl std::cmp::PartialEq for GraphicsPipelineKey {
@@ -72,7 +73,7 @@ pub struct PipelineData {
 pub struct ReflectedGraphics {
     pub(crate) id: u64,
     /// Map from RenderPassDesc to RenderPass
-    pub pass_map: Arc<RwLock<HashMap<gpu::RenderPassDesc<'static>, gpu::RenderPass>>>,
+    pub(crate) pass_map: Arc<RwLock<HashMap<gpu::RenderPassDesc<'static>, gpu::RenderPass>>>,
     /// Map from (raw_render_pass, vertex_type) to pipeline
     /// Example usage
     /// ```
@@ -82,13 +83,13 @@ pub struct ReflectedGraphics {
     /// let vertex_type = TypeId::of::<MyVertex>();
     /// let pipeline = self.pipeline_map.read().get(&(raw_render_pass, vertex_type)).unwrap();
     /// ```
-    pub pipeline_map: Arc<RwLock<HashMap<GraphicsPipelineKey, gpu::GraphicsPipeline>>>,
+    pub(crate) pipeline_map: Arc<RwLock<HashMap<GraphicsPipelineKey, gpu::GraphicsPipeline>>>,
     /// Copies of data needed to build more pipelines
-    pub pipeline_data: PipelineData,
+    pub(crate) pipeline_data: PipelineData,
     /// ordered list of vertex inputs required
-    pub vertex_map: Arc<[super::graphics::VertexLocationInfo]>,
+    pub(crate) vertex_map: Arc<[super::graphics::VertexLocationInfo]>,
     /// Data needed to build bundles and for push_T functions
-    pub reflect_data: super::data::ReflectData,
+    pub(crate) reflect_data: super::ReflectData,
 }
 
 impl std::cmp::PartialEq for ReflectedGraphics {
@@ -111,150 +112,6 @@ impl std::fmt::Debug for ReflectedGraphics {
     }
 }
 
-#[cfg(feature = "spirv")]
-impl ReflectedGraphics {
-    pub fn from_builders(
-        device: &gpu::Device,
-        vertex: &spv::Builder,
-        geometry: Option<&spv::Builder>,
-        fragment: Option<&spv::Builder>,
-        rasterizer: gpu::Rasterizer,
-        blend_states: &[gpu::BlendState],
-        depth_stencil: Option<gpu::DepthStencilState>,
-        cache: Option<gpu::PipelineCache>,
-        name: Option<&str>,
-    ) -> Result<Self, error::ReflectedError> {
-        let vertex_map = super::spirv_raw::parse_vertex_states(&vertex);
-        let mut descriptor_set_layouts = HashMap::new();
-        let mut descriptor_set_names = HashMap::new();
-        let mut push_constants = Vec::new();
-        let mut push_constant_names = HashMap::new();
-
-        if let Some(geometry) = &geometry {
-            super::spirv_raw::check_stage_compatibility(&vertex, spv::Stage::Vertex, geometry, spv::Stage::Geometry)?;
-
-            if let Some(fragment) = &fragment {
-                super::spirv_raw::check_stage_compatibility(geometry, spv::Stage::Geometry, fragment, spv::Stage::Fragment)?;
-            }
-        } else {
-            if let Some(fragment) = &fragment {
-                super::spirv_raw::check_stage_compatibility(&vertex, spv::Stage::Vertex, fragment, spv::Stage::Fragment)?;
-            }
-        }
-
-        super::spirv_raw::process_shader(
-            &vertex,
-            spv::Stage::Vertex,
-            &mut descriptor_set_layouts,
-            &mut descriptor_set_names,
-            &mut push_constants,
-            &mut push_constant_names,
-        );
-
-        let vertex_spv = vertex.compile();
-        let vertex_module = device.create_shader_module(&gpu::ShaderModuleDesc {
-            name: name.as_ref().map(|n| format!("{}_vertex_module", n)),
-            entries: &[(gpu::ShaderStages::VERTEX, "main")],
-            spirv: &vertex_spv,
-        })?;
-
-        let geometry_module = geometry
-            .map(|g| {
-                super::spirv_raw::process_shader(
-                    &g,
-                    spv::Stage::Geometry,
-                    &mut descriptor_set_layouts,
-                    &mut descriptor_set_names,
-                    &mut push_constants,
-                    &mut push_constant_names,
-                );
-                let spv = g.compile();
-                device.create_shader_module(&gpu::ShaderModuleDesc {
-                    name: name.as_ref().map(|n| format!("{}_geometry_module", n)),
-                    entries: &[(gpu::ShaderStages::GEOMETRY, "main")],
-                    spirv: &spv,
-                })
-            })
-            .transpose()?;
-
-        let fragment_module = fragment
-            .map(|f| {
-                super::spirv_raw::process_shader(
-                    &f,
-                    spv::Stage::Fragment,
-                    &mut descriptor_set_layouts,
-                    &mut descriptor_set_names,
-                    &mut push_constants,
-                    &mut push_constant_names,
-                );
-                let spv = f.compile();
-                device.create_shader_module(&gpu::ShaderModuleDesc {
-                    name: name.as_ref().map(|n| format!("{}_fragment_module", n)),
-                    entries: &[(gpu::ShaderStages::FRAGMENT, "main")],
-                    spirv: &spv,
-                })
-            })
-            .transpose()?;
-
-        let (descriptor_set_layouts, descriptor_set_types) =
-            super::spirv_raw::combine_descriptor_set_layouts(device, descriptor_set_layouts, name)?;
-
-        let pipeline_layout = device.create_pipeline_layout(&gpu::PipelineLayoutDesc {
-            name: name.as_ref().map(|n| format!("{}_pipeline_layout", n)),
-            descriptor_sets: &descriptor_set_layouts.iter().collect::<Vec<_>>(),
-            push_constants: &push_constants,
-        })?;
-
-        let mut hasher = DefaultHasher::new();
-
-        vertex_module.hash(&mut hasher);
-        geometry_module.hash(&mut hasher);
-        fragment_module.hash(&mut hasher);
-
-        let bundle_needed = !(descriptor_set_layouts.len() == 0);
-
-        Ok(Self {
-            id: hasher.finish(),
-            pass_map: Arc::new(RwLock::default()),
-            pipeline_map: Arc::new(RwLock::default()),
-            vertex_map,
-            reflect_data: super::data::ReflectData {
-                descriptor_set_map: if bundle_needed {
-                    Some(descriptor_set_names.into())
-                } else {
-                    None
-                },
-                descriptor_set_layouts: if bundle_needed {
-                    Some(descriptor_set_layouts.into())
-                } else {
-                    None
-                },
-                descriptor_set_types: if bundle_needed {
-                    Some(descriptor_set_types.into())
-                } else {
-                    None
-                },
-                push_constant_names: if push_constants.len() != 0 {
-                    Some(push_constant_names)
-                } else {
-                    None
-                },
-                specialization_names: None,
-            },
-            pipeline_data: PipelineData {
-                layout: pipeline_layout,
-                vertex: vertex_module,
-                fragment: fragment_module,
-                geometry: geometry_module,
-                rasterizer,
-                blend_states: blend_states.to_vec().into(),
-                depth_stencil,
-                cache,
-                name: name.map(|n| n.to_string()),
-            },
-        })
-    }
-}
 
 #[cfg(feature = "reflect")]
 impl ReflectedGraphics {
@@ -262,7 +119,7 @@ impl ReflectedGraphics {
     ///
     /// TODO check shader compatibility
     /// TODO check if shader stages are the same with multiple entry points
-    pub fn from_spv(
+    pub fn from_spirv(
         device: &gpu::Device,
         vertex: &[u32],
         geometry: Option<&[u32]>,
@@ -273,23 +130,13 @@ impl ReflectedGraphics {
         cache: Option<gpu::PipelineCache>,
         name: Option<&str>,
     ) -> Result<Self, error::ReflectedError> {
-        let mut descriptor_set_layouts = HashMap::new();
-        let mut descriptor_set_names = HashMap::new();
-        let mut push_constants = Vec::new();
-        let mut push_constant_names = HashMap::new();
-        let mut specialization_names = HashMap::new();
+        let mut reflect_builder = super::ReflectDataBuilder::new();
 
-        let vertex_entry = super::reflect_raw::parse_spirv(
-            &mut descriptor_set_layouts,
-            &mut descriptor_set_names,
-            &mut push_constants,
-            &mut push_constant_names,
-            &mut specialization_names,
+        let vertex_entry = reflect_builder.parse(
             vertex,
             spirq::ExecutionModel::Vertex,
-            // spirv_reflect::types::variable::ReflectShaderStageFlags::VERTEX,
         )?;
-        let vertex_map = super::reflect_raw::parse_vertex_states(vertex)?;
+        let vertex_map = super::parse_vertex_states(vertex)?;
 
         let vertex_name = name.as_ref().map(|n| format!("{}_vertex_module", n));
 
@@ -300,7 +147,7 @@ impl ReflectedGraphics {
         })?;
 
         let geometry_module = if let Some(geometry) = geometry {
-            super::reflect_raw::check_stage_compatibility(
+            super::check_stage_compatibility(
                 vertex, 
                 spirq::ExecutionModel::Vertex,
                 "vertex", 
@@ -311,15 +158,9 @@ impl ReflectedGraphics {
 
             let geometry_name = name.as_ref().map(|n| format!("{}_geometry_module", n));
 
-            let entry = super::reflect_raw::parse_spirv(
-                &mut descriptor_set_layouts,
-                &mut descriptor_set_names,
-                &mut push_constants,
-                &mut push_constant_names,
-                &mut specialization_names,
+            let entry = reflect_builder.parse(
                 geometry,
                 spirq::ExecutionModel::Geometry,
-                // spirv_reflect::types::variable::ReflectShaderStageFlags::GEOMETRY,
             )?;
             Some(device.create_shader_module(&gpu::ShaderModuleDesc {
                 entries: &[(gpu::ShaderStages::GEOMETRY, &entry)],
@@ -332,7 +173,7 @@ impl ReflectedGraphics {
 
         let fragment_module = if let Some(fragment) = fragment {
             if geometry.is_some() {
-                super::reflect_raw::check_stage_compatibility(
+                super::check_stage_compatibility(
                     geometry.unwrap(),
                     spirq::ExecutionModel::Geometry,
                     "geometry",
@@ -341,7 +182,7 @@ impl ReflectedGraphics {
                     "fragment",
                 )?;
             } else {
-                super::reflect_raw::check_stage_compatibility(
+                super::check_stage_compatibility(
                     vertex, 
                     spirq::ExecutionModel::Vertex,
                     "vertex", 
@@ -353,15 +194,9 @@ impl ReflectedGraphics {
 
             let fragment_name = name.as_ref().map(|n| format!("{}_fragment_module", n));
 
-            let entry = super::reflect_raw::parse_spirv(
-                &mut descriptor_set_layouts,
-                &mut descriptor_set_names,
-                &mut push_constants,
-                &mut push_constant_names,
-                &mut specialization_names, 
+            let entry = reflect_builder.parse(
                 fragment,
                 spirq::ExecutionModel::Fragment,
-                // spirv_reflect::types::variable::ReflectShaderStageFlags::FRAGMENT,
             )?;
             Some(device.create_shader_module(&gpu::ShaderModuleDesc {
                 entries: &[(gpu::ShaderStages::FRAGMENT, &entry)],
@@ -372,20 +207,7 @@ impl ReflectedGraphics {
             None
         };
 
-        let (descriptor_set_layouts, descriptor_set_types) =
-            super::reflect_raw::combine_descriptor_set_layouts(
-                device,
-                descriptor_set_layouts,
-                name,
-            )?;
-
-        let pipeline_layout_name = name.as_ref().map(|n| format!("{}_pipeline_layout", n));
-
-        let pipeline_layout = device.create_pipeline_layout(&gpu::PipelineLayoutDesc {
-            name: pipeline_layout_name,
-            descriptor_sets: &descriptor_set_layouts.iter().collect::<Vec<_>>(),
-            push_constants: &push_constants,
-        })?;
+        let (pipeline_layout, reflect_data) = reflect_builder.build(device, name)?;
 
         let mut hasher = DefaultHasher::new();
 
@@ -393,40 +215,12 @@ impl ReflectedGraphics {
         fragment_module.hash(&mut hasher);
         geometry_module.hash(&mut hasher);
 
-        let bundle_needed = !(descriptor_set_layouts.len() == 0);
-
         Ok(Self {
             id: hasher.finish(),
             pass_map: Arc::new(RwLock::default()),
             pipeline_map: Arc::new(RwLock::default()),
             vertex_map: vertex_map.into(),
-            reflect_data: super::data::ReflectData {
-                descriptor_set_map: if bundle_needed {
-                    Some(descriptor_set_names.into())
-                } else {
-                    None
-                },
-                descriptor_set_layouts: if bundle_needed {
-                    Some(descriptor_set_layouts.into())
-                } else {
-                    None
-                },
-                descriptor_set_types: if bundle_needed {
-                    Some(descriptor_set_types.into())
-                } else {
-                    None
-                },
-                push_constant_names: if push_constants.len() != 0 {
-                    Some(push_constant_names)
-                } else {
-                    None
-                },
-                specialization_names: if specialization_names.len() != 0 {
-                    Some(specialization_names)
-                } else {
-                    None
-                },
-            },
+            reflect_data,
             pipeline_data: PipelineData {
                 layout: pipeline_layout,
                 vertex: vertex_module,
@@ -443,85 +237,6 @@ impl ReflectedGraphics {
 }
 
 impl ReflectedGraphics {
-    // /// Insert a pipeline to be used with meshes of type V into self and return it
-    // ///
-    // /// This function will clone the graphics pipeline created and return the copy
-    // pub fn pipeline<V: crate::Vertex>(
-    //     &self,
-    //     device: &gpu::Device,
-    // ) -> Result<gpu::GraphicsPipeline, gpu::Error> {
-    //     let cache = self.pipelines.read();
-    //     if let None = cache.get(&TypeId::of::<V>()) {
-    //         drop(cache);
-    //         let vertex_state = gpu::VertexState {
-    //             stride: std::mem::size_of::<V>() as u32,
-    //             input_rate: gpu::VertexInputRate::Vertex,
-    //             attributes: &self.vertex_attributes::<V>(),
-    //         };
-
-    //         let pipeline = unsafe {
-    //             device.create_graphics_pipeline(&gpu::GraphicsPipelineDesc::from_ref(
-    //                 self.name.as_ref().map(|a| &**a),
-    //                 &self.pipeline_layout,
-    //                 self.rasterizer,
-    //                 &self.vertex,
-    //                 self.fragment.as_ref(),
-    //                 self.geometry.as_ref(),
-    //                 None,
-    //                 &self.blend_states,
-    //                 self.blend_constant,
-    //                 self.depth_state,
-    //                 &[vertex_state],
-    //             ))?
-    //         };
-    //         let mut cache = self.pipelines.write();
-    //         cache.insert(TypeId::of::<V>(), pipeline);
-    //     } else {
-    //         drop(cache)
-    //     }
-    //     let pipelines = self.pipelines.read();
-    //     Ok(pipelines.get(&TypeId::of::<V>()).unwrap().clone())
-    // }
-
-    // /// Insert a pipeline to be used with meshes of type V into self and return a reference to it
-    // ///
-    // /// This function requires a mutable reference to self to be able to insert the pipeline as it by-passes
-    // /// the locking mechanisms to be able to match the lifetime of self with the lifetime of the return
-    // pub fn pipeline_ref<'a, V: crate::Vertex>(
-    //     &'a mut self,
-    //     device: &gpu::Device,
-    // ) -> Result<&'a gpu::GraphicsPipeline, error::ReflectedError> {
-    //     let pipelines = self.pipelines.get_mut();
-    //     if let None = pipelines.get(&TypeId::of::<V>()) {
-    //         drop(pipelines);
-    //         let vertex_state = gpu::VertexState {
-    //             stride: std::mem::size_of::<V>() as u32,
-    //             input_rate: gpu::VertexInputRate::Vertex,
-    //             attributes: &self.vertex_attributes::<V>(),
-    //         };
-
-    //         let pipeline = unsafe {
-    //             device.create_graphics_pipeline(&gpu::GraphicsPipelineDesc {
-    //                 name: self.name.as_ref().map(|a| &**a),
-    //                 layout: &self.pipeline_layout,
-    //                 rasterizer: self.rasterizer,
-    //                 vertex: &self.vertex,
-    //                 fragment: self.fragment.as_ref(),
-    //                 geometry: self.geometry.as_ref(),
-    //                 tessellation: None,
-    //                 blend_states: &self.blend_states,
-    //                 blend_constant: self.blend_constant,
-    //                 depth_state: self.depth_state,
-    //                 vertex_states: &[vertex_state],
-    //             })?
-    //         };
-    //         let pipelines = self.pipelines.get_mut();
-    //         pipelines.insert(TypeId::of::<V>(), pipeline);
-    //     }
-    //     let pipelines = self.pipelines.get_mut();
-    //     Ok(pipelines.get(&TypeId::of::<V>()).unwrap())
-    // }
-
     /// Create a new BundleBuilder for this Graphics
     ///
     /// Returns none if the shaders stages have no binding
@@ -530,9 +245,10 @@ impl ReflectedGraphics {
             Some(BundleBuilder {
                 parent_id: self.id,
                 parent_name: self.pipeline_data.name.as_ref().map(|n| &**n),
-                map: self.reflect_data.descriptor_set_map.as_ref().unwrap(),
-                types: self.reflect_data.descriptor_set_types.as_ref().unwrap(),
-                layouts: self.reflect_data.descriptor_set_layouts.as_ref().unwrap(),
+                // map: self.reflect_data.descriptor_set_map.as_ref().unwrap(),
+                // types: self.reflect_data.descriptor_set_types.as_ref().unwrap(),
+                // layouts: self.reflect_data.descriptor_set_layouts.as_ref().unwrap(),
+                reflect_data: &self.reflect_data,
                 descriptors: self
                     .reflect_data
                     .descriptor_set_types
@@ -582,5 +298,12 @@ impl ReflectedGraphics {
     /// Get the id of the ReflectedGraphics
     pub fn id(&self) -> u64 {
         self.id
+    }
+
+    /// The Reflected Graphics caches [`gpu::RenderPass`] and [`gpu::GraphicsPipeline`] to be reused
+    /// this function will clear all the old pipelines
+    pub fn clear(&self) {
+        self.pass_map.write().clear();
+        self.pipeline_map.write().clear();
     }
 }

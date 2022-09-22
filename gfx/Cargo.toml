@@ -5,7 +5,7 @@ edition = "2021"
 
 [features]
 default            = ["all"]
-all                = ["image", "png", "jpeg", "gif", "tiff", "hdr", "reflect", "spirv"]
+all                = ["image", "png", "jpeg", "gif", "tiff", "hdr", "reflect", "spv"]
 
 jpeg               = ["image", "image/jpeg"]
 png                = ["image", "image/png"]
@@ -14,8 +14,6 @@ tiff               = ["image", "image/tiff"]
 hdr                = ["image", "image/hdr"]
 
 reflect            = ["spirq"]
-
-spirv              = ["reflect", "spv", "either"]
 
 [dependencies]
 gpu                = { path = "../gpu" }

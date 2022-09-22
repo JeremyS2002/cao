@@ -429,7 +429,7 @@ impl Fluid {
         let rasterizer = gpu::Rasterizer::default();
         let depth_state = None;
 
-        let splat_stage = gfx::ReflectedGraphics::from_spv(
+        let splat_stage = gfx::ReflectedGraphics::from_spirv(
             &device,
             &basic_vertex,
             None,
@@ -459,7 +459,7 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let advection_stage = gfx::ReflectedGraphics::from_spv(
+        let advection_stage = gfx::ReflectedGraphics::from_spirv(
             &device,
             &basic_vertex,
             None,
@@ -515,7 +515,7 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let divergence_stage = gfx::ReflectedGraphics::from_spv(
+        let divergence_stage = gfx::ReflectedGraphics::from_spirv(
             &device,
             &basic_vertex,
             None,
@@ -547,7 +547,7 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let curl_stage = gfx::ReflectedGraphics::from_spv(
+        let curl_stage = gfx::ReflectedGraphics::from_spirv(
             &device,
             &basic_vertex,
             None,
@@ -579,7 +579,7 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let vorticity_stage = gfx::ReflectedGraphics::from_spv(
+        let vorticity_stage = gfx::ReflectedGraphics::from_spirv(
             &device,
             &basic_vertex,
             None,
@@ -615,7 +615,7 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let clear_stage = gfx::ReflectedGraphics::from_spv(
+        let clear_stage = gfx::ReflectedGraphics::from_spirv(
             &device,
             &basic_vertex,
             None,
@@ -649,7 +649,7 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let pressure_stage = gfx::ReflectedGraphics::from_spv(
+        let pressure_stage = gfx::ReflectedGraphics::from_spirv(
             &device,
             &basic_vertex,
             None,
@@ -683,7 +683,7 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let grad_sub_stage = gfx::ReflectedGraphics::from_spv(
+        let grad_sub_stage = gfx::ReflectedGraphics::from_spirv(
             &device,
             &basic_vertex,
             None,
@@ -717,7 +717,7 @@ impl Fluid {
         // =======================================================================
         // =======================================================================
 
-        let display_stage = gfx::ReflectedGraphics::from_spv(
+        let display_stage = gfx::ReflectedGraphics::from_spirv(
             &device,
             &basic_vertex,
             None,

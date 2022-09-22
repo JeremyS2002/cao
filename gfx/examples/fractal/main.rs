@@ -162,7 +162,7 @@ impl Fractal {
         //     samples: gpu::Samples::S1,
         // })?;
 
-        let fractal_graphics = gfx::ReflectedGraphics::from_spv(
+        let fractal_graphics = gfx::ReflectedGraphics::from_spirv(
             &device,
             &gpu::include_spirv!("vert.spv"),
             None,
@@ -197,7 +197,7 @@ impl Fractal {
         //     samples: gpu::Samples::S1,
         // })?;
 
-        let display_graphics = gfx::ReflectedGraphics::from_spv(
+        let display_graphics = gfx::ReflectedGraphics::from_spirv(
             &device,
             &gpu::include_spirv!("vert.spv"),
             None,

@@ -161,7 +161,7 @@ impl Slime {
             None,
         )?;
 
-        let update = gfx::ReflectedCompute::new(&device, &gpu::include_spirv!("update.spv"), None, None)?;
+        let update = gfx::ReflectedCompute::from_spirv(&device, &gpu::include_spirv!("update.spv"), None, None)?;
 
         let update_bundle = update
             .bundle()
@@ -171,7 +171,7 @@ impl Slime {
             .set_resource("u_agents", &agents)?
             .build(&device)?;
 
-        let fade = gfx::ReflectedCompute::new(&device, &gpu::include_spirv!("fade.spv"), None, None)?;
+        let fade = gfx::ReflectedCompute::from_spirv(&device, &gpu::include_spirv!("fade.spv"), None, None)?;
 
         let fade_bundle = fade
             .bundle()
@@ -196,7 +196,7 @@ impl Slime {
         //     samples: gpu::Samples::S1,
         // })?;
 
-        let graphics = gfx::ReflectedGraphics::from_spv(
+        let graphics = gfx::ReflectedGraphics::from_spirv(
             &device,
             &gpu::include_spirv!("display_vert.spv"),
             None,

@@ -7,20 +7,22 @@ pub mod encoder;
 pub mod mesh;
 pub mod pass;
 pub mod prelude;
-#[cfg(any(feature = "reflect", feature = "spirv"))]
-pub mod reflect;
 pub mod storage;
 pub mod texture;
 pub mod uniform;
 
+#[cfg(feature = "reflect")]
+pub mod reflect;
+
 pub use encoder::CommandEncoder;
 pub use mesh::*;
 pub use prelude::*;
-#[cfg(any(feature = "reflect", feature = "spirv"))]
-pub use reflect::*;
 pub use storage::*;
 pub use texture::*;
 pub use uniform::*;
+
+#[cfg(feature = "reflect")]
+pub use reflect::*;
 
 pub use image;
 
