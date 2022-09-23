@@ -454,6 +454,44 @@ impl CommandBuffer {
         raw::end_render_pass(self.buffer, &self.device)
     }
 
+    /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkCmdDrawIndirect.html>
+    pub fn draw_indirect(
+        &mut self,
+        buffer: &crate::Buffer,
+        offset: u64,
+        draw_count: u32,
+        stride: u32,
+    ) -> Result<(), crate::Error> {
+        raw::draw_indirect(
+            self.buffer, 
+            &self.device, 
+            buffer, 
+            offset, 
+            draw_count, 
+            stride, 
+            &mut self.garbage
+        )
+    }
+
+    /// <https://www.khronos.org/registry/vulkan/specs/1.3-extensions/man/html/vkCmdDrawIndexedIndirect.html>
+    pub fn draw_indexed_indirect(
+        &mut self,
+        buffer: &crate::Buffer,
+        offset: u64,
+        draw_count: u32,
+        stride: u32,
+    ) -> Result<(), crate::Error> {
+        raw::draw_indexed_indirect(
+            self.buffer, 
+            &self.device, 
+            buffer, 
+            offset, 
+            draw_count, 
+            stride, 
+            &mut self.garbage
+        )
+    }
+
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdDraw.html>
     pub fn draw(
         &mut self,

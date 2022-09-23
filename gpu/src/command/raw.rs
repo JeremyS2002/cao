@@ -850,6 +850,56 @@ pub(crate) fn end_render_pass(
     Ok(device.check_errors()?)
 }
 
+pub(crate) fn draw_indirect(
+    command_buffer: vk::CommandBuffer,
+    device: &crate::RawDevice,
+    buffer: &crate::Buffer,
+    offset: u64,
+    draw_count: u32,
+    stride: u32,
+    garbage: &mut super::Garbage,
+) -> Result<(), crate::Error> {
+    garbage.buffers.push(Arc::clone(&buffer.raw));
+    garbage.memory.push(Arc::clone(&buffer.memory));
+
+    unsafe {
+        device.cmd_draw_indirect(
+            command_buffer, 
+            **buffer.raw, 
+            offset, 
+            draw_count, 
+            stride
+        )
+    }
+
+    Ok(device.check_errors()?)
+}
+
+pub(crate) fn draw_indexed_indirect(
+    command_buffer: vk::CommandBuffer,
+    device: &crate::RawDevice,
+    buffer: &crate::Buffer,
+    offset: u64,
+    draw_count: u32,
+    stride: u32,
+    garbage: &mut super::Garbage,
+) -> Result<(), crate::Error> {
+    garbage.buffers.push(Arc::clone(&buffer.raw));
+    garbage.memory.push(Arc::clone(&buffer.memory));
+
+    unsafe {
+        device.cmd_draw_indexed_indirect(
+            command_buffer, 
+            **buffer.raw, 
+            offset, 
+            draw_count, 
+            stride
+        )
+    }
+
+    Ok(device.check_errors()?)
+}
+
 pub(crate) fn draw(
     command_buffer: vk::CommandBuffer,
     device: &crate::RawDevice,

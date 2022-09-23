@@ -2761,3 +2761,51 @@ pub struct Specialization<'a> {
     /// The data to read the constant values from 
     pub data: &'a [u8],
 }
+
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct DrawIndirectCommand {
+    pub vertex_count: u32,
+    pub instance_count: u32,
+    pub first_vertex: u32,
+    pub first_instance: u32,
+}
+
+impl Into<vk::DrawIndirectCommand> for DrawIndirectCommand {
+    fn into(self) -> vk::DrawIndirectCommand {
+        vk::DrawIndirectCommand {
+            vertex_count: self.vertex_count,
+            instance_count: self.instance_count,
+            first_vertex: self.first_vertex,
+            first_instance: self.first_instance,
+        }
+    }
+}
+
+unsafe impl bytemuck::Pod for DrawIndirectCommand { }
+unsafe impl bytemuck::Zeroable for DrawIndirectCommand { }
+
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct DrawIndexedIndirectCommand {
+    pub index_count: u32,
+    pub instance_count: u32,
+    pub first_index: u32,
+    pub vertex_offset: i32,
+    pub first_instance: u32,
+}
+
+impl Into<vk::DrawIndexedIndirectCommand> for DrawIndexedIndirectCommand {
+    fn into(self) -> vk::DrawIndexedIndirectCommand {
+        vk::DrawIndexedIndirectCommand {
+            index_count: self.index_count,
+            instance_count: self.instance_count,
+            first_index: self.first_index,
+            vertex_offset: self.vertex_offset,
+            first_instance: self.first_instance,
+        }
+    }
+}
+
+unsafe impl bytemuck::Pod for DrawIndexedIndirectCommand { }
+unsafe impl bytemuck::Zeroable for DrawIndexedIndirectCommand { }

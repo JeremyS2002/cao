@@ -32,6 +32,18 @@ pub enum GraphicsPassCommand<'a> {
         instance_count: u32,
         vertex_offset: i32,
     },
+    DrawIndirect {
+        buffer: Cow<'a, gpu::Buffer>,
+        offset: u64,
+        draw_count: u32,
+        stride: u32,
+    },
+    DrawIndexedIndirect {
+        buffer: Cow<'a, gpu::Buffer>,
+        offset: u64,
+        draw_count: u32,
+        stride: u32,
+    },
     BindVertexBuffer {
         buffer: gpu::BufferSlice<'a>,
         binding: u32,
@@ -91,6 +103,28 @@ impl<'a> GraphicsPassCommand<'a> {
                 *instance_count,
                 *vertex_offset,
             ),
+            GraphicsPassCommand::DrawIndirect { 
+                buffer, 
+                offset, 
+                draw_count, 
+                stride 
+            } => command_buffer.draw_indirect(
+                &*buffer, 
+                *offset, 
+                *draw_count, 
+                *stride
+            ),
+            GraphicsPassCommand::DrawIndexedIndirect { 
+                buffer, 
+                offset, 
+                draw_count, 
+                stride 
+            } => command_buffer.draw_indexed_indirect(
+                &*buffer, 
+                *offset, 
+                *draw_count, 
+                *stride
+            ),
             GraphicsPassCommand::BindVertexBuffers {
                 buffers,
                 first_binding,
@@ -131,6 +165,18 @@ impl<'a> GraphicsPassCommand<'a> {
     pub fn buffers(&self) -> HashSet<gpu::BufferSlice<'a>> {
         let mut result = HashSet::new();
         match self {
+            GraphicsPassCommand::DrawIndirect { buffer, .. } => {
+                match buffer {
+                    Cow::Borrowed(b) => result.insert(b.slice_ref(..)),
+                    Cow::Owned(b) => result.insert(b.slice_owned(..)),
+                };
+            }
+            GraphicsPassCommand::DrawIndexedIndirect { buffer, .. } => {
+                match buffer {
+                    Cow::Borrowed(b) => result.insert(b.slice_ref(..)),
+                    Cow::Owned(b) => result.insert(b.slice_owned(..)),
+                };
+            }
             GraphicsPassCommand::BindDescriptorSet { descriptor, .. } => {
                 for buffer in descriptor.buffers() {
                     result.insert(buffer.clone());
@@ -214,9 +260,73 @@ pub trait GraphicsPass<'a> {
     /// push a command to the queue
     fn push_command(&mut self, command: GraphicsPassCommand<'a>);
 
+    /// Draw Indirect
+    fn draw_indirect_ref(
+        &mut self,
+        buffer: &'a gpu::Buffer,
+        offset: u64,
+        draw_count: u32,
+        stride: u32,
+    ) {
+        self.push_command(GraphicsPassCommand::DrawIndirect { 
+            buffer: Cow::Borrowed(buffer), 
+            offset, 
+            draw_count, 
+            stride 
+        })
+    }
+
+    /// Draw Indirect 
+    fn draw_indirect_owned(
+        &mut self,
+        buffer: gpu::Buffer,
+        offset: u64,
+        draw_count: u32,
+        stride: u32,
+    ) {
+        self.push_command(GraphicsPassCommand::DrawIndirect { 
+            buffer: Cow::Owned(buffer), 
+            offset, 
+            draw_count, 
+            stride 
+        })
+    }
+
+    /// Draw indexed Indirect
+    fn draw_indexed_indirect_ref(
+        &mut self,
+        buffer: &'a gpu::Buffer,
+        offset: u64,
+        draw_count: u32,
+        stride: u32,
+    ) {
+        self.push_command(GraphicsPassCommand::DrawIndexedIndirect { 
+            buffer: Cow::Borrowed(buffer), 
+            offset, 
+            draw_count, 
+            stride 
+        })
+    }
+
+    /// Draw Indexed Indirect 
+    fn draw_indexed_indirect_owned(
+        &mut self,
+        buffer: gpu::Buffer,
+        offset: u64,
+        draw_count: u32,
+        stride: u32,
+    ) {
+        self.push_command(GraphicsPassCommand::DrawIndexedIndirect { 
+            buffer: Cow::Owned(buffer), 
+            offset, 
+            draw_count, 
+            stride 
+        })
+    }
+
     /// draw from a vertex buffer
     ///
-    /// # Safety
+    /// # valid usage
     ///
     /// The draw indices must be in range of the vertex buffer size
     /// and the bind descriptors used by the pipeline must be set
@@ -237,7 +347,7 @@ pub trait GraphicsPass<'a> {
 
     /// draw from a vertex buffer
     ///
-    /// # Safety
+    /// # valid usage
     ///
     /// The draw indices must be in range of the vertex buffer size
     /// and the bind descriptors used by the pipeline must be set
@@ -308,7 +418,7 @@ pub trait GraphicsPass<'a> {
 
     /// set a single bind descriptor
     ///
-    /// # Safety
+    /// # valid usage
     ///
     /// The bind descriptor being set must match the pipeline
     fn bind_descriptor_ref(&mut self, location: u32, descriptor: &'a gpu::DescriptorSet) {
@@ -320,7 +430,7 @@ pub trait GraphicsPass<'a> {
 
     /// set a single bind descriptor
     ///
-    /// # Safety
+    /// # valid usage
     ///
     /// The bind descriptor being set must match the pipeline
     fn bind_descriptor_owned(&mut self, location: u32, descriptor: gpu::DescriptorSet) {
@@ -332,7 +442,7 @@ pub trait GraphicsPass<'a> {
 
     /// set the bind descriptors
     ///
-    /// # Safety
+    /// # valid usage
     ///
     /// The bind descriptor being set must match the pipeline
     fn bind_descriptors_ref(
@@ -352,7 +462,7 @@ pub trait GraphicsPass<'a> {
 
     /// set the bind descriptors
     ///
-    /// # Safety
+    /// # valid usage
     ///
     /// The bind descriptor being set must match the pipeline
     fn bind_descriptors_owned(
