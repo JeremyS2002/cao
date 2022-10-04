@@ -20,7 +20,8 @@ gpu                = { path = "../gpu" }
 bytemuck           = { version = "^1.12.1", features=["extern_crate_alloc"] }
 parking_lot        = "^0.11.1"
 glam               = { version = "0.21.2", features = ["bytemuck"] }
-spirq              = { git = "https://github.com/JeremyS2002/spirq-rs.git", optional=true }
+spirq              = { version = "0.6.1", optional=true }
+# spirq              = { git = "https://github.com/JeremyS2002/spirq-rs.git", optional=true }
 image              = { version = "^0.23.12", default-features=false, optional=true }
 spv                = { path = "../spv", optional=true }
 either             = { version = "^1.6.1", optional=true }
