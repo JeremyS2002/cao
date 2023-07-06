@@ -2238,9 +2238,9 @@ pub enum TextureDimension {
     /// 2 dimensional image of Size x Size pixels and Layer number of layers
     D2Array(Size, Size, Samples, Layer),
     /// Cube image with each face of Size x Size pixels
-    Cube(Size, Size),
+    Cube(Size),
     /// Cube image with each face of Size x Size pixels and Layer number of layers
-    CubeArray(Size, Size, Layer),
+    CubeArray(Size, Layer),
     // Cube image with each face of Size x Size and multisampling support
     //CubeMs(Size, Size, Samples),
     // Cube image with each face of Size x Size and Layer number of layers and multisampling support
@@ -2255,8 +2255,8 @@ impl TextureDimension {
         match self {
             TextureDimension::D1Array(_, l) => *l,
             TextureDimension::D2Array(_, _, _, l) => *l,
-            TextureDimension::Cube(_, _) => 6,
-            TextureDimension::CubeArray(_, _, l) => 6 * *l,
+            TextureDimension::Cube(_) => 6,
+            TextureDimension::CubeArray(_, l) => 6 * *l,
             //TextureDimension::CubeMs(_, _, _) => 6,
             //TextureDimension::CubeArrayMs(_, _, l, _) => 6 * *l,
             _ => 1,
@@ -2281,8 +2281,8 @@ impl TextureDimension {
             TextureDimension::D1Array(_, _) => TextureKind::D1,
             TextureDimension::D2(_, _, _) => TextureKind::D2,
             TextureDimension::D2Array(_, _, _, _) => TextureKind::D2,
-            TextureDimension::Cube(_, _) => TextureKind::D2,
-            TextureDimension::CubeArray(_, _, _) => TextureKind::D2,
+            TextureDimension::Cube(_) => TextureKind::D2,
+            TextureDimension::CubeArray(_, _) => TextureKind::D2,
             //TextureDimension::CubeMs(_, _, _) => TextureKind::D2,
             //TextureDimension::CubeArrayMs(_, _, _, _) => TextureKind::D2,
             TextureDimension::D3(_, _, _) => TextureKind::D3,
@@ -2292,8 +2292,8 @@ impl TextureDimension {
     pub(crate) fn flags(&self) -> vk::ImageCreateFlags {
         match self {
             TextureDimension::D2Array(_, _, _, _) => vk::ImageCreateFlags::TYPE_2D_ARRAY_COMPATIBLE,
-            TextureDimension::Cube(_, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
-            TextureDimension::CubeArray(_, _, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
+            TextureDimension::Cube(_) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
+            TextureDimension::CubeArray(_, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
             //TextureDimension::CubeMs(_, _, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
             //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
             TextureDimension::D3(_, _, _) => vk::ImageCreateFlags::TYPE_2D_ARRAY_COMPATIBLE,
@@ -2309,8 +2309,8 @@ impl Into<vk::ImageType> for TextureDimension {
             TextureDimension::D1Array(_, _) => vk::ImageType::TYPE_1D,
             TextureDimension::D2(_, _, _) => vk::ImageType::TYPE_2D,
             TextureDimension::D2Array(_, _, _, _) => vk::ImageType::TYPE_2D,
-            TextureDimension::Cube(_, _) => vk::ImageType::TYPE_2D,
-            TextureDimension::CubeArray(_, _, _) => vk::ImageType::TYPE_2D,
+            TextureDimension::Cube(_) => vk::ImageType::TYPE_2D,
+            TextureDimension::CubeArray(_, _) => vk::ImageType::TYPE_2D,
             //TextureDimension::CubeMs(_, _, _) => vk::ImageType::TYPE_2D,
             //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageType::TYPE_2D,
             TextureDimension::D3(_, _, _) => vk::ImageType::TYPE_3D,
@@ -2325,8 +2325,8 @@ impl Into<vk::ImageViewType> for TextureDimension {
             TextureDimension::D1Array(_, _) => vk::ImageViewType::TYPE_1D,
             TextureDimension::D2(_, _, _) => vk::ImageViewType::TYPE_2D,
             TextureDimension::D2Array(_, _, _, _) => vk::ImageViewType::TYPE_2D_ARRAY,
-            TextureDimension::Cube(_, _) => vk::ImageViewType::CUBE,
-            TextureDimension::CubeArray(_, _, _) => vk::ImageViewType::CUBE_ARRAY,
+            TextureDimension::Cube(_) => vk::ImageViewType::CUBE,
+            TextureDimension::CubeArray(_, _) => vk::ImageViewType::CUBE_ARRAY,
             //TextureDimension::CubeMs(_, _, _) => vk::ImageViewType::TYPE_2D,
             //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageViewType::TYPE_2D,
             TextureDimension::D3(_, _, _) => vk::ImageViewType::TYPE_3D,
@@ -2364,14 +2364,14 @@ impl Into<crate::Extent3D> for TextureDimension {
                 height: h,
                 depth: 1,
             },
-            TextureDimension::Cube(w, h) => crate::Extent3D {
+            TextureDimension::Cube(w) => crate::Extent3D {
                 width: w,
-                height: h,
+                height: w,
                 depth: 1,
             },
-            TextureDimension::CubeArray(w, h, _) => crate::Extent3D {
+            TextureDimension::CubeArray(w, _) => crate::Extent3D {
                 width: w,
-                height: h,
+                height: w,
                 depth: 1,
             },
             /*

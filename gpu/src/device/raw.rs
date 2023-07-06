@@ -118,6 +118,14 @@ impl RawDevice {
         Ok(())
     }
 
+    pub fn set_swapchain_name(
+        &self,
+        swapchain: &crate::Swapchain,
+        name: &str,
+    ) -> Result<(), Error> {
+        self.set_name(unsafe { swapchain.raw_swapchain().as_raw() }, vk::ObjectType::SWAPCHAIN_KHR, name)
+    }
+
     pub fn set_shader_module_name(
         &self,
         module: &crate::ShaderModule,

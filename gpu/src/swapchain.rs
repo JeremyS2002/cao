@@ -28,6 +28,8 @@ pub struct SwapchainDesc {
     /// the maximum number of frames that are allowed
     /// to be being computed simultaniously
     pub frames_in_flight: usize,
+    /// the name of the swapchain, used for debugging
+    pub name: Option<String>,
 }
 
 impl SwapchainDesc {
@@ -46,6 +48,7 @@ impl SwapchainDesc {
             texture_count,
             texture_usage: crate::TextureUsage::COLOR_OUTPUT,
             frames_in_flight: texture_count as _,
+            name: None,
         })
     }
 }
@@ -165,6 +168,36 @@ impl std::hash::Hash for Swapchain {
 }
 
 impl Swapchain {
+    pub unsafe fn raw_loader<'a>(&'a self) -> &'a khr::Swapchain {
+        &self.inner.loader
+    }
+
+    pub unsafe fn raw_swapchain(&self) -> vk::SwapchainKHR {
+        self.inner.raw.get()
+    }
+
+    pub unsafe fn raw_surface(&self) -> vk::SurfaceKHR {
+        **self.inner.surface
+    }
+
+    pub unsafe fn raw_surface_loader<'a>(&'a self) -> &'a khr::Surface {
+        &self.inner.surface_loader
+    }
+
+    pub fn textures<'a>(&'a self) -> &'a [crate::Texture] {
+        &self.textures
+    }
+
+    pub fn textures_views<'a>(&'a self) -> &'a [crate::TextureView] {
+        &self.views
+    }
+
+    pub unsafe fn raw_queue(&self) -> vk::Queue {
+        self.queue
+    }
+}
+
+impl Swapchain {
     /// Create a new swapchain for the surface
     ///
     /// NOTE: If the swapchain desc is invalid the properties of the swwapchain wlll be modified so that the creation can still take place
@@ -198,9 +231,7 @@ impl Swapchain {
 
         let image_count = textures.len() as u32;
 
-        device.raw.check_errors()?;
-
-        Ok(Self {
+        let s = Self {
             inner: SwapchainInner {
                 loader,
                 raw: Md::new(Arc::new(Cell::new(raw))),
@@ -230,7 +261,15 @@ impl Swapchain {
 
             frames_in_flight: desc.frames_in_flight,
             frame: Cell::new(0),
-        })
+        };
+
+        if let Some(name) = &desc.name {
+            device.raw.set_swapchain_name(&s, name)?;
+        }
+
+        device.raw.check_errors()?;
+
+        Ok(s)
     }
 
     fn create_raw(
@@ -473,6 +512,10 @@ impl Swapchain {
             Err(e) => return Err(e.into()),
         };
 
+        unsafe { 
+            self.inner.loader.destroy_swapchain(self.inner.raw.get(), None); 
+        }        
+        
         self.extent = caps.current_extent;
 
         let (textures, views) = Self::create_frames(
@@ -665,7 +708,7 @@ impl Drop for SwapchainInner {
         let swapchain = unsafe { Md::take(&mut self.raw) };
         if let Ok(swapchain) = Arc::try_unwrap(swapchain) {
             unsafe { self.loader.destroy_swapchain(swapchain.get(), None) }
-        }
+        }        
 
         for semaphore in self.acquire_complete_semaphores.drain(..) {
             if let Ok(semaphore) = Arc::try_unwrap(semaphore) {
