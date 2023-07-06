@@ -100,11 +100,11 @@ impl AsDimension for D3 {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub struct Cube(pub gpu::Size, pub gpu::Size);
+pub struct Cube(pub gpu::Size);
 
 impl AsDimension for Cube {
     fn as_dimension(&self) -> gpu::TextureDimension {
-        gpu::TextureDimension::Cube(self.0, self.1)
+        gpu::TextureDimension::Cube(self.0)
     }
 
     #[cfg(feature = "spv")]
@@ -112,11 +112,11 @@ impl AsDimension for Cube {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-pub struct CubeArray(pub gpu::Size, pub gpu::Size, pub gpu::Layer);
+pub struct CubeArray(pub gpu::Size, pub gpu::Layer);
 
 impl AsDimension for CubeArray {
     fn as_dimension(&self) -> gpu::TextureDimension {
-        gpu::TextureDimension::CubeArray(self.0, self.1, self.2)
+        gpu::TextureDimension::CubeArray(self.0, self.1)
     }
 
     #[cfg(feature = "spv")]

@@ -357,7 +357,7 @@ macro_rules! make_texture_2d {
             ///
             /// This will infer the gpu::Format from the component in the image
             /// and will use the dimensions of the image for the dimensions of the texture
-            pub fn from_image<C, P>(
+            pub fn from_image_buffer<C, P>(
                 encoder: &mut crate::CommandEncoder<'_>,
                 device: &gpu::Device,
                 image: &image::ImageBuffer<P, C>,
@@ -371,7 +371,7 @@ macro_rules! make_texture_2d {
                 C: std::ops::Deref<Target = [P::Subpixel]>,
             {
                 $format::try_from(P::FORMAT).unwrap();
-                Ok(Self(GTexture2D::from_image(
+                Ok(Self(GTexture2D::from_image_buffer(
                     encoder, device, image, usage, mip_levels, name,
                 )?))
             }
@@ -379,7 +379,7 @@ macro_rules! make_texture_2d {
             /// Write an image to self
             ///
             /// Will panic if the dimensions don't match self
-            pub fn write_image<C, P>(
+            pub fn write_image_buffer<C, P>(
                 &self,
                 encoder: &mut crate::CommandEncoder<'_>,
                 device: &gpu::Device,
@@ -391,7 +391,7 @@ macro_rules! make_texture_2d {
                 C: std::ops::Deref<Target = [P::Subpixel]>,
             {
                 $format::try_from(P::FORMAT).unwrap();
-                self.0.write_image(encoder, device, image)
+                self.0.write_image_buffer(encoder, device, image)
             }
         }
     };
@@ -500,7 +500,7 @@ macro_rules! make_texture_2d_array {
             ///
             /// Will infer the gpu::Format to use and use the width and height from the images
             /// All the images must have the same dimensions
-            pub fn from_images<C, P>(
+            pub fn from_image_buffers<C, P>(
                 encoder: &mut crate::CommandEncoder<'_>,
                 device: &gpu::Device,
                 images: &[&image::ImageBuffer<P, C>],
@@ -514,7 +514,7 @@ macro_rules! make_texture_2d_array {
                 C: std::ops::Deref<Target = [P::Subpixel]>,
             {
                 $format::try_from(P::FORMAT).unwrap();
-                Ok(Self(GTexture2DArray::from_images(
+                Ok(Self(GTexture2DArray::from_image_buffers(
                     encoder, device, images, usage, mip_levels, name,
                 )?))
             }
@@ -526,7 +526,7 @@ macro_rules! make_texture_2d_array {
             /// At the moment the texture must have been created with [`gpu::Samples::S1`]
             /// If it was created with more then you must create a staging image and blit between them
             /// This limit should be lifted as soon as I get around to it
-            pub fn write_image<C, P>(
+            pub fn write_image_buffer<C, P>(
                 &self,
                 encoder: &mut crate::CommandEncoder<'_>,
                 device: &gpu::Device,
@@ -539,7 +539,7 @@ macro_rules! make_texture_2d_array {
                 C: std::ops::Deref<Target = [P::Subpixel]>,
             {
                 $format::try_from(P::FORMAT).unwrap();
-                self.0.write_image(encoder, device, image, array_layer)
+                self.0.write_image_buffer(encoder, device, image, array_layer)
             }
         }
     };
@@ -551,8 +551,7 @@ macro_rules! make_texture_cube {
             /// Create a new Texture from dimensions
             pub fn new(
                 device: &gpu::Device,
-                width: gpu::Size,
-                height: gpu::Size,
+                size: gpu::Size,
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
                 format: $format,
@@ -560,8 +559,7 @@ macro_rules! make_texture_cube {
             ) -> Result<Self, gpu::Error> {
                 Ok(Self(GTextureCube::new(
                     device,
-                    width,
-                    height,
+                    size,
                     usage,
                     mip_levels,
                     format.into(),
@@ -573,8 +571,7 @@ macro_rules! make_texture_cube {
             /// Returns Ok(None) if none of the possible formats are valid
             pub fn from_formats(
                 device: &gpu::Device,
-                width: gpu::Size,
-                height: gpu::Size,
+                size: gpu::Size,
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
                 formats: impl IntoIterator<Item = $format>,
@@ -582,8 +579,7 @@ macro_rules! make_texture_cube {
             ) -> Result<Option<Self>, gpu::Error> {
                 Ok(GTextureCube::from_formats(
                     device,
-                    width,
-                    height,
+                    size,
                     usage,
                     mip_levels,
                     formats.into_iter().map(|f| f.into()),
@@ -598,8 +594,7 @@ macro_rules! make_texture_cube {
             pub fn from_raw_images<P: FormatData + bytemuck::Pod>(
                 encoder: &mut crate::CommandEncoder<'_>,
                 device: &gpu::Device,
-                width: gpu::Size,
-                height: gpu::Size,
+                size: gpu::Size,
                 raw_textures: &[&[P]; 6],
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
@@ -609,8 +604,7 @@ macro_rules! make_texture_cube {
                 Ok(Self(GTextureCube::from_raw_images(
                     encoder,
                     device,
-                    width,
-                    height,
+                    size,
                     raw_textures,
                     usage,
                     mip_levels,
@@ -639,7 +633,7 @@ macro_rules! make_texture_cube {
             ///
             /// This will infer the gpu::Format from the component in the image
             /// and will use the dimensions of the image for the dimensions of the texture
-            pub fn from_images<C, P>(
+            pub fn from_image_buffers<C, P>(
                 encoder: &mut crate::CommandEncoder<'_>,
                 device: &gpu::Device,
                 images: &[&image::ImageBuffer<P, C>; 6],
@@ -653,7 +647,7 @@ macro_rules! make_texture_cube {
                 C: std::ops::Deref<Target = [P::Subpixel]>,
             {
                 $format::try_from(P::FORMAT).unwrap();
-                Ok(Self(GTextureCube::from_images(
+                Ok(Self(GTextureCube::from_image_buffers(
                     encoder, device, images, usage, mip_levels, name,
                 )?))
             }
@@ -661,7 +655,7 @@ macro_rules! make_texture_cube {
             /// Write an image to self
             ///
             /// Will panic if the dimensions don't match self
-            pub fn write_image<C, P>(
+            pub fn write_image_buffer<C, P>(
                 &self,
                 encoder: &mut crate::CommandEncoder<'_>,
                 device: &gpu::Device,
@@ -674,7 +668,7 @@ macro_rules! make_texture_cube {
                 C: std::ops::Deref<Target = [P::Subpixel]>,
             {
                 $format::try_from(P::FORMAT).unwrap();
-                self.0.write_image(encoder, device, image, face)
+                self.0.write_image_buffer(encoder, device, image, face)
             }
         }
     };
@@ -686,8 +680,7 @@ macro_rules! make_texture_cube_array {
             /// Create a new Texture from dimensions
             pub fn new(
                 device: &gpu::Device,
-                width: gpu::Size,
-                height: gpu::Size,
+                size: gpu::Size,
                 layers: gpu::Layer,
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
@@ -696,8 +689,7 @@ macro_rules! make_texture_cube_array {
             ) -> Result<Self, gpu::Error> {
                 Ok(Self(GTextureCubeArray::new(
                     device,
-                    width,
-                    height,
+                    size,
                     layers,
                     usage,
                     mip_levels,
@@ -710,8 +702,7 @@ macro_rules! make_texture_cube_array {
             /// Returns Ok(None) if none of the possible formats are valid
             pub fn from_formats(
                 device: &gpu::Device,
-                width: gpu::Size,
-                height: gpu::Size,
+                size: gpu::Size,
                 layers: gpu::Layer,
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
@@ -720,8 +711,7 @@ macro_rules! make_texture_cube_array {
             ) -> Result<Option<Self>, gpu::Error> {
                 Ok(GTextureCubeArray::from_formats(
                     device,
-                    width,
-                    height,
+                    size,
                     layers,
                     usage,
                     mip_levels,
@@ -737,8 +727,7 @@ macro_rules! make_texture_cube_array {
             pub fn from_raw_images<P: FormatData + bytemuck::Pod>(
                 encoder: &mut crate::CommandEncoder<'_>,
                 device: &gpu::Device,
-                width: gpu::Size,
-                height: gpu::Size,
+                size: gpu::Size,
                 raw_textures: &[&[&[P]; 6]],
                 usage: gpu::TextureUsage,
                 mip_levels: u32,
@@ -748,8 +737,7 @@ macro_rules! make_texture_cube_array {
                 Ok(Self(GTextureCubeArray::from_raw_images(
                     encoder,
                     device,
-                    width,
-                    height,
+                    size,
                     raw_textures,
                     usage,
                     mip_levels,
@@ -780,7 +768,7 @@ macro_rules! make_texture_cube_array {
             ///
             /// This will infer the gpu::Format from the component in the image
             /// and will use the dimensions of the image for the dimensions of the texture
-            pub fn from_images<C, P>(
+            pub fn from_image_buffers<C, P>(
                 encoder: &mut crate::CommandEncoder<'_>,
                 device: &gpu::Device,
                 images: &[&[&image::ImageBuffer<P, C>; 6]],
@@ -794,7 +782,7 @@ macro_rules! make_texture_cube_array {
                 C: std::ops::Deref<Target = [P::Subpixel]>,
             {
                 $format::try_from(P::FORMAT).unwrap();
-                Ok(Self(GTextureCubeArray::from_images(
+                Ok(Self(GTextureCubeArray::from_image_buffers(
                     encoder, device, images, usage, mip_levels, name,
                 )?))
             }
@@ -802,7 +790,7 @@ macro_rules! make_texture_cube_array {
             /// Write an image to self
             ///
             /// Will panic if the dimensions don't match self
-            pub fn write_image<C, P>(
+            pub fn write_image_buffer<C, P>(
                 &self,
                 encoder: &mut crate::CommandEncoder<'_>,
                 device: &gpu::Device,
@@ -817,7 +805,7 @@ macro_rules! make_texture_cube_array {
             {
                 $format::try_from(P::FORMAT).unwrap();
                 self.0
-                    .write_image(encoder, device, image, array_layer, face)
+                    .write_image_buffer(encoder, device, image, array_layer, face)
             }
         }
     };

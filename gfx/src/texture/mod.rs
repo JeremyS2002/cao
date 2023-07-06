@@ -888,11 +888,36 @@ impl GTexture2D {
 
 #[cfg(feature = "image")]
 impl GTexture2D {
-    /// Create a new texture from an image
+    /// Create a new texture from a dynamic image
+    /// 
+    /// This just matches on the variants of [`image::DynamicImage`] and calls [`Self::from_image_buffer`] on the internal image buffer
+    pub fn from_image(
+        encoder: &mut crate::CommandEncoder<'_>,
+        device: &gpu::Device,
+        image: &image::DynamicImage,
+        usage: gpu::TextureUsage,
+        mip_levels: u32,
+        name: Option<&str>
+    ) -> Result<Self, gpu::Error> {
+        match image {
+            image::DynamicImage::ImageLuma8(buf) => Self::from_image_buffer(encoder, device, buf, usage, mip_levels, name),
+            image::DynamicImage::ImageLumaA8(buf) => Self::from_image_buffer(encoder, device, buf, usage, mip_levels, name),
+            image::DynamicImage::ImageRgb8(buf) => Self::from_image_buffer(encoder, device, buf, usage, mip_levels, name),
+            image::DynamicImage::ImageRgba8(buf) => Self::from_image_buffer(encoder, device, buf, usage, mip_levels, name),
+            image::DynamicImage::ImageBgr8(buf) => Self::from_image_buffer(encoder, device, buf, usage, mip_levels, name),
+            image::DynamicImage::ImageBgra8(buf) => Self::from_image_buffer(encoder, device, buf, usage, mip_levels, name),
+            image::DynamicImage::ImageLuma16(buf) => Self::from_image_buffer(encoder, device, buf, usage, mip_levels, name),
+            image::DynamicImage::ImageLumaA16(buf) => Self::from_image_buffer(encoder, device, buf, usage, mip_levels, name),
+            image::DynamicImage::ImageRgb16(buf) => Self::from_image_buffer(encoder, device, buf, usage, mip_levels, name),
+            image::DynamicImage::ImageRgba16(buf) => Self::from_image_buffer(encoder, device, buf, usage, mip_levels, name),
+        }
+    }
+
+    /// Create a new texture from an image buffer
     ///
     /// This will infer the gpu::Format from the component in the image
     /// and will use the dimensions of the image for the dimensions of the texture
-    pub fn from_image<C, P>(
+    pub fn from_image_buffer<C, P>(
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
         image: &image::ImageBuffer<P, C>,
@@ -914,7 +939,7 @@ impl GTexture2D {
             P::FORMAT,
             name,
         )?;
-        t.write_image(encoder, device, image)?;
+        t.write_image_buffer(encoder, device, image)?;
         Ok(t)
     }
 
@@ -925,7 +950,7 @@ impl GTexture2D {
     /// At the moment the texture must have been created with [`gpu::Samples::S1`]
     /// If it was created with more then you must create a staging image and blit between them
     /// This limit should be lifted as soon as I get around to it
-    pub fn write_image<C, P>(
+    pub fn write_image_buffer<C, P>(
         &self,
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
@@ -1079,11 +1104,26 @@ impl GTexture2DArray {
 
 #[cfg(feature = "image")]
 impl GTexture2DArray {
+    // pub fn from_image(
+    //     encoder: &mut crate::CommandEncoder<'_>,
+    //     images: &[&image::DynamicImage],
+    //     usage: gpu::TextureUsage,
+    //     mip_levels: u32,
+    //     name: Option<&str>,
+    // ) -> Result<Self, gpu::Error> {
+    //     let mut iter = images.into_iter();
+    //     let first = iter.next().expect("Cannot create GTexture2DArray from no images");
+
+        
+
+    //     todo!();
+    // }
+
     /// Create a new texture from images
     ///
     /// Will infer the gpu::Format to use and use the width and height from the images
     /// All the images must have the same dimensions
-    pub fn from_images<C, P>(
+    pub fn from_image_buffers<C, P>(
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
         images: &[&image::ImageBuffer<P, C>],
@@ -1106,7 +1146,7 @@ impl GTexture2DArray {
             name,
         )?;
         for (i, texture) in images.iter().enumerate() {
-            t.write_image(encoder, device, *texture, i as _)?;
+            t.write_image_buffer(encoder, device, *texture, i as _)?;
         }
         Ok(t)
     }
@@ -1118,7 +1158,7 @@ impl GTexture2DArray {
     /// At the moment the texture must have been created with [`gpu::Samples::S1`]
     /// If it was created with more then you must create a staging image and blit between them
     /// This limit should be lifted as soon as I get around to it
-    pub fn write_image<C, P>(
+    pub fn write_image_buffer<C, P>(
         &self,
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
@@ -1150,22 +1190,20 @@ impl GTextureCube {
     /// Create a new Texture from dimensions
     pub fn new(
         device: &gpu::Device,
-        width: gpu::Size,
-        height: gpu::Size,
+        size: gpu::Size,
         usage: gpu::TextureUsage,
         mip_levels: u32,
         format: gpu::Format,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
-        Self::from_dimension(device, Cube(width, height), usage, mip_levels, format, name)
+        Self::from_dimension(device, Cube(size), usage, mip_levels, format, name)
     }
 
     /// Create a new Texture from dimensions and a list of possible formats
     /// Returns Ok(None) if none of the possible formats are valid
     pub fn from_formats(
         device: &gpu::Device,
-        width: gpu::Size,
-        height: gpu::Size,
+        size: gpu::Size,
         usage: gpu::TextureUsage,
         mip_levels: u32,
         formats: impl IntoIterator<Item = gpu::Format>,
@@ -1174,11 +1212,11 @@ impl GTextureCube {
         if let Some(format) = choose_format(
             device,
             formats,
-            gpu::TextureDimension::Cube(width, height),
+            gpu::TextureDimension::Cube(size),
             usage,
             mip_levels,
         ) {
-            Self::new(device, width, height, usage, mip_levels, format, name).map(|t| Some(t))
+            Self::new(device, size, usage, mip_levels, format, name).map(|t| Some(t))
         } else {
             Ok(None)
         }
@@ -1190,8 +1228,7 @@ impl GTextureCube {
     pub fn from_raw_images<P: FormatData + bytemuck::Pod>(
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
-        width: gpu::Size,
-        height: gpu::Size,
+        size: gpu::Size,
         raw_textures: &[&[P]; 6],
         usage: gpu::TextureUsage,
         mip_levels: u32,
@@ -1199,8 +1236,7 @@ impl GTextureCube {
     ) -> Result<Self, gpu::Error> {
         let t = Self::new(
             device,
-            width,
-            height,
+            size,
             usage | gpu::TextureUsage::COPY_DST | gpu::TextureUsage::COPY_SRC,
             mip_levels,
             P::FORMAT,
@@ -1229,7 +1265,7 @@ impl GTextureCube {
             gpu::Offset3D::ZERO,
             gpu::Extent3D {
                 width: self.dimension.0,
-                height: self.dimension.1,
+                height: self.dimension.0,
                 depth: 1,
             },
             face as _,
@@ -1288,10 +1324,9 @@ impl GTextureCube {
     /// Create a view into the texture at the specific face
     pub fn face_view(&self, face: CubeFace) -> Result<gpu::TextureView, gpu::Error> {
         let w = self.dimension.0;
-        let h = self.dimension.1;
         self.create_view(&gpu::TextureViewDesc {
             name: None,
-            dimension: gpu::TextureDimension::D2(w, h, gpu::Samples::S1),
+            dimension: gpu::TextureDimension::D2(w, w, gpu::Samples::S1),
             base_mip_level: 0,
             mip_levels: self.mip_levels(),
             base_array_layer: face as _,
@@ -1302,10 +1337,9 @@ impl GTextureCube {
     /// Create a view into the texture at the specific face and mip level
     pub fn face_mip_view(&self, face: CubeFace, mip: u32) -> Result<gpu::TextureView, gpu::Error> {
         let w = self.dimension.0;
-        let h = self.dimension.1;
         self.create_view(&gpu::TextureViewDesc {
             name: None,
-            dimension: gpu::TextureDimension::D2(w, h, gpu::Samples::S1),
+            dimension: gpu::TextureDimension::D2(w, w, gpu::Samples::S1),
             base_mip_level: mip,
             mip_levels: 1,
             base_array_layer: face as _,
@@ -1313,22 +1347,18 @@ impl GTextureCube {
         })
     }
 
-    pub fn width(&self) -> gpu::Size {
+    pub fn size(&self) -> gpu::Size {
         self.dimension.0
-    }
-
-    pub fn height(&self) -> gpu::Size {
-        self.dimension.1
     }
 }
 
 #[cfg(feature = "image")]
 impl GTextureCube {
-    /// Create a new texture from an image
+    /// Create a new texture from an image buffer
     ///
     /// This will infer the gpu::Format from the component in the image
     /// and will use the dimensions of the image for the dimensions of the texture
-    pub fn from_images<C, P>(
+    pub fn from_image_buffers<C, P>(
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
         images: &[&image::ImageBuffer<P, C>; 6],
@@ -1342,17 +1372,17 @@ impl GTextureCube {
         C: std::ops::Deref<Target = [P::Subpixel]>,
     {
         let (width, height) = images[0].dimensions();
+        assert_eq!(width, height, "Width and height must be equal for cube textures");
         let t = Self::new(
             device,
             width,
-            height,
             usage | gpu::TextureUsage::COPY_DST | gpu::TextureUsage::COPY_SRC,
             mip_levels,
             P::FORMAT,
             name,
         )?;
         for face in CubeFace::iter() {
-            t.write_image(encoder, device, images[face as usize], face)?;
+            t.write_image_buffer(encoder, device, images[face as usize], face)?;
         }
         Ok(t)
     }
@@ -1360,7 +1390,7 @@ impl GTextureCube {
     /// Write an image to self
     ///
     /// Will panic if the dimensions don't match self
-    pub fn write_image<C, P>(
+    pub fn write_image_buffer<C, P>(
         &self,
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
@@ -1379,7 +1409,7 @@ impl GTextureCube {
             gpu::Offset3D::ZERO,
             gpu::Extent3D {
                 width: self.dimension.0,
-                height: self.dimension.1,
+                height: self.dimension.0,
                 depth: 1,
             },
             face as _,
@@ -1392,8 +1422,7 @@ impl GTextureCubeArray {
     /// Create a new Texture from dimensions
     pub fn new(
         device: &gpu::Device,
-        width: gpu::Size,
-        height: gpu::Size,
+        size: gpu::Size,
         layers: gpu::Layer,
         usage: gpu::TextureUsage,
         mip_levels: u32,
@@ -1402,7 +1431,7 @@ impl GTextureCubeArray {
     ) -> Result<Self, gpu::Error> {
         Self::from_dimension(
             device,
-            CubeArray(width, height, layers),
+            CubeArray(size, layers),
             usage,
             mip_levels,
             format,
@@ -1414,8 +1443,7 @@ impl GTextureCubeArray {
     /// Returns Ok(None) if none of the possible formats are valid
     pub fn from_formats(
         device: &gpu::Device,
-        width: gpu::Size,
-        height: gpu::Size,
+        size: gpu::Size,
         layers: gpu::Layer,
         usage: gpu::TextureUsage,
         mip_levels: u32,
@@ -1425,12 +1453,12 @@ impl GTextureCubeArray {
         if let Some(format) = choose_format(
             device,
             formats,
-            gpu::TextureDimension::CubeArray(width, height, layers),
+            gpu::TextureDimension::CubeArray(size, layers),
             usage,
             mip_levels,
         ) {
             Self::new(
-                device, width, height, layers, usage, mip_levels, format, name,
+                device, size, layers, usage, mip_levels, format, name,
             )
             .map(|t| Some(t))
         } else {
@@ -1444,8 +1472,7 @@ impl GTextureCubeArray {
     pub fn from_raw_images<P: FormatData + bytemuck::Pod>(
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
-        width: gpu::Size,
-        height: gpu::Size,
+        size: gpu::Size,
         raw_textures: &[&[&[P]; 6]],
         usage: gpu::TextureUsage,
         mip_levels: u32,
@@ -1453,8 +1480,7 @@ impl GTextureCubeArray {
     ) -> Result<Self, gpu::Error> {
         let t = Self::new(
             device,
-            width,
-            height,
+            size,
             raw_textures.len() as _,
             usage | gpu::TextureUsage::COPY_DST,
             mip_levels,
@@ -1590,22 +1616,18 @@ impl GTextureCubeArray {
         self.dimension.0
     }
 
-    pub fn height(&self) -> gpu::Size {
-        self.dimension.1
-    }
-
     pub fn layers(&self) -> gpu::Layer {
-        self.dimension.2
+        self.dimension.1
     }
 }
 
 #[cfg(feature = "image")]
 impl GTextureCubeArray {
-    /// Create a new texture from an image
+    /// Create a new texture from an image buffer
     ///
     /// This will infer the gpu::Format from the component in the image
     /// and will use the dimensions of the image for the dimensions of the texture
-    pub fn from_images<C, P>(
+    pub fn from_image_buffers<C, P>(
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
         images: &[&[&image::ImageBuffer<P, C>; 6]],
@@ -1619,10 +1641,10 @@ impl GTextureCubeArray {
         C: std::ops::Deref<Target = [P::Subpixel]>,
     {
         let (width, height) = images[0][0].dimensions();
+        assert_eq!(width, height, "Width and height must be equal for cube array textures");
         let t = Self::new(
             device,
             width,
-            height,
             images.len() as _,
             usage | gpu::TextureUsage::COPY_DST | gpu::TextureUsage::COPY_SRC,
             mip_levels,
@@ -1631,7 +1653,7 @@ impl GTextureCubeArray {
         )?;
         for (i, &cube) in images.iter().enumerate() {
             for face in CubeFace::iter() {
-                t.write_image(encoder, device, cube[face as usize], i as _, face)?;
+                t.write_image_buffer(encoder, device, cube[face as usize], i as _, face)?;
             }
         }
         Ok(t)
@@ -1640,7 +1662,7 @@ impl GTextureCubeArray {
     /// Write an image to self
     ///
     /// Will panic if the dimensions don't match self
-    pub fn write_image<C, P>(
+    pub fn write_image_buffer<C, P>(
         &self,
         encoder: &mut crate::CommandEncoder<'_>,
         device: &gpu::Device,
