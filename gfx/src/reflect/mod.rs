@@ -124,8 +124,8 @@ pub(crate) fn parse_vertex_states(
 
 fn get_type_id(ty: spirq::ty::Type) -> TypeId {
     match ty {
-        spirq::ty::Type::Void() => TypeId::of::<()>(),
         spirq::ty::Type::Scalar(s) => match s {
+            spirq::ty::ScalarType::Void => TypeId::of::<()>(),
             spirq::ty::ScalarType::Boolean => TypeId::of::<bool>(),
             spirq::ty::ScalarType::Signed(c) => match c {
                 1 => TypeId::of::<i8>(),
@@ -149,6 +149,7 @@ fn get_type_id(ty: spirq::ty::Type) -> TypeId {
         },
         spirq::ty::Type::Vector(v) => match v.nscalar {
             2 => match v.scalar_ty {
+                spirq::ty::ScalarType::Void => TypeId::of::<[(); 2]>(),
                 spirq::ty::ScalarType::Boolean => TypeId::of::<[bool; 2]>(),
                 spirq::ty::ScalarType::Signed(c) => match c {
                     1 => TypeId::of::<[i8; 2]>(),
@@ -171,6 +172,7 @@ fn get_type_id(ty: spirq::ty::Type) -> TypeId {
                 },
             },
             3 => match v.scalar_ty {
+                spirq::ty::ScalarType::Void => TypeId::of::<[(); 3]>(),
                 spirq::ty::ScalarType::Boolean => TypeId::of::<[bool; 3]>(),
                 spirq::ty::ScalarType::Signed(c) => match c {
                     1 => TypeId::of::<[i8; 3]>(),
@@ -193,6 +195,7 @@ fn get_type_id(ty: spirq::ty::Type) -> TypeId {
                 },
             },
             4 => match v.scalar_ty {
+                spirq::ty::ScalarType::Void => TypeId::of::<[(); 4]>(),
                 spirq::ty::ScalarType::Boolean => TypeId::of::<[bool; 4]>(),
                 spirq::ty::ScalarType::Signed(c) => match c {
                     1 => TypeId::of::<[i8; 4]>(),
@@ -220,6 +223,7 @@ fn get_type_id(ty: spirq::ty::Type) -> TypeId {
             assert_eq!(m.nvec, m.vec_ty.nscalar, "ERROR only square matrices are supported in push constant blocks of shaders at the moment");
             match m.nvec {
                 2 => match m.vec_ty.scalar_ty {
+                    spirq::ty::ScalarType::Void => TypeId::of::<[[(); 2]; 2]>(),
                     spirq::ty::ScalarType::Boolean => TypeId::of::<[[bool; 2]; 2]>(),
                     spirq::ty::ScalarType::Signed(c) => match c {
                         1 => TypeId::of::<[[i8; 2]; 2]>(),
@@ -242,6 +246,7 @@ fn get_type_id(ty: spirq::ty::Type) -> TypeId {
                     },
                 },
                 3 => match m.vec_ty.scalar_ty {
+                    spirq::ty::ScalarType::Void => TypeId::of::<[[(); 3]; 3]>(),
                     spirq::ty::ScalarType::Boolean => TypeId::of::<[[bool; 3]; 3]>(),
                     spirq::ty::ScalarType::Signed(c) => match c {
                         1 => TypeId::of::<[[i8; 3]; 3]>(),
@@ -264,6 +269,7 @@ fn get_type_id(ty: spirq::ty::Type) -> TypeId {
                     },
                 },
                 4 => match m.vec_ty.scalar_ty {
+                    spirq::ty::ScalarType::Void => TypeId::of::<[[(); 4]; 4]>(),
                     spirq::ty::ScalarType::Boolean => TypeId::of::<[[bool; 4]; 4]>(),
                     spirq::ty::ScalarType::Signed(c) => match c {
                         1 => TypeId::of::<[[i8; 4]; 4]>(),

@@ -3,7 +3,7 @@ Low (ish) level wrapper of vulkan. Manages creation and destruction of vulkan ob
 
 # Examples
 
-Basic example of creating a window and not drawing anthing to it
+Basic example of creating a window and not drawing anything to it
 
 ```rust
 use winit::{
