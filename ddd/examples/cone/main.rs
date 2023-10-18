@@ -286,7 +286,7 @@ impl Cone {
         let leather_albedo_image = image::open("../resources/images/leather/color.jpg")
             .unwrap()
             .to_rgba8();
-        let leather_albedo = gfx::Texture2D::from_image(
+        let leather_albedo = gfx::Texture2D::from_image_buffer(
             &mut encoder,
             &device,
             &leather_albedo_image,
@@ -298,7 +298,7 @@ impl Cone {
         let leather_roughness_image = image::open("../resources/images/leather/roughness.jpg")
             .unwrap()
             .to_luma8();
-        let leather_roughness = gfx::Texture2D::from_image(
+        let leather_roughness = gfx::Texture2D::from_image_buffer(
             &mut encoder,
             &device,
             &leather_roughness_image,
@@ -314,7 +314,7 @@ impl Cone {
         // let leather_normal_image = image::open("../resources/images/leather/normal.jpg")
         //     .unwrap()
         //     .to_rgba8();
-        // let leather_normal = gfx::Texture2D::from_image(
+        // let leather_normal = gfx::Texture2D::from_image_buffer(
         //     &mut encoder,
         //     &device,
         //     &leather_normal_image,
@@ -338,7 +338,7 @@ impl Cone {
         let metal_albedo_image = image::open("../resources/images/metal/color.jpg")
             .unwrap()
             .to_rgba8();
-        let metal_albedo = gfx::Texture2D::from_image(
+        let metal_albedo = gfx::Texture2D::from_image_buffer(
             &mut encoder,
             &device,
             &metal_albedo_image,
@@ -354,7 +354,7 @@ impl Cone {
         let metal_roughness_image = image::open("../resources/images/metal/roughness.jpg")
             .unwrap()
             .to_luma8();
-        let metal_roughness = gfx::Texture2D::from_image(
+        let metal_roughness = gfx::Texture2D::from_image_buffer(
             &mut encoder,
             &device,
             &metal_roughness_image,
@@ -370,7 +370,7 @@ impl Cone {
         let metal_metallic_image = image::open("../resources/images/metal/metallic.jpg")
             .unwrap()
             .to_luma8();
-        let metal_metallic = gfx::Texture2D::from_image(
+        let metal_metallic = gfx::Texture2D::from_image_buffer(
             &mut encoder,
             &device,
             &metal_metallic_image,
@@ -420,7 +420,7 @@ impl Cone {
         let wood_albedo_image = image::open("../resources/images/wood/color.jpg")
             .unwrap()
             .to_rgba8();
-        let wood_albedo = gfx::Texture2D::from_image(
+        let wood_albedo = gfx::Texture2D::from_image_buffer(
             &mut encoder,
             &device,
             &wood_albedo_image,
@@ -436,7 +436,7 @@ impl Cone {
         let wood_roughness_image = image::open("../resources/images/wood/roughness.jpg")
             .unwrap()
             .to_luma8();
-        let wood_roughness = gfx::Texture2D::from_image(
+        let wood_roughness = gfx::Texture2D::from_image_buffer(
             &mut encoder,
             &device,
             &wood_roughness_image,
@@ -452,7 +452,7 @@ impl Cone {
         let wood_normal_image = image::open("../resources/images/wood/normal.jpg")
             .unwrap()
             .to_rgba8();
-        let wood_normal = gfx::Texture2D::from_image(
+        let wood_normal = gfx::Texture2D::from_image_buffer(
             &mut encoder,
             &device,
             &wood_normal_image,
@@ -492,7 +492,7 @@ impl Cone {
 
         let skybox = cone::new_skybox(&mut encoder, &device, hdri, 512)?;
 
-        let env = cone::new_env_map(&mut encoder, &device, &skybox, 32, 128, 512, 2048)?;
+        let env = cone::new_env_map(&mut encoder, &device, &skybox, 32, 128, 512, 512, 2048)?;
 
         let light_pos = glam::vec3(0.0, 2.0, 0.0);
 
@@ -510,7 +510,6 @@ impl Cone {
             &device,
             cone::PointDepthData::from_light(&light.data, 0.1, 20.0, 0.05, 0.005),
             512,
-            512,
             if debug {
                 Some("shadow map")
             } else {
@@ -522,7 +521,6 @@ impl Cone {
             &mut encoder,
             &device,
             cone::PointDepthData::from_light(&light.data, 0.1, 20.0, 0.05, 0.005),
-            512,
             512,
             64,
             if debug {

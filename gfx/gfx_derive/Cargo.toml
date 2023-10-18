@@ -1,0 +1,19 @@
+[package]
+name = "gfx_derive"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote              = "1.0.23"
+syn                = "1.0.107"
+
+[dev-dependencies]
+gpu                = { path = "../../gpu" }
+gfx                = { path = "../../gfx" }
+glam               = { version = "0.21.2", features = ["bytemuck"] }
+bytemuck           = { version = "^1.12.1", features=["extern_crate_alloc"] }

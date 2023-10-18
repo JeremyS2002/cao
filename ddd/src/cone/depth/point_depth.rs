@@ -198,8 +198,7 @@ impl PointDepthMap {
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
         data: PointDepthData,
-        width: u32,
-        height: u32,
+        size: u32,
         name: Option<&str>,
     ) -> Result<PointDepthMap, gpu::Error> {
         let uniform = gfx::Uniform::new(
@@ -213,8 +212,7 @@ impl PointDepthMap {
         )?;
         let texture = gfx::GTextureCube::from_formats(
             device,
-            width,
-            height,
+            size,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::DEPTH_OUTPUT,
             1,
             gfx::alt_formats(gpu::Format::Depth32Float),
@@ -282,12 +280,11 @@ impl PointSubsurfaceMap {
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
         data: PointDepthData,
-        depth_width: u32,
-        depth_height: u32,
+        depth_size: u32,
         lut_width: u32,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
-        let depth = PointDepthMap::new(encoder, device, data, depth_width, depth_height, name)?;
+        let depth = PointDepthMap::new(encoder, device, data, depth_size, name)?;
         Self::from_depth(encoder, device, depth, lut_width)
     }
 
@@ -353,16 +350,14 @@ impl PointDepthMaps {
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
         data: Vec<PointDepthData>,
-        width: u32,
-        height: u32,
+        size: u32,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
         let storage = gfx::Storage::from_vec(encoder, device, data.clone(), name)?;
 
         let texture = gfx::GTextureCubeArray::from_formats(
             device,
-            width,
-            height,
+            size,
             data.len() as _,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::DEPTH_OUTPUT,
             1,
@@ -422,12 +417,11 @@ impl PointSubsurfaceMaps {
         encoder: &mut gfx::CommandEncoder<'_>,
         device: &gpu::Device,
         data: Vec<PointDepthData>,
-        depth_width: u32,
-        depth_height: u32,
+        depth_size: u32,
         lut_width: u32,
         name: Option<&str>,
     ) -> Result<Self, gpu::Error> {
-        let depth = PointDepthMaps::new(encoder, device, data, depth_width, depth_height, name)?;
+        let depth = PointDepthMaps::new(encoder, device, data, depth_size, name)?;
         Self::from_depth(encoder, device, depth, lut_width)
     }
 

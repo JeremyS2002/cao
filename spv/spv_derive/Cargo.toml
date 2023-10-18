@@ -1,5 +1,5 @@
 [package]
-name = "spv-derive"
+name = "spv_derive"
 version = "0.1.0"
 edition = "2021"
 

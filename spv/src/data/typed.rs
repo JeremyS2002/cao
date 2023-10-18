@@ -573,7 +573,7 @@ macro_rules! impl_convert {
                             dst: (new_id, <Int as AsTypeConst>::TY),
                         }));
 
-                        drop(scope);
+                        // drop(scope);
                         drop(b);
 
                         $dst {
@@ -755,7 +755,7 @@ impl<'a> Bool<'a> {
                 store: (new_id, crate::Type::BOOL),
             }));
 
-            drop(scope);
+            // drop(scope);
             drop(inner);
 
             Bool {
@@ -1340,7 +1340,7 @@ macro_rules! impl_math_func_lhs {
                             store: (new_id, <$ret as AsTypeConst>::TY),
                         }));
     
-                        drop(scope);
+                        // drop(scope);
                         drop(inner);
                         $ret {
                             id: new_id,
@@ -1368,7 +1368,7 @@ macro_rules! impl_math_func_lhs_assign {
                             store: (self.id, <$name as AsTypeConst>::TY),
                         }));
     
-                        drop(scope);
+                        // drop(scope);
                         drop(inner);
                     } else {
                         panic!("Cannot call op on data when not in function")
@@ -1497,7 +1497,7 @@ macro_rules! impl_math_func_lhs_rhs {
                             store: (new_id, <$ret as AsTypeConst>::TY),
                         }));
     
-                        drop(scope);
+                        // drop(scope);
                         drop(inner);
                         $ret {
                             id: new_id,
@@ -2363,7 +2363,7 @@ impl<'a> Struct<'a> {
                 dst: crate::OpLoadStoreData::Variable { id: new_id },
             }));
 
-            drop(scope);
+            // drop(scope);
             drop(inner);
             T::T::from_id(new_id, self.b)
         } else {
@@ -2439,7 +2439,7 @@ impl<'a, T: IsTypeConst, const N: usize> Array<'a, T, N> {
                 dst: crate::OpLoadStoreData::Variable { id: new_id },
             }));
 
-            drop(scope);
+            // drop(scope);
             drop(b);
             T::T::from_id(new_id, self.b)
         } else {

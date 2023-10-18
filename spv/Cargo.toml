@@ -8,7 +8,7 @@ rspirv             = "^0.11.0"
 glam               = "0.21.2"
 either             = "^1.6.1"
 slab               = "^0.4.6"
-spv-derive         = { path = "src/spv-derive" }
+spv_derive         = { path = "../spv/spv_derive" }
 
 [dev-dependencies]
 shaderc            = "*"

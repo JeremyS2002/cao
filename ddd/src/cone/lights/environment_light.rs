@@ -39,11 +39,11 @@ pub fn new_skybox(
     encoder: &mut gfx::CommandEncoder<'_>,
     device: &gpu::Device,
     hdri: ImageBuffer<Rgb<f32>, Vec<f32>>,
-    resolution: u32,
+    size: u32,
 ) -> Result<SkyBox, gpu::Error> {
     let generator = SkyBoxGenerator::new(encoder, device)?;
 
-    generator.generate_from_hdri(encoder, device, hdri, resolution, resolution)
+    generator.generate_from_hdri(encoder, device, hdri, size)
 }
 
 /// Create a new [`EnvironmentMap`]
@@ -58,24 +58,23 @@ pub fn new_env_map(
     encoder: &mut gfx::CommandEncoder<'_>,
     device: &gpu::Device,
     sky: &SkyBox,
-    diffuse_resolution: u32,
-    specular_resolution: u32,
-    brdf_resolution: u32,
+    diffuse_size: u32,
+    specular_size: u32,
+    brdf_width: u32,
+    brdf_height: u32,
     sample_count: u32,
 ) -> Result<EnvironmentMap, gpu::Error> {
     let generator = EnvironmentMapGenerator::new(encoder, device, None)?;
-    let mip_levels = gfx::max_mip_levels(gfx::texture::D1(specular_resolution));
+    let mip_levels = gfx::max_mip_levels(gfx::texture::D1(specular_size));
     generator.generate(
         encoder,
         device,
         sky,
-        diffuse_resolution,
-        diffuse_resolution,
-        specular_resolution,
-        specular_resolution,
+        diffuse_size,
+        specular_size,
         mip_levels,
-        brdf_resolution,
-        brdf_resolution,
+        brdf_width,
+        brdf_height,
         sample_count,
     )
 }
@@ -162,8 +161,7 @@ impl<'a> SkyBoxGenerator<'a> {
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         hdri: ImageBuffer<Rgb<f32>, Vec<f32>>,
-        width: u32,
-        height: u32,
+        size: u32,
     ) -> Result<SkyBox, gpu::Error> {
         // It is quite common that Rgb32Float is unsupported so if that is the case
         // a work around needs to be done
@@ -174,7 +172,7 @@ impl<'a> SkyBoxGenerator<'a> {
             gpu::TextureKind::D2,
             gpu::TextureUsage::SAMPLED | gpu::TextureUsage::COPY_DST,
         ) {
-            let dimension = gpu::TextureDimension::D2(width, height, gpu::Samples::S1);
+            let dimension = gpu::TextureDimension::D2(size, size, gpu::Samples::S1);
             let extent: gpu::Extent3D = dimension.into();
             if extent.width > p.max_extent.width
                 || extent.height > p.max_extent.height
@@ -195,7 +193,7 @@ impl<'a> SkyBoxGenerator<'a> {
             ok = false;
         }
         if ok {
-            let texture = gfx::Texture2D::from_image(
+            let texture = gfx::Texture2D::from_image_buffer(
                 encoder,
                 device,
                 &hdri,
@@ -204,7 +202,7 @@ impl<'a> SkyBoxGenerator<'a> {
                 None,
             )?;
 
-            self.generate_from_texture(encoder, device, &texture, width, height)
+            self.generate_from_texture(encoder, device, &texture, size)
         } else {
             let texture = gfx::GTexture2D::new(
                 device,
@@ -250,7 +248,7 @@ impl<'a> SkyBoxGenerator<'a> {
             comp_pass.dispatch(hdri.width(), hdri.height(), 1);
             comp_pass.finish();
 
-            self.generate_from_texture(encoder, device, &texture, width, height)
+            self.generate_from_texture(encoder, device, &texture, size)
         }
     }
 
@@ -263,12 +261,11 @@ impl<'a> SkyBoxGenerator<'a> {
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         hdri: &ImageBuffer<Rgba<f32>, Vec<f32>>,
-        width: u32,
-        height: u32,
+        size: u32,
     ) -> Result<SkyBox, gpu::Error> {
         // Texture format is infered from the image type
         // very nice!
-        let texture = gfx::Texture2D::from_image(
+        let texture = gfx::Texture2D::from_image_buffer(
             encoder,
             device,
             hdri,
@@ -277,7 +274,7 @@ impl<'a> SkyBoxGenerator<'a> {
             None,
         )?;
 
-        self.generate_from_texture(encoder, device, &texture, width, height)
+        self.generate_from_texture(encoder, device, &texture, size)
     }
 
     /// Create a new skybox from a flat texture
@@ -286,13 +283,11 @@ impl<'a> SkyBoxGenerator<'a> {
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         texture: &gfx::GTexture2D,
-        width: u32,
-        height: u32,
+        size: u32,
     ) -> Result<SkyBox, gpu::Error> {
         let cube_texture = gfx::GTextureCube::new(
             device,
-            width,
-            height,
+            size,
             gpu::TextureUsage::COLOR_OUTPUT | gpu::TextureUsage::SAMPLED,
             1,
             gpu::Format::Rgba32Float,
@@ -475,10 +470,8 @@ impl<'a> EnvironmentMapGenerator<'a> {
         encoder: &mut gfx::CommandEncoder<'a>,
         device: &gpu::Device,
         skybox: &SkyBox,
-        diffuse_width: u32,
-        diffuse_height: u32,
-        specular_width: u32,
-        specular_height: u32,
+        diffuse_size: u32,
+        specular_size: u32,
         specular_mip_levels: u32,
         brdf_width: u32,
         brdf_height: u32,
@@ -486,8 +479,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
     ) -> Result<EnvironmentMap, gpu::Error> {
         let diffuse = gfx::GTextureCube::new(
             device,
-            diffuse_width,
-            diffuse_height,
+            diffuse_size,
             gpu::TextureUsage::COLOR_OUTPUT | gpu::TextureUsage::SAMPLED,
             1,
             gpu::Format::Rgba32Float,
@@ -554,8 +546,7 @@ impl<'a> EnvironmentMapGenerator<'a> {
 
         let specular = gfx::GTextureCube::new(
             device,
-            specular_width,
-            specular_height,
+            specular_size,
             gpu::TextureUsage::COLOR_OUTPUT | gpu::TextureUsage::SAMPLED,
             specular_mip_levels,
             gpu::Format::Rgba32Float,
@@ -567,8 +558,8 @@ impl<'a> EnvironmentMapGenerator<'a> {
             device,
             SpecularData {
                 sample_count,
-                width: specular_width,
-                height: specular_height,
+                width: specular_size,
+                height: specular_size,
             },
             None,
         )?;
@@ -608,11 +599,10 @@ impl<'a> EnvironmentMapGenerator<'a> {
 
         for mip in 0..specular_mip_levels {
             for face in gfx::CubeFace::iter() {
-                let w = (specular_width as f32 * 0.5f32.powi(mip as _)) as u32;
-                let h = (specular_height as f32 * 0.5f32.powi(mip as _)) as u32;
+                let s = (specular_size as f32 * 0.5f32.powi(mip as _)) as u32;
                 let roughness = mip as f32 / (specular_mip_levels as f32 - 1.0);
                 let view = specular.create_view(&gpu::TextureViewDesc {
-                    dimension: gpu::TextureDimension::D2(w, h, gpu::Samples::S1),
+                    dimension: gpu::TextureDimension::D2(s, s, gpu::Samples::S1),
                     base_mip_level: mip,
                     mip_levels: 1,
                     base_array_layer: face as _,
@@ -719,6 +709,7 @@ bitflags::bitflags!(
         const ENVIRONMENT      = 0b0100;
     }
 );
+
 
 /// Renders [`Skybox`] and [`Environment`] to the output of a GeometryBuffer
 #[derive(Clone)]

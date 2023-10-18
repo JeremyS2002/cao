@@ -1,7 +1,7 @@
-pub mod dir;
-pub mod environment;
-pub mod point;
+pub mod dir_light;
+pub mod environment_light;
+pub mod point_light;
 
-pub use dir::*;
-pub use environment::*;
-pub use point::*;
+pub use dir_light::*;
+pub use environment_light::*;
+pub use point_light::*;

@@ -1,7 +1,7 @@
 //! shadow maps and pipelines
 
-pub mod dir;
-pub mod point;
+pub mod dir_depth;
+pub mod point_depth;
 
-pub use dir::*;
-pub use point::*;
+pub use dir_depth::*;
+pub use point_depth::*;

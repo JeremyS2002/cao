@@ -2,11 +2,13 @@ pub mod defaults;
 #[cfg(feature = "loading")]
 pub mod loading;
 pub mod tangent;
+pub mod cull_lod;
 
 pub use defaults::*;
 #[cfg(feature = "loading")]
 pub use loading::*;
 pub use tangent::*;
+pub use cull_lod::*;
 
 /// Vertex trait specific to 3D use cases
 pub trait Vertex: gfx::Vertex {

@@ -1,10 +1,12 @@
 [workspace]
+resolver = "2"
 
 members = [
     "gpu",
     "gfx",
+    "gfx/gfx_derive",
     "spv",
-    "spv/src/spv-derive",
+    "spv/spv_derive",
     "mesh",
     "ddd",
 ]

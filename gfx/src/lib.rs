@@ -26,6 +26,8 @@ pub use reflect::*;
 
 pub use image;
 
+pub use gfx_derive::Vertex;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Attachment<'a> {
     pub raw: gpu::Attachment<'a>,

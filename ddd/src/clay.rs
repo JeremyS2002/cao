@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::sync::Mutex;
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, gfx::Vertex)]
 pub struct Vertex {
     pub pos: glam::Vec3,
     pub normal: glam::Vec3,
@@ -13,23 +13,23 @@ pub struct Vertex {
 unsafe impl bytemuck::Pod for Vertex {}
 unsafe impl bytemuck::Zeroable for Vertex {}
 
-impl gfx::Vertex for Vertex {
-    fn get(name: &str) -> Option<(u32, gpu::VertexFormat)> {
-        match name {
-            "in_pos" => Some((0, gpu::VertexFormat::Vec3)),
-            "in_normal" => Some((
-                std::mem::size_of::<glam::Vec3>() as u32,
-                gpu::VertexFormat::Vec3,
-            )),
-            "pos" => Some((0, gpu::VertexFormat::Vec3)),
-            "normal" => Some((
-                std::mem::size_of::<glam::Vec3>() as u32,
-                gpu::VertexFormat::Vec3,
-            )),
-            _ => None,
-        }
-    }
-}
+// impl gfx::Vertex for Vertex {
+//     fn get(name: &str) -> Option<(u32, gpu::VertexFormat)> {
+//         match name {
+//             "in_pos" => Some((0, gpu::VertexFormat::Vec3)),
+//             "in_normal" => Some((
+//                 std::mem::size_of::<glam::Vec3>() as u32,
+//                 gpu::VertexFormat::Vec3,
+//             )),
+//             "pos" => Some((0, gpu::VertexFormat::Vec3)),
+//             "normal" => Some((
+//                 std::mem::size_of::<glam::Vec3>() as u32,
+//                 gpu::VertexFormat::Vec3,
+//             )),
+//             _ => None,
+//         }
+//     }
+// }
 
 impl mesh::Vertex for Vertex {
     fn new(

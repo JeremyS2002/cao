@@ -17,6 +17,7 @@ reflect            = ["spirq"]
 
 [dependencies]
 gpu                = { path = "../gpu" }
+gfx_derive         = { path = "../gfx/gfx_derive" }
 bytemuck           = { version = "^1.12.1", features=["extern_crate_alloc"] }
 parking_lot        = "^0.11.1"
 glam               = { version = "0.21.2", features = ["bytemuck"] }

@@ -508,7 +508,6 @@ impl Builder {
         let mut inner = self.inner.borrow_mut();
         if let Some(scope) = &mut inner.scope {
             let id = val.struct_id(&mut **scope);
-            drop(scope);
             drop(inner);
             T::Spv::from_id(id, &self.inner)
         } else {
@@ -531,7 +530,6 @@ impl Builder {
             store,
         }));
 
-        drop(scope);
         drop(inner);
 
         store
@@ -1080,7 +1078,6 @@ pub fn combine<D: AsDimension, T: GTexture<D>>(texture: &T, sampler: Sampler) ->
             store: new_id,
         }));
         
-        drop(scope);
         drop(inner);
         T::Sampler::from_combine(new_id, Rc::clone(&texture.b()))
     } else {
@@ -1105,9 +1102,7 @@ pub fn sample<'a, 'b, D: AsDimension, S: SampledGTexture<D>>(sampled_texture: &'
             explict_lod: false,
         }));
         
-        drop(scope);
         drop(inner);
-
         S::Sample::from_id(new_id, sampled_texture.b())
     } else {
         panic!("Cannot combine texture and sampler when not in function");

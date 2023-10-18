@@ -29,7 +29,7 @@ impl<T: crate::IsTypeConst> Func<T> {
                 args,
             }));
 
-            drop(scope);
+            // drop(scope);
             drop(inner);
         
             T::T::from_id(new_id, &self.inner)
