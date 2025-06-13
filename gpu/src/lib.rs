@@ -100,7 +100,7 @@ use std::ptr;
 use std::sync::Arc;
 use vk::Handle;
 
-use raw_window_handle::HasRawWindowHandle;
+use raw_window_handle::HasWindowHandle;
 
 pub mod binding;
 pub mod buffer;
@@ -288,7 +288,7 @@ impl Instance {
     /// This is the entry point to the api and will be the first object created
     /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkInstance.html>
     pub unsafe fn no_validation(desc: &InstanceDesc<'_>) -> Result<Self, Error> {
-        return Self::raw(desc).map(|(s, _)| s);
+        return unsafe { Self::raw(desc).map(|(s, _)| s) };
     }
 
     /// returns (Self, VK_LAYER_KHRONOS_validation available)
@@ -321,21 +321,22 @@ impl Instance {
             p_engine_name: engine_name.as_ptr(),
             engine_version,
             api_version,
+            ..Default::default()
         };
 
         let mut extension_names = extension_names();
         if desc.validation_layers.len() != 0 {
-            extension_names.push(ash::extensions::ext::DebugUtils::name());
+            extension_names.push(ash::ext::debug_utils::NAME);
         }
 
-        let available_extensions_result = VK_ENTRY.enumerate_instance_extension_properties(None);
+        let available_extensions_result = unsafe { VK_ENTRY.enumerate_instance_extension_properties(None) };
         let available_extensions = match available_extensions_result {
             Ok(e) => e,
             Err(e) => return Err(e.into()),
         };
         let available_extension_set = available_extensions
             .iter()
-            .map(|e| CStr::from_ptr(&e.extension_name[0]).to_str().unwrap())
+            .map(|e| unsafe { CStr::from_ptr(&e.extension_name[0]).to_str().unwrap() })
             .collect::<HashSet<_>>();
         // TODO check this with user supplied extensions
         let pp_enabled_extension_names = extension_names
@@ -353,7 +354,7 @@ impl Instance {
             })
             .collect::<Vec<*const i8>>();
 
-        let available_validation_result = VK_ENTRY.enumerate_instance_layer_properties();
+        let available_validation_result = unsafe { VK_ENTRY.enumerate_instance_layer_properties() };
         let available_validation = match available_validation_result {
             Ok(e) => e,
             Err(e) => return Err(e.into()),
@@ -361,7 +362,7 @@ impl Instance {
 
         let available_validation_set = available_validation
             .iter()
-            .map(|e| CStr::from_ptr(&e.layer_name[0]).to_str().unwrap())
+            .map(|e| unsafe { CStr::from_ptr(&e.layer_name[0]).to_str().unwrap() })
             .collect::<HashSet<_>>();
 
         let validation_available = available_validation_set.contains("VK_LAYER_KHRONOS_validation");
@@ -400,8 +401,9 @@ impl Instance {
             enabled_layer_count,
             pp_enabled_extension_names: pp_enabled_extension_names.as_ptr(),
             enabled_extension_count: pp_enabled_extension_names.len() as u32,
+            ..Default::default()
         };
-        let raw_result = VK_ENTRY.create_instance(&create_info, None);
+        let raw_result = unsafe { VK_ENTRY.create_instance(&create_info, None) };
         let raw = match raw_result {
             Ok(r) => r,
             Err(e) => {
@@ -436,7 +438,7 @@ impl Instance {
 
     /// Get the names of all supported validation layers
     pub fn validation_layers() -> Result<Vec<String>, crate::Error> {
-        let available_validation_result = VK_ENTRY.enumerate_instance_layer_properties();
+        let available_validation_result = unsafe { VK_ENTRY.enumerate_instance_layer_properties() };
         let available_validation = match available_validation_result {
             Ok(e) => e,
             Err(e) => return Err(e.into()),
@@ -457,7 +459,7 @@ impl Instance {
 
     /// Get the names of all supported extensions
     pub fn extensions() -> Result<Vec<String>, crate::Error> {
-        let available_extensions_result = VK_ENTRY.enumerate_instance_extension_properties(None);
+        let available_extensions_result = unsafe { VK_ENTRY.enumerate_instance_extension_properties(None) };
         let available_extensions = match available_extensions_result {
             Ok(e) => e,
             Err(e) => return Err(e.into()),
@@ -520,7 +522,7 @@ impl Instance {
     }
 
     /// create a new surface
-    pub fn create_surface<W: HasRawWindowHandle>(
+    pub fn create_surface<W: HasWindowHandle>(
         &self,
         window: &W,
     ) -> Result<crate::Surface, Error> {

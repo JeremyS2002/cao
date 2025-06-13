@@ -1,7 +1,7 @@
 [package]
 name = "mesh"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,8 +11,8 @@ default = ["loading"]
 loading = ["tobj"]
 
 [dependencies]
-glam               = { version = "0.21.2", features = ["bytemuck"] }
+glam               = { version = "^0.21.2", features = ["bytemuck"] }
 bytemuck           = "^1.12.1"
 gpu                = { path="../gpu" }
 gfx                = { path="../gfx", default-features=false }
-tobj               = { version = "3.2.3", optional=true }
+tobj               = { version = "^3.2.3", optional=true }

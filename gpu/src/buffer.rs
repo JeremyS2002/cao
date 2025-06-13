@@ -112,6 +112,7 @@ impl Buffer {
             sharing_mode: vk::SharingMode::EXCLUSIVE,
             queue_family_index_count: 0,
             p_queue_family_indices: ptr::null(),
+            ..Default::default()
         };
 
         let raw_result = unsafe { device.raw.create_buffer(&create_info, None) };
@@ -130,6 +131,7 @@ impl Buffer {
             p_next: ptr::null(),
             allocation_size: mem_req.size,
             memory_type_index: mem_type,
+            ..Default::default()
         };
 
         let memory_result = unsafe { device.raw.allocate_memory(&allocate_info, None) };

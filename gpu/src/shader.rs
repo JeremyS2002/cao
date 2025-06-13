@@ -82,6 +82,7 @@ impl ShaderModule {
             flags: vk::ShaderModuleCreateFlags::empty(),
             code_size: desc.spirv.len() * 4,
             p_code: desc.spirv.as_ptr(),
+            ..Default::default()
         };
 
         let raw_result = unsafe { device.raw.create_shader_module(&create_info, None) };

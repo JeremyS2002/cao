@@ -54,6 +54,7 @@ pub(crate) fn init_image_layout(
                 p_next: ptr::null(),
                 p_inheritance_info: ptr::null(),
                 flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
+                ..Default::default()
             },
         )
     };
@@ -87,6 +88,7 @@ pub(crate) fn init_image_layout(
                     base_array_layer: 0,
                     layer_count: texture.dimension().layers(),
                 },
+                ..Default::default()
             }],
         );
     }
@@ -122,6 +124,7 @@ pub(crate) fn init_image_layout(
         p_signal_semaphores: signal_semaphore as _,
         command_buffer_count: 1,
         p_command_buffers: &device.command_buffer,
+        ..Default::default()
     };
 
     let mut waiting_on_semaphore = device.waiting_on_semaphore.lock().unwrap();
@@ -280,6 +283,7 @@ impl Texture {
             image_type: desc.dimension.into(),
             queue_family_index_count: 0,
             p_queue_family_indices: ptr::null(),
+            ..Default::default()
         };
 
         let raw_result = unsafe { device.raw.create_image(&create_info, None) };
@@ -300,6 +304,7 @@ impl Texture {
                 desc.memory,
                 device.info.mem_properties,
             )?,
+            ..Default::default()
         };
 
         let memory_result = unsafe { device.raw.allocate_memory(&memory_alloc, None) };
@@ -386,6 +391,7 @@ impl Texture {
                 base_array_layer: desc.base_array_layer,
                 layer_count: desc.dimension.layers(),
             },
+            ..Default::default()
         };
 
         let view_result = unsafe { self.device.create_image_view(&create_info, None) };
@@ -738,20 +744,11 @@ impl Drop for TextureView {
     fn drop(&mut self) {
         unsafe {
             let framebuffers = Md::take(&mut self.framebuffers);
-            #[cfg(feature = "parking_lot")]
             if let Ok(framebuffers) = Arc::try_unwrap(framebuffers) {
                 for key in framebuffers.into_inner().drain(..) {
                     if let Some(framebuffer) = self.device.framebuffers.write().remove(&key) {
-                        self.device.destroy_framebuffer(framebuffer, None);
-                    }
-                }
-            }
-            #[cfg(not(feature = "parking_lot"))]
-            if let Ok(framebuffers) = Arc::try_unwrap(framebuffers) {
-                for key in framebuffers.into_inner().drain(..) {
-                    if let Some(framebuffer) = self.device.framebuffers.write().remove(&key) {
-                        if let Ok(framebuffer) = Arc::try_unwrap(framebuffer) {
-                            self.device.destroy_framebuffer(framebuffer, None);
+                        if let Ok(raw) = Arc::try_unwrap(framebuffer) {
+                            self.device.destroy_framebuffer(raw, None);
                         }
                     }
                 }

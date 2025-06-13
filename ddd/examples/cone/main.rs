@@ -983,6 +983,9 @@ impl Cone {
 }
 
 fn main() {
+    #[cfg(feature = "logging")]
+    colog::init();
+
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title("cone")

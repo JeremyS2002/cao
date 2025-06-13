@@ -177,6 +177,7 @@ impl RenderPass {
             p_depth_stencil_attachment,
             preserve_attachment_count: 0,
             p_preserve_attachments: ptr::null(),
+            ..Default::default()
         };
 
         let dependency = vk::SubpassDependency {
@@ -202,6 +203,7 @@ impl RenderPass {
             p_subpasses: &subpass,
             dependency_count: 1,
             p_dependencies: &dependency,
+            ..Default::default()
         };
 
         let pass_result = unsafe { device.raw.create_render_pass(&create_info, None) };

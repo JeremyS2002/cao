@@ -108,18 +108,14 @@ macro_rules! create_formats {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Srgb(pub i8);
 
-#[cfg(feature = "bytemuck")]
 unsafe impl bytemuck::Pod for Srgb {}
-#[cfg(feature = "bytemuck")]
 unsafe impl bytemuck::Zeroable for Srgb {}
 
 /// Indicates that the T should be interpreded as Depth
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Depth<T>(pub T);
 
-#[cfg(feature = "bytemuck")]
 unsafe impl<T: bytemuck::Pod + bytemuck::Zeroable> bytemuck::Pod for Depth<T> {}
-#[cfg(feature = "bytemuck")]
 unsafe impl<T: bytemuck::Pod + bytemuck::Zeroable> bytemuck::Zeroable for Depth<T> {}
 
 /// Indicates that the pixel order is reversed
@@ -127,9 +123,7 @@ unsafe impl<T: bytemuck::Pod + bytemuck::Zeroable> bytemuck::Zeroable for Depth<
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct Bgr<T>(T);
 
-#[cfg(feature = "bytemuck")]
 unsafe impl<T: bytemuck::Pod + bytemuck::Zeroable> bytemuck::Pod for Bgr<T> {}
-#[cfg(feature = "bytemuck")]
 unsafe impl<T: bytemuck::Pod + bytemuck::Zeroable> bytemuck::Zeroable for Bgr<T> {}
 
 create_formats! {

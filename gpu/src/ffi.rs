@@ -8,8 +8,8 @@ pub(crate) unsafe extern "system" fn vulkan_debug_utils_callback(
     p_callback_data: *const vk::DebugUtilsMessengerCallbackDataEXT,
     p_user_data: *mut c_void,
 ) -> vk::Bool32 {
-    let raw_device = &*(p_user_data as *const crate::RawDevice);
-    let message = CStr::from_ptr((*p_callback_data).p_message)
+    let raw_device = unsafe { &*(p_user_data as *const crate::RawDevice) };
+    let message = unsafe { CStr::from_ptr((*p_callback_data).p_message) }
         .to_str()
         .unwrap();
     let ty = match message_type {
@@ -67,9 +67,12 @@ fn required_extension_names() -> Vec<&'static CStr> {
 #[cfg(target_os = "linux")]
 fn required_extension_names() -> Vec<&'static CStr> {
     vec![
-        ash::extensions::khr::XlibSurface::name(),
-        ash::extensions::khr::XcbSurface::name(),
-        ash::extensions::khr::WaylandSurface::name(),
+        // ash::extensions::khr::XlibSurface::name(),
+        // ash::extensions::khr::XcbSurface::name(),
+        // ash::extensions::khr::WaylandSurface::name(),
+        ash::khr::xlib_surface::NAME,
+        ash::khr::xcb_surface::NAME,
+        ash::khr::wayland_surface::NAME,
     ]
 }
 
@@ -80,12 +83,12 @@ fn required_extension_names() -> Vec<&'static CStr> {
 
 pub(crate) fn extension_names() -> Vec<&'static CStr> {
     let mut v = required_extension_names();
-    v.push(ash::extensions::khr::Surface::name());
-    v.push(ash::extensions::khr::Swapchain::name());
+    v.push(ash::khr::surface::NAME);
+    v.push(ash::khr::swapchain::NAME);
     // v.push(ash::extensions::ext::DebugUtils::name());
-    #[cfg(feature = "ray_tracing")]
-    v.push(ash::extensions::khr::RayTracing::name());
-    #[cfg(feature = "mesh_shading")]
-    v.push(ash::extensions::nv::MeshShader::name());
+    // #[cfg(feature = "ray")]
+    // v.push(ash::extensions::khr::ray_tracing::name());
+    // #[cfg(feature = "mesh")]
+    // v.push(ash::extensions::nv::MeshShader::name());
     v
 }

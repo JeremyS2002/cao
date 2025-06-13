@@ -64,6 +64,7 @@ impl CommandBuffer {
             p_next: ptr::null(),
             flags: vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
             queue_family_index: device.queue_family,
+            ..Default::default()
         };
 
         let pool_result = unsafe { device.raw.create_command_pool(&pool_create_info, None) };
@@ -79,6 +80,7 @@ impl CommandBuffer {
             command_buffer_count: 1,
             command_pool: pool,
             level: vk::CommandBufferLevel::PRIMARY,
+            ..Default::default()
         };
 
         let buffer_result = unsafe { device.raw.allocate_command_buffers(&buffer_alloc_info) };
@@ -92,6 +94,7 @@ impl CommandBuffer {
             s_type: vk::StructureType::FENCE_CREATE_INFO,
             p_next: ptr::null(),
             flags: vk::FenceCreateFlags::SIGNALED,
+            ..Default::default()
         };
 
         let fence_result = unsafe { device.raw.create_fence(&fence_create_info, None) };
@@ -105,6 +108,7 @@ impl CommandBuffer {
             s_type: vk::StructureType::SEMAPHORE_CREATE_INFO,
             p_next: ptr::null(),
             flags: vk::SemaphoreCreateFlags::empty(),
+            ..Default::default()
         };
 
         let semaphore_result = unsafe { device.raw.create_semaphore(&semaphore_create_info, None) };

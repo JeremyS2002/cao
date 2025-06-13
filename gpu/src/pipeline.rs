@@ -92,6 +92,7 @@ impl PipelineLayout {
             p_set_layouts: descriptor_sets.as_ptr(),
             push_constant_range_count: push_constants.len() as u32,
             p_push_constant_ranges: push_constants.as_ptr(),
+            ..Default::default()
         };
 
         let raw_result = unsafe { device.raw.create_pipeline_layout(&create_info, None) };
@@ -212,6 +213,7 @@ impl PipelineCache {
             } else {
                 ptr::null()
             },
+            ..Default::default()
         };
 
         let result = unsafe {
@@ -429,6 +431,7 @@ impl GraphicsPipeline {
                 p_next: ptr::null(),
                 flags: vk::PipelineTessellationStateCreateFlags::empty(),
                 patch_control_points: tessellation.patch_points.unwrap_or(1),
+                ..Default::default()
             })
         } else {
             None
@@ -446,6 +449,7 @@ impl GraphicsPipeline {
             p_map_entries: e.as_ptr(),
             data_size: d.len(),
             p_data: d.as_ptr() as *const _,
+            ..Default::default()
         }).collect::<Vec<_>>();
 
         let shader_stages = shaders
@@ -462,6 +466,7 @@ impl GraphicsPipeline {
                 } else {
                     ptr::null()
                 },
+                ..Default::default()
             })
             .collect::<Vec<_>>();
 
@@ -501,6 +506,7 @@ impl GraphicsPipeline {
             p_vertex_attribute_descriptions: vertex_attributes.as_ptr(),
             vertex_binding_description_count: vertex_states.len() as u32,
             p_vertex_binding_descriptions: vertex_states.as_ptr(),
+            ..Default::default()
         };
 
         let rasterization_state = desc.rasterizer.into();
@@ -511,6 +517,7 @@ impl GraphicsPipeline {
             flags: vk::PipelineInputAssemblyStateCreateFlags::empty(),
             primitive_restart_enable: vk::FALSE,
             topology: desc.rasterizer.primitive_topology.into(),
+            ..Default::default()
         };
 
         let multisample_state = vk::PipelineMultisampleStateCreateInfo {
@@ -536,6 +543,7 @@ impl GraphicsPipeline {
             attachment_count: desc.blend_states.len() as u32,
             p_attachments: blend_states.as_ptr(),
             blend_constants: [0.0; 4],
+            ..Default::default()
         };
 
         let depth_state: Option<vk::PipelineDepthStencilStateCreateInfo> =
@@ -567,6 +575,7 @@ impl GraphicsPipeline {
             p_scissors: scissors.as_ptr(),
             viewport_count: viewports.len() as _,
             p_viewports: viewports.as_ptr(),
+            ..Default::default()
         };
 
         let create_info = vk::GraphicsPipelineCreateInfo {
@@ -597,6 +606,7 @@ impl GraphicsPipeline {
             subpass: 0,
             base_pipeline_handle: vk::Pipeline::null(),
             base_pipeline_index: 0,
+            ..Default::default()
         };
 
         // let mut create_info = vk::GraphicsPipelineCreateInfo::builder()
@@ -778,6 +788,7 @@ impl ComputePipeline {
             p_map_entries: e.as_ptr(),
             data_size: d.len() as _,
             p_data: d.as_ptr() as *const _,
+            ..Default::default()
         });
 
         let shader_stage = vk::PipelineShaderStageCreateInfo {
@@ -792,16 +803,28 @@ impl ComputePipeline {
             } else {
                 ptr::null()
             },
+            ..Default::default()
         };
 
-        let create_info = vk::ComputePipelineCreateInfo::builder()
-            .stage(shader_stage)
-            .layout(**desc.layout.raw);
+        // let create_info = vk::ComputePipelineCreateInfo::builder()
+        //     .stage(shader_stage)
+        //     .layout(**desc.layout.raw);
+
+        let create_info = vk::ComputePipelineCreateInfo {
+            s_type: vk::StructureType::COMPUTE_PIPELINE_CREATE_INFO,
+            stage: shader_stage,
+            p_next: ptr::null(),
+            flags: vk::PipelineCreateFlags::empty(),
+            layout: **desc.layout.raw,
+            base_pipeline_handle: vk::Pipeline::null(),
+            base_pipeline_index: -1, // null
+            ..Default::default()
+        };
 
         let raw_result = unsafe {
             device
                 .raw
-                .create_compute_pipelines(vk::PipelineCache::null(), &[*create_info], None)
+                .create_compute_pipelines(vk::PipelineCache::null(), &[create_info], None)
         };
         let raw = match raw_result {
             Ok(r) => r[0],

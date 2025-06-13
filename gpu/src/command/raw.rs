@@ -35,6 +35,7 @@ pub(crate) fn pipeline_barrier(
                 base_array_layer: info.base_array_layer,
                 layer_count: info.array_layers,
             },
+            ..Default::default()
         })
         .collect::<Vec<_>>();
 
@@ -50,6 +51,7 @@ pub(crate) fn pipeline_barrier(
             buffer: **info.buffer.buffer.raw,
             offset: info.buffer.offset,
             size: info.buffer.size,
+            ..Default::default()
         })
         .collect::<Vec<_>>();
     unsafe {
@@ -536,6 +538,7 @@ pub(crate) fn begin_primary(
                 } else {
                     vk::CommandBufferUsageFlags::empty()
                 },
+                ..Default::default()
             },
         )
     };
@@ -718,6 +721,7 @@ where
                 },
                 clear_value_count: clear_values.len() as u32,
                 p_clear_values: clear_values.as_ptr(),
+                ..Default::default()
             },
             vk::SubpassContents::INLINE,
         );
@@ -817,6 +821,7 @@ pub(crate) fn raw_framebuffer(
         width: extent.width,
         height: extent.height,
         layers: 1,
+        ..Default::default()
     };
 
     let framebuffer_result = unsafe { device.create_framebuffer(&framebuffer_create_info, None) };
@@ -1195,6 +1200,7 @@ pub(crate) fn submit(
         p_signal_semaphores: signal_semaphores.as_ptr(),
         command_buffer_count: 1,
         p_command_buffers: &command_buffer,
+        ..Default::default()
     };
 
     // This crashes only on release builds

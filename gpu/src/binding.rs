@@ -93,6 +93,7 @@ impl DescriptorLayout {
                 stage_flags: e.stage.into(),
                 descriptor_count: e.count.get(),
                 p_immutable_samplers: ptr::null(),
+                ..Default::default()
             })
             .collect::<Vec<vk::DescriptorSetLayoutBinding>>();
 
@@ -102,6 +103,7 @@ impl DescriptorLayout {
             flags: vk::DescriptorSetLayoutCreateFlags::empty(),
             binding_count: bindings.len() as u32,
             p_bindings: bindings.as_ptr(),
+            ..Default::default()
         };
         let layout_result = unsafe { device.raw.create_descriptor_set_layout(&create_info, None) };
         let layout = match layout_result {
@@ -398,6 +400,7 @@ impl DescriptorSet {
                     ptr::null()
                 },
                 p_texel_buffer_view: ptr::null(),
+                ..Default::default()
             };
             write.push(w);
             i += 1;
@@ -665,6 +668,7 @@ impl DescriptorSet {
             max_sets: 1,
             pool_size_count: pool_sizes.len() as u32,
             p_pool_sizes: pool_sizes.as_ptr(),
+            ..Default::default()
         };
         let pool_result = unsafe { device.raw.create_descriptor_pool(&pool_create_info, None) };
 
@@ -679,6 +683,7 @@ impl DescriptorSet {
             descriptor_pool: pool,
             descriptor_set_count: 1,
             p_set_layouts: &**desc.layout.raw,
+            ..Default::default()
         };
 
         let set_result = unsafe { device.raw.allocate_descriptor_sets(&allocate_info) };

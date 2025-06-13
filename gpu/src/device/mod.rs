@@ -12,15 +12,16 @@ use std::ptr;
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use ash::extensions::ext;
 use ash::vk;
 use vk::Handle;
 
 use crate::error::*;
 
 pub(crate) mod raw;
+pub(crate) mod utils;
 
 pub(crate) use raw::*;
+pub(crate) use utils::*;
 
 /// Infomation about a device
 #[derive(Debug)]
@@ -96,7 +97,7 @@ pub struct Device {
     pub(crate) fence: vk::Fence,
     pub(crate) waiting_on_semaphore: Mutex<Option<Arc<vk::Semaphore>>>,
     // for debugging + error catching
-    pub(crate) debug_utils: Option<ext::DebugUtils>,
+    pub(crate) debug_utils: Option<utils::DebugUtils>,
     pub(crate) debug_messenger: Option<vk::DebugUtilsMessengerEXT>,
     // drop the raw last
     pub(crate) raw: Arc<RawDevice>,
@@ -113,8 +114,12 @@ impl Device {
         &self.raw.device
     }
 
-    pub unsafe fn raw_debug<'a>(&'a self) -> Option<&'a ash::extensions::ext::DebugUtils> {
-        self.raw.debug_loader.as_ref()
+    pub unsafe fn raw_debug_instance<'a>(&'a self) -> Option<&'a ash::ext::debug_utils::Instance> {
+        self.raw.debug_utils.as_ref().map(|x| &x.instance)
+    }
+
+    pub unsafe fn raw_debug_device<'a>(&'a self) -> Option<&'a ash::ext::debug_utils::Device> {
+        self.raw.debug_utils.as_ref().map(|x| &x.device)
     }
 }
 
@@ -128,14 +133,15 @@ impl Device {
         compatible_surfaces: &'_ [&'_ crate::Surface],
     ) -> Result<Self, Error> {
         let queue_info = Self::get_queue_info(instance, features, compatible_surfaces, physical);
-        let validation = instance.validation_layers.len() == 0;
-        let (enabled_layer_names, enabled_extensions) =
+        // let validation = instance.validation_layers.len() == 0;
+        let (_enabled_layer_names, enabled_extensions) =
             Self::enabled_layers_extension(instance, physical)?;
 
         let reset_features = vk::PhysicalDeviceHostQueryResetFeatures {
             s_type: vk::StructureType::PHYSICAL_DEVICE_HOST_QUERY_RESET_FEATURES,
             p_next: ptr::null_mut(),
             host_query_reset: vk::TRUE,
+            ..Default::default()
         };
 
         let p_next = if features.contains(crate::DeviceFeatures::TIME_QUERIES) {
@@ -150,19 +156,20 @@ impl Device {
             flags: vk::DeviceCreateFlags::empty(),
             queue_create_info_count: 1,
             p_queue_create_infos: &queue_info,
-            enabled_layer_count: if validation {
-                instance.validation_layers.len()
-            } else {
-                0
-            } as u32,
-            pp_enabled_layer_names: if validation {
-                enabled_layer_names.as_ptr()
-            } else {
-                ptr::null()
-            },
+            // enabled_layer_count: if validation {
+            //     instance.validation_layers.len()
+            // } else {
+            //     0
+            // } as u32,
+            // pp_enabled_layer_names: if validation {
+            //     enabled_layer_names.as_ptr()
+            // } else {
+            //     ptr::null()
+            // },
             enabled_extension_count: enabled_extensions.len() as u32,
             pp_enabled_extension_names: enabled_extensions.as_ptr(),
             p_enabled_features: &features.into(),
+            ..Default::default()
         };
 
         let raw_result = unsafe { instance.raw.create_device(physical, &create_info, None) };
@@ -177,7 +184,7 @@ impl Device {
             Self::create_command(&raw, queue_info.queue_family_index)?;
 
         let debug_utils = if instance.validation_layers.len() != 0 {
-            Some(ext::DebugUtils::new(&*crate::VK_ENTRY, &**instance.raw))
+            Some(DebugUtils::new(instance, &raw))
         } else {
             None
         };
@@ -207,9 +214,10 @@ impl Device {
                     | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION,
                 pfn_user_callback: Some(crate::ffi::vulkan_debug_utils_callback),
                 p_user_data,
+                ..Default::default()
             };
 
-            let result = unsafe { utils.create_debug_utils_messenger(&debug_create_info, None) };
+            let result = unsafe { utils.instance.create_debug_utils_messenger(&debug_create_info, None) };
 
             let messenger = match result {
                 Ok(m) => m,
@@ -280,6 +288,7 @@ impl Device {
             p_next: ptr::null(),
             flags: vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
             queue_family_index: queue_family,
+            ..Default::default()
         };
 
         let pool_result = unsafe { raw.create_command_pool(&pool_create_info, None) };
@@ -295,6 +304,7 @@ impl Device {
             command_buffer_count: 1,
             command_pool: pool,
             level: vk::CommandBufferLevel::PRIMARY,
+            ..Default::default()
         };
 
         let buffer_result = unsafe { raw.allocate_command_buffers(&buffer_alloc_info) };
@@ -308,6 +318,7 @@ impl Device {
             s_type: vk::StructureType::FENCE_CREATE_INFO,
             p_next: ptr::null(),
             flags: vk::FenceCreateFlags::empty(),
+            ..Default::default()
         };
 
         let fence_result = unsafe { raw.create_fence(&fence_create_info, None) };
@@ -321,6 +332,7 @@ impl Device {
             s_type: vk::StructureType::SEMAPHORE_CREATE_INFO,
             p_next: ptr::null(),
             flags: vk::SemaphoreCreateFlags::empty(),
+            ..Default::default()
         };
 
         let semaphore_result = unsafe { raw.create_semaphore(&semaphore_create_info, None) };
@@ -401,7 +413,7 @@ impl Device {
         features: crate::DeviceFeatures,
         compatible_surfaces: &'_ [&'_ crate::Surface],
         physical: vk::PhysicalDevice,
-    ) -> vk::DeviceQueueCreateInfo {
+    ) -> vk::DeviceQueueCreateInfo<'static> {
         let mut queue_req = vk::QueueFlags::empty();
         if features.contains(crate::DeviceFeatures::GRAPHICS) {
             queue_req |= vk::QueueFlags::GRAPHICS;
@@ -416,7 +428,7 @@ impl Device {
             instance
                 .raw
                 .get_physical_device_queue_family_properties(physical)
-                .iter()
+                .into_iter()
                 .enumerate()
                 .find(|&(i, f)| {
                     let mut present = true;
@@ -436,6 +448,7 @@ impl Device {
             queue_family_index: index as u32,
             p_queue_priorities: &1.0,
             queue_count: 1,
+            ..Default::default()
         }
     }
 
@@ -638,7 +651,7 @@ impl Drop for Device {
     fn drop(&mut self) {
         unsafe {
             if let Some(utils) = self.debug_utils.take() {
-                utils.destroy_debug_utils_messenger(self.debug_messenger.unwrap(), None);
+                utils.instance.destroy_debug_utils_messenger(self.debug_messenger.unwrap(), None);
             }
             self.raw.destroy_command_pool(self.command_pool, None);
             let semaphore = Md::take(&mut self.semaphore);

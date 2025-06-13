@@ -228,6 +228,7 @@ impl Sampler {
                 .unwrap_or(vk::CompareOp::ALWAYS),
             border_color: desc.border.into(),
             unnormalized_coordinates: vk::FALSE,
+            ..Default::default()
         };
 
         let raw_result = unsafe { device.raw.create_sampler(&create_info, None) };

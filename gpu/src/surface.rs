@@ -6,11 +6,10 @@ use std::mem::ManuallyDrop as Md;
 use std::ptr;
 use std::sync::Arc;
 
-use ash::extensions::khr;
+use ash::khr;
 use ash::vk;
 
-use raw_window_handle::HasRawWindowHandle;
-use raw_window_handle::RawWindowHandle;
+use raw_window_handle::{ HasWindowHandle, RawWindowHandle };
 
 use crate::error::*;
 
@@ -39,7 +38,7 @@ pub struct SurfaceInfo {
 /// <https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/VkSurfaceKHR.html>
 pub struct Surface {
     pub(crate) raw: Md<Arc<vk::SurfaceKHR>>,
-    pub(crate) loader: khr::Surface,
+    pub(crate) loader: khr::surface::Instance,
 }
 
 impl std::fmt::Debug for Surface {
@@ -50,22 +49,24 @@ impl std::fmt::Debug for Surface {
 
 impl Surface {
     /// Create a new Surface from a window
-    pub fn new<W: HasRawWindowHandle>(
+    pub fn new<W: HasWindowHandle>(
         instance: &crate::Instance,
         window: &W,
     ) -> Result<Self, Error> {
-        #[cfg(feature = "logging")]
-        log::trace!("GPU: Create Surface");
+        let h = window.window_handle().unwrap();
 
-        match window.raw_window_handle() {
+        #[cfg(feature = "logging")]
+        log::trace!("GPU: Create Surface from window {:?}", h);
+
+        match h.as_raw() {
             #[cfg(target_os = "linux")]
             RawWindowHandle::Xlib(h) => unsafe { Self::create_surface_from_xlib(instance, h) },
-            #[cfg(target_os = "linux")]
-            RawWindowHandle::Xcb(h) => unsafe { Self::create_surface_from_xcb(instance, h) },
-            #[cfg(target_os = "linux")]
-            RawWindowHandle::Wayland(h) => unsafe {
-                Self::create_surface_from_wayland(instance, h)
-            },
+            // #[cfg(target_os = "linux")]
+            // RawWindowHandle::Xcb(h) => unsafe { Self::create_surface_from_xcb(instance, h) },
+            // #[cfg(target_os = "linux")]
+            // RawWindowHandle::Wayland(h) => unsafe {
+            //     Self::create_surface_from_wayland(instance, h)
+            // },
             #[cfg(target_os = "android")]
             RawWindowHandle::Android(h) => unsafe {
                 Self::create_surface_from_android(instance, h)
@@ -139,77 +140,79 @@ impl Surface {
     #[cfg(target_os = "linux")]
     unsafe fn create_surface_from_xlib(
         instance: &crate::Instance,
-        h: raw_window_handle::unix::XlibHandle,
+        h: raw_window_handle::XlibWindowHandle,
     ) -> Result<Self, Error> {
-        let xlib_loader = khr::XlibSurface::new(&*crate::VK_ENTRY, &**instance.raw);
+        let xlib_loader = khr::xlib_surface::Instance::new(&*crate::VK_ENTRY, &**instance.raw);
         let info = vk::XlibSurfaceCreateInfoKHR {
             s_type: vk::StructureType::XLIB_SURFACE_CREATE_INFO_KHR,
             p_next: ptr::null(),
             flags: vk::XlibSurfaceCreateFlagsKHR::empty(),
-            window: h.window,
-            dpy: h.display as *mut vk::Display,
+            window: h.window as _,
+            dpy: h.visual_id as *mut vk::Display,
+            ..Default::default()
         };
-        let surface_result = xlib_loader.create_xlib_surface(&info, None);
+        let surface_result = unsafe { xlib_loader.create_xlib_surface(&info, None) };
         let surface = match surface_result {
             Ok(s) => s,
             Err(e) => return Err(e.into()),
         };
-        let loader = khr::Surface::new(&*crate::VK_ENTRY, &**instance.raw);
+        let loader = khr::surface::Instance::new(&*crate::VK_ENTRY, &**instance.raw);
         Ok(Self {
             raw: Md::new(Arc::new(surface)),
             loader,
         })
     }
 
-    #[cfg(target_os = "linux")]
-    unsafe fn create_surface_from_xcb(
-        instance: &crate::Instance,
-        h: raw_window_handle::unix::XcbHandle,
-    ) -> Result<Self, Error> {
-        let xcb_loader = khr::XcbSurface::new(&*crate::VK_ENTRY, &**instance.raw);
-        let info = vk::XcbSurfaceCreateInfoKHR {
-            s_type: vk::StructureType::XCB_SURFACE_CREATE_INFO_KHR,
-            p_next: ptr::null(),
-            flags: vk::XcbSurfaceCreateFlagsKHR::empty(),
-            window: h.window,
-            connection: h.connection,
-        };
-        let surface_result = xcb_loader.create_xcb_surface(&info, None);
-        let surface = match surface_result {
-            Ok(s) => s,
-            Err(e) => return Err(e.into()),
-        };
-        let loader = khr::Surface::new(&*crate::VK_ENTRY, &**instance.raw);
-        Ok(Self {
-            raw: Md::new(Arc::new(surface)),
-            loader,
-        })
-    }
+    // #[cfg(target_os = "linux")]
+    // unsafe fn create_surface_from_xcb(
+    //     instance: &crate::Instance,
+    //     h: raw_window_handle::XcbWindowHandle,
+    // ) -> Result<Self, Error> {
+    //     let xcb_loader = khr::xcb_surface::Instance::new(&*crate::VK_ENTRY, &**instance.raw);
+    //     let info = vk::XcbSurfaceCreateInfoKHR {
+    //         s_type: vk::StructureType::XCB_SURFACE_CREATE_INFO_KHR,
+    //         p_next: ptr::null(),
+    //         flags: vk::XcbSurfaceCreateFlagsKHR::empty(),
+    //         window: h.window.get(),
+    //         connection: h.),
+    //         ..Default::default()
+    //     };
+    //     let surface_result = xcb_loader.create_xcb_surface(&info, None);
+    //     let surface = match surface_result {
+    //         Ok(s) => s,
+    //         Err(e) => return Err(e.into()),
+    //     };
+    //     let loader = khr::surface::Instance::new(&*crate::VK_ENTRY, &**instance.raw);
+    //     Ok(Self {
+    //         raw: Md::new(Arc::new(surface)),
+    //         loader,
+    //     })
+    // }
 
-    #[cfg(target_os = "linux")]
-    unsafe fn create_surface_from_wayland(
-        instance: &crate::Instance,
-        h: raw_window_handle::unix::WaylandHandle,
-    ) -> Result<Self, Error> {
-        let wayland_loader = khr::WaylandSurface::new(&*crate::VK_ENTRY, &**instance.raw);
-        let info = vk::WaylandSurfaceCreateInfoKHR {
-            s_type: vk::StructureType::WAYLAND_SURFACE_CREATE_INFO_KHR,
-            p_next: ptr::null(),
-            flags: vk::WaylandSurfaceCreateFlagsKHR::empty(),
-            display: h.display,
-            surface: h.surface,
-        };
-        let surface_result = wayland_loader.create_wayland_surface(&info, None);
-        let surface = match surface_result {
-            Ok(s) => s,
-            Err(e) => return Err(e.into()),
-        };
-        let loader = khr::Surface::new(&*crate::VK_ENTRY, &**instance.raw);
-        Ok(Self {
-            raw: Md::new(Arc::new(surface)),
-            loader,
-        })
-    }
+    // #[cfg(target_os = "linux")]
+    // unsafe fn create_surface_from_wayland(
+    //     instance: &crate::Instance,
+    //     h: raw_window_handle::unix::WaylandHandle,
+    // ) -> Result<Self, Error> {
+    //     let wayland_loader = khr::WaylandSurface::new(&*crate::VK_ENTRY, &**instance.raw);
+    //     let info = vk::WaylandSurfaceCreateInfoKHR {
+    //         s_type: vk::StructureType::WAYLAND_SURFACE_CREATE_INFO_KHR,
+    //         p_next: ptr::null(),
+    //         flags: vk::WaylandSurfaceCreateFlagsKHR::empty(),
+    //         display: h.display,
+    //         surface: h.surface,
+    //     };
+    //     let surface_result = wayland_loader.create_wayland_surface(&info, None);
+    //     let surface = match surface_result {
+    //         Ok(s) => s,
+    //         Err(e) => return Err(e.into()),
+    //     };
+    //     let loader = khr::Surface::new(&*crate::VK_ENTRY, &**instance.raw);
+    //     Ok(Self {
+    //         raw: Md::new(Arc::new(surface)),
+    //         loader,
+    //     })
+    // }
 
     #[cfg(target_os = "android")]
     unsafe fn create_surface_from_android(

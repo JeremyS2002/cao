@@ -2,7 +2,6 @@ use std::ffi::CString;
 use std::thread::ThreadId;
 use std::{collections::HashMap, mem::ManuallyDrop as Md, ptr, sync::Arc};
 
-use ash::extensions::ext;
 use ash::vk;
 use vk::Handle;
 
@@ -10,6 +9,8 @@ use parking_lot::Mutex;
 use parking_lot::RwLock;
 
 use crate::error::*;
+
+use super::utils;
 
 pub(crate) struct RawDevice {
     /// Kinda ugly :(
@@ -27,7 +28,8 @@ pub(crate) struct RawDevice {
     pub limits: crate::DeviceLimits,
     pub instance: Md<Arc<ash::Instance>>,
 
-    pub debug_loader: Option<ext::DebugUtils>,
+    pub debug_utils: Option<utils::DebugUtils>,
+
     pub error: RwLock<Vec<String>>,
 
     pub semaphores: Mutex<HashMap<ThreadId, Arc<vk::Semaphore>>>,
@@ -44,10 +46,7 @@ impl std::ops::Deref for RawDevice {
 impl RawDevice {
     #[inline]
     pub fn check_errors(&self) -> Result<(), crate::Error> {
-        if self.debug_loader.is_some() {
-            #[cfg(feature = "parking_lot")]
-            let mut errors = self.error.write();
-            #[cfg(not(feature = "parking_lot"))]
+        if self.debug_utils.is_some() {
             let mut errors = self.error.write();
             if errors.len() == 0 {
                 return Ok(());
@@ -74,7 +73,7 @@ impl RawDevice {
         instance: Arc<ash::Instance>,
         features: crate::DeviceFeatures,
         limits: crate::DeviceLimits,
-        debug_loader: Option<ext::DebugUtils>,
+        debug_utils: Option<utils::DebugUtils>,
     ) -> Self {
         Self {
             framebuffers: RwLock::new(HashMap::new()),
@@ -84,7 +83,7 @@ impl RawDevice {
             limits,
             instance: Md::new(instance),
 
-            debug_loader,
+            debug_utils,
             error: RwLock::new(Vec::new()),
 
             semaphores: Mutex::new(HashMap::new()),
@@ -101,15 +100,15 @@ impl RawDevice {
     fn set_name(&self, obj: u64, ty: vk::ObjectType, name: &str) -> Result<(), Error> {
         let c = CString::new(name.to_string()).unwrap();
         unsafe {
-            if let Some(loader) = &self.debug_loader {
-                let result = loader.debug_utils_set_object_name(
-                    self.device.handle(),
+            if let Some(loader) = &self.debug_utils {
+                let result = loader.device.set_debug_utils_object_name(
                     &vk::DebugUtilsObjectNameInfoEXT {
                         s_type: vk::StructureType::DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
                         p_next: ptr::null(),
                         object_type: ty,
                         object_handle: obj,
                         p_object_name: c.as_ptr(),
+                        ..Default::default()
                     },
                 );
                 Self::match_result(result)?;

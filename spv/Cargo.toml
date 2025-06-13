@@ -1,20 +1,20 @@
 [package]
 name = "spv"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
-rspirv             = "^0.11.0"
-glam               = "0.21.2"
-either             = "^1.6.1"
-slab               = "^0.4.6"
+rspirv             = "^0.12.0"
+glam               = "^0.30.4"
+either             = "^1.15.0"
+slab               = "^0.4.9"
 spv_derive         = { path = "../spv/spv_derive" }
 
 [dev-dependencies]
-shaderc            = "*"
-bytemuck           = "^1.12.1"
-winit              = { version = "0.26.1", default-features = false, features = ["x11"] }
-image              = "0.24.1"
+shaderc            = "^0.9.1"
+bytemuck           = "^1.23.1"
+winit              = { version = "^0.30.11", default-features = false, features = ["x11"] }
+image              = "^0.25.6"
 gpu                = { path = "../gpu" }
 
 [[example]]

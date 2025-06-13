@@ -12,6 +12,7 @@ pub use vk::SampleCountFlags;
 
 bitflags::bitflags! {
     /// Optional features that a device can support
+    #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     pub struct DeviceFeatures: u32 {
         /// Device supports graphics operations
         const GRAPHICS              = 0b000000000000000000000000001;
@@ -54,7 +55,7 @@ bitflags::bitflags! {
         const TIME_QUERIES          = 0b000000001000000000000000000;
 
         /// Device supports all types of operations
-        const BASE = Self::GRAPHICS.bits | Self::COMPUTE.bits | Self::TRANSFER.bits;
+        const BASE = Self::GRAPHICS.bits() | Self::COMPUTE.bits() | Self::TRANSFER.bits();
     }
 }
 
@@ -342,6 +343,7 @@ impl std::ops::SubAssign<Extent3D> for Offset3D {
 
 bitflags::bitflags! {
     /// ShaderStage bitflags used for situations where objects can be in multiple stages
+    #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     pub struct ShaderStages: u32 {
         #[allow(missing_docs)]
         const VERTEX               = 0b0000000000001;
@@ -647,7 +649,7 @@ bitflags::bitflags! {
         /// after all commands have completed
         const ALL_COMMANDS             = 0b000001000000000000000;
         /// closest hit shader
-        #[cfg(feature = "raw")]
+        #[cfg(feature = "ray")]
         const CLOSEST_HIT              = 0b000010000000000000000;
         /// ray shader
         #[cfg(feature = "ray")]
@@ -865,8 +867,8 @@ pub struct Rasterizer {
     pub depth_bias_slope: f32,
 }
 
-impl Into<vk::PipelineRasterizationStateCreateInfo> for Rasterizer {
-    fn into(self) -> vk::PipelineRasterizationStateCreateInfo {
+impl Into<vk::PipelineRasterizationStateCreateInfo<'static>> for Rasterizer {
+    fn into(self) -> vk::PipelineRasterizationStateCreateInfo<'static> {
         vk::PipelineRasterizationStateCreateInfo {
             s_type: vk::StructureType::PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
             p_next: ptr::null(),
@@ -975,6 +977,7 @@ impl Into<vk::BlendOp> for BlendOp {
 
 bitflags::bitflags! {
     /// Decides what components of the pixel should be output to
+    #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     pub struct ColorMask: u8 {
         /// the r value should be written to
         const R = 0b0001;
@@ -1444,8 +1447,8 @@ impl Default for DepthStencilState {
     }
 }
 
-impl Into<vk::PipelineDepthStencilStateCreateInfo> for DepthStencilState {
-    fn into(self) -> vk::PipelineDepthStencilStateCreateInfo {
+impl Into<vk::PipelineDepthStencilStateCreateInfo<'static>> for DepthStencilState {
+    fn into(self) -> vk::PipelineDepthStencilStateCreateInfo<'static> {
         let front = self
             .stencil_front
             .map(|s| vk::StencilOpState {
@@ -1508,6 +1511,7 @@ impl Into<vk::PipelineDepthStencilStateCreateInfo> for DepthStencilState {
             },
             min_depth_bounds: 0.0,
             max_depth_bounds: 1.0,
+            ..Default::default()
         }
     }
 }
@@ -1584,9 +1588,9 @@ impl std::hash::Hash for ClearValue {
             Self::ColorFloat(a) => unsafe { std::mem::transmute::<_, [u32; 4]>(a) }.hash(state),
             Self::ColorInt(a) => a.hash(state),
             Self::ColorUint(a) => a.hash(state),
-            Self::Depth(d) => unsafe { std::mem::transmute::<_, u32>(d) }.hash(state),
+            Self::Depth(d) => f32::to_bits(d).hash(state),
             Self::DepthStencil(d, s) => {
-                unsafe { std::mem::transmute::<_, u32>(d) }.hash(state);
+                f32::to_bits(d).hash(state);
                 s.hash(state);
             }
         }
@@ -2030,6 +2034,7 @@ impl<'a> DescriptorSetEntry<'a> {
 }
 
 bitflags::bitflags! {
+    #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     /// how a buffer can be used
     pub struct BufferUsage: u32 {
         /// Allows the buffer to be copied from
@@ -2100,6 +2105,7 @@ impl Into<vk::MemoryPropertyFlags> for MemoryType {
 
 bitflags::bitflags! {
     /// Describes how a texture is allowed to be used
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
     pub struct TextureUsage: u32 {
         /// allows images to be copied from
         const COPY_SRC       = 0b00000000001;
@@ -2536,6 +2542,7 @@ impl Into<vk::PipelineBindPoint> for PipelineBindPoint {
 
 bitflags::bitflags! {
     /// Describes how a resource (Buffer/Texture) is accessed in a command buffer
+    #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
     pub struct AccessFlags: u32 {
         #[allow(missing_docs)]
         const INDEX_READ                     = 0b000000000000000001;

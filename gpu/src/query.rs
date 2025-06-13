@@ -63,6 +63,7 @@ impl TimeQuery {
             query_type: vk::QueryType::TIMESTAMP,
             query_count: count,
             pipeline_statistics: vk::QueryPipelineStatisticFlags::empty(),
+            ..Default::default()
         };
 
         let result = unsafe { device.raw.create_query_pool(&create_info, None) };
@@ -144,7 +145,6 @@ impl TimeQuery {
             self.device.get_query_pool_results(
                 **self.raw,
                 first_query,
-                query_count,
                 &mut results,
                 vk::QueryResultFlags::TYPE_64,
             )
@@ -202,7 +202,6 @@ impl TimeQuery {
             self.device.get_query_pool_results(
                 **self.raw,
                 first_query,
-                query_count,
                 &mut results,
                 vk::QueryResultFlags::TYPE_64 | vk::QueryResultFlags::WAIT,
             )
