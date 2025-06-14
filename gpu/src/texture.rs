@@ -353,7 +353,7 @@ impl Texture {
     /// Create the default view that encompases the whole image
     pub fn create_default_view(&self) -> Result<TextureView, Error> {
         self.create_view(&TextureViewDesc {
-            name: None,
+            name: self.name.as_ref().map(|n| format!("{}.default_view", n)),
             dimension: self.dimension.into(),
             base_array_layer: 0,
             base_mip_level: 0,

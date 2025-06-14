@@ -97,7 +97,7 @@ impl RawDevice {
         }
     }
 
-    fn set_name(&self, obj: u64, ty: vk::ObjectType, name: &str) -> Result<(), Error> {
+    pub fn set_name(&self, obj: u64, ty: vk::ObjectType, name: &str) -> Result<(), Error> {
         let c = CString::new(name.to_string()).unwrap();
         unsafe {
             if let Some(loader) = &self.debug_utils {
@@ -122,6 +122,8 @@ impl RawDevice {
         swapchain: &crate::Swapchain,
         name: &str,
     ) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name Swapchain \"{}\"", name);
         self.set_name(unsafe { swapchain.raw_swapchain().as_raw() }, vk::ObjectType::SWAPCHAIN_KHR, name)
     }
 
@@ -130,14 +132,20 @@ impl RawDevice {
         module: &crate::ShaderModule,
         name: &str,
     ) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name ShaderModule \"{}\"", name);
         self.set_name(module.raw.as_raw(), vk::ObjectType::SHADER_MODULE, name)
     }
 
     pub fn set_buffer_name(&self, buffer: &crate::Buffer, name: &str) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name Buffer \"{}\"", name);
         self.set_name(buffer.raw.as_raw(), vk::ObjectType::BUFFER, name)
     }
 
     pub fn set_texture_name(&self, texture: &crate::Texture, name: &str) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name Texture \"{}\"", name);
         self.set_name(texture.raw.as_raw(), vk::ObjectType::IMAGE, name)
     }
 
@@ -146,6 +154,8 @@ impl RawDevice {
         view: &crate::TextureView,
         name: &str,
     ) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name TextureView \"{}\"", name);
         self.set_name(view.raw.as_raw(), vk::ObjectType::IMAGE_VIEW, name)
     }
 
@@ -154,11 +164,15 @@ impl RawDevice {
         buffer: &crate::CommandBuffer,
         name: &str,
     ) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name CommandBuffer \"{}\"", name);
         self.set_name(buffer.pool.as_raw(), vk::ObjectType::COMMAND_POOL, name)?;
         self.set_name(buffer.buffer.as_raw(), vk::ObjectType::COMMAND_BUFFER, name)
     }
 
     pub fn set_sampler_name(&self, sampler: &crate::Sampler, name: &str) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name Sampler \"{}\"", name);
         self.set_name(sampler.raw.as_raw(), vk::ObjectType::SAMPLER, name)
     }
 
@@ -167,6 +181,8 @@ impl RawDevice {
         set: &crate::DescriptorSet,
         name: &str,
     ) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name DescriptorSet \"{}\"", name);
         self.set_name(set.pool.as_raw(), vk::ObjectType::DESCRIPTOR_POOL, name)?;
         self.set_name(set.set.as_raw(), vk::ObjectType::DESCRIPTOR_SET, name)
     }
@@ -176,6 +192,8 @@ impl RawDevice {
         layout: &crate::DescriptorLayout,
         name: &str,
     ) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name DescriptorLayout \"{}\"", name);
         self.set_name(
             layout.raw.as_raw(),
             vk::ObjectType::DESCRIPTOR_SET_LAYOUT,
@@ -188,10 +206,14 @@ impl RawDevice {
         layout: &crate::PipelineLayout,
         name: &str,
     ) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name PipelineLayout \"{}\"", name);
         self.set_name(layout.raw.as_raw(), vk::ObjectType::PIPELINE_LAYOUT, name)
     }
 
     pub fn set_render_pass_name(&self, pass: &crate::RenderPass, name: &str) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name RenderPass \"{}\"", name);
         self.set_name(pass.raw.as_raw(), vk::ObjectType::RENDER_PASS, name)
     }
 
@@ -200,6 +222,8 @@ impl RawDevice {
         pipeline: &crate::GraphicsPipeline,
         name: &str,
     ) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name GraphicsPipeline \"{}\"", name);
         self.set_name(pipeline.raw.as_raw(), vk::ObjectType::PIPELINE, name)
     }
 
@@ -208,6 +232,8 @@ impl RawDevice {
         pipeline: &crate::ComputePipeline,
         name: &str,
     ) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name ComputePipeline \"{}\"", name);
         self.set_name(pipeline.raw.as_raw(), vk::ObjectType::PIPELINE, name)
     }
 
@@ -220,10 +246,14 @@ impl RawDevice {
     // }
 
     pub fn set_time_query_name(&self, query: &crate::TimeQuery, name: &str) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name TimeQuery \"{}\"", name);
         self.set_name(query.raw.as_raw(), vk::ObjectType::QUERY_POOL, name)
     }
 
     pub fn set_pipeline_cache_name(&self, cache: &crate::PipelineCache, name: &str) -> Result<(), Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("name PipelineCache \"{}\"", name);
         self.set_name(cache.raw.as_raw(), vk::ObjectType::PIPELINE_CACHE, name)
     }
 }

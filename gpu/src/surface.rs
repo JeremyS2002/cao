@@ -9,7 +9,8 @@ use std::sync::Arc;
 use ash::khr;
 use ash::vk;
 
-use raw_window_handle::{ HasWindowHandle, RawWindowHandle };
+use raw_window_handle::RawDisplayHandle;
+use raw_window_handle::{ HasWindowHandle, HasDisplayHandle, RawWindowHandle };
 
 use crate::error::*;
 
@@ -49,18 +50,25 @@ impl std::fmt::Debug for Surface {
 
 impl Surface {
     /// Create a new Surface from a window
-    pub fn new<W: HasWindowHandle>(
+    pub fn new<W: HasWindowHandle + HasDisplayHandle>(
         instance: &crate::Instance,
         window: &W,
     ) -> Result<Self, Error> {
-        let h = window.window_handle().unwrap();
+        let wh = window.window_handle().unwrap();
+        let dh = window.display_handle().unwrap();
 
         #[cfg(feature = "logging")]
-        log::trace!("GPU: Create Surface from window {:?}", h);
+        log::trace!("gpu::Surface::new() - window {:?} display {:?}", wh, dh);
 
-        match h.as_raw() {
+        match wh.as_raw() {
             #[cfg(target_os = "linux")]
-            RawWindowHandle::Xlib(h) => unsafe { Self::create_surface_from_xlib(instance, h) },
+            RawWindowHandle::Xlib(rwh) => unsafe { 
+                if let RawDisplayHandle::Xlib(rdh) = dh.as_raw() {
+                    Self::create_surface_from_xlib(instance, rwh, rdh) 
+                } else {
+                    panic!("mismatched window and display handles {:?} and {:?}", wh, dh);
+                }
+            },
             // #[cfg(target_os = "linux")]
             // RawWindowHandle::Xcb(h) => unsafe { Self::create_surface_from_xcb(instance, h) },
             // #[cfg(target_os = "linux")]
@@ -141,6 +149,7 @@ impl Surface {
     unsafe fn create_surface_from_xlib(
         instance: &crate::Instance,
         h: raw_window_handle::XlibWindowHandle,
+        d: raw_window_handle::XlibDisplayHandle,
     ) -> Result<Self, Error> {
         let xlib_loader = khr::xlib_surface::Instance::new(&*crate::VK_ENTRY, &**instance.raw);
         let info = vk::XlibSurfaceCreateInfoKHR {
@@ -148,7 +157,7 @@ impl Surface {
             p_next: ptr::null(),
             flags: vk::XlibSurfaceCreateFlagsKHR::empty(),
             window: h.window as _,
-            dpy: h.visual_id as *mut vk::Display,
+            dpy: d.display.map(|x| x.as_ptr()).unwrap_or(ptr::null_mut()) as _,
             ..Default::default()
         };
         let surface_result = unsafe { xlib_loader.create_xlib_surface(&info, None) };

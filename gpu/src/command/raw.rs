@@ -761,11 +761,13 @@ where
                 crate::Attachment::Swapchain(s, _) => {
                     let wait_semaphore = **s
                         .inner
+                        .sync
                         .acquire_complete_semaphores
                         .get(s.wait_semaphore)
                         .unwrap();
                     let signal_semaphore = **s
                         .inner
+                        .sync
                         .rendering_complete_semaphores
                         .get(s.signal_semaphore)
                         .unwrap();

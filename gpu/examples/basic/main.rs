@@ -4,6 +4,10 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::window::{Window, WindowId};
 
+use env_logger::{Builder, Target};
+
+const APP_NAME: &'static str = "basic";
+
 struct BasicApp {
     window: Window,
     _instance: gpu::Instance,
@@ -19,29 +23,34 @@ impl BasicApp {
 
         let window = event_loop.create_window(window_attributes).unwrap();
 
-        for name in gpu::Instance::validation_layers().unwrap() {
-            println!("{}", name);
-        }
-
-        println!("");
-
-        for name in gpu::Instance::extensions().unwrap() {
-            println!("{}", name);
-        }
-
-        println!("");
+        // for name in gpu::Instance::validation_layers().unwrap() {
+        //     println!("instance validation layer : {}", name);
+        // }
+        // println!("");
+        // for name in gpu::Instance::extensions().unwrap() {
+        //     println!("instance extension : {}", name);
+        // }
+        // println!("");
 
         let instance = gpu::Instance::new(&gpu::InstanceDesc::default()).unwrap();
 
-        for device in instance.devices().unwrap() {
-            println!("{:?}", device.name);
-            println!("{:?}", device.device_type);
-            println!("api version:    {:?}", device.api_version);
-            println!("driver version: {:?}", device.driver_version);
+        for device_info in instance.devices().unwrap() {
+            println!("{:?}", device_info.name);
+            println!("{:?}", device_info.device_type);
+            println!("api version:    {:?}", device_info.api_version);
+            println!("driver version: {:?}", device_info.driver_version);
+            // for ext in &device_info.extensions {
+            //     println!("device extensions : {}", ext);
+            // }
             println!();
         }
 
+        println!("create surface");
+
         let surface = instance.create_surface(&window).unwrap();
+
+        println!("create device");
+
         let device = instance
             .create_device(&gpu::DeviceDesc {
                 compatible_surfaces: &[&surface],
@@ -49,12 +58,18 @@ impl BasicApp {
             })
             .unwrap();
 
+        println!("create swapchain");
+
+        let mut swapchain_desc = gpu::SwapchainDesc::from_surface(&surface, &device).unwrap();
+        swapchain_desc.name = Some("swapchain".to_string());
         let swapchain = device
             .create_swapchain(
                 &surface,
-                &gpu::SwapchainDesc::from_surface(&surface, &device).unwrap(),
+                &swapchain_desc,
             )
             .unwrap();
+
+        println!("create app");
 
         BasicApp {
             window,
@@ -116,8 +131,10 @@ impl ApplicationHandler for App {
                 println!("The close button was pressed; stopping");
                 event_loop.exit();
             },
-            WindowEvent::Resized(_) => { 
+            WindowEvent::Resized(_size) => { 
                 state.resized = true;
+                #[cfg(feature = "logging")]
+                log::trace!("window resized {:?}", _size);
             },
             WindowEvent::RedrawRequested => {
                 state.redraw();
@@ -126,16 +143,17 @@ impl ApplicationHandler for App {
             _ => (),
         }
     }
-
 }
 
 fn main() {
-    colog::init();
+    let file = std::fs::File::create(format!("{}.log", APP_NAME)).unwrap();
+    let buf = std::io::BufWriter::new(file);
 
+    let mut builder = Builder::new();
+    builder.parse_env("RUST_LOG").target(Target::Pipe(Box::new(buf))).init();
+    
     let event_loop = EventLoop::new().unwrap();
 
-    // ControlFlow::Poll continuously runs the event loop, even if the OS hasn't
-    // dispatched any events. This is ideal for games and similar applications.
     event_loop.set_control_flow(ControlFlow::Poll);
 
     let mut app = App::default();

@@ -42,6 +42,8 @@ pub struct DeviceInfo {
     pub mem_properties: crate::MemoryProperties,
     /// the limits of the device
     pub limits: crate::DeviceLimits,
+    /// the extensions that the device supports
+    pub extensions: Vec<String>,
 }
 
 pub struct DeviceDesc<'a, F: Fn(&DeviceInfo, &DeviceInfo) -> Ordering> {
@@ -135,7 +137,7 @@ impl Device {
         let queue_info = Self::get_queue_info(instance, features, compatible_surfaces, physical);
         // let validation = instance.validation_layers.len() == 0;
         let (_enabled_layer_names, enabled_extensions) =
-            Self::enabled_layers_extension(instance, physical)?;
+            Self::enabled_layers_extension(instance, physical, features)?;
 
         let reset_features = vk::PhysicalDeviceHostQueryResetFeatures {
             s_type: vk::StructureType::PHYSICAL_DEVICE_HOST_QUERY_RESET_FEATURES,
@@ -266,7 +268,7 @@ impl Device {
         desc: &DeviceDesc<'_, F>,
     ) -> Result<Self, Error> {
         #[cfg(feature = "logging")]
-        log::trace!("GPU: Create Device");
+        log::trace!("gpu::Device::new");
 
         let (physical, info) = Self::get_physical_device(instance, desc)?;
 
@@ -455,6 +457,7 @@ impl Device {
     fn enabled_layers_extension(
         instance: &crate::Instance,
         physical: vk::PhysicalDevice,
+        features: crate::DeviceFeatures
     ) -> Result<(Vec<*const i8>, Vec<*const i8>), Error> {
         let enabled_layer_names = instance
             .validation_layers
@@ -472,13 +475,15 @@ impl Device {
             .iter()
             .map(|e| unsafe { CStr::from_ptr(&e.extension_name[0]) })
             .collect::<HashSet<_>>();
-        let extension_names = &instance.extension_names;
+        let extension_names = crate::ffi::device_extension_names(features);
         let enabled_extensions = extension_names
             .iter()
             .filter_map(|&n| {
                 if available_extension_set.contains(n) {
                     Some(n.as_ptr())
                 } else {
+                    #[cfg(feature = "logging")]
+                    log::warn!("gpu::Device - create vkDevice extension {:?} is not available", n);
                     None
                 }
             })

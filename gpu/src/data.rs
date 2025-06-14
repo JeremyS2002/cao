@@ -53,9 +53,11 @@ bitflags::bitflags! {
         const VARIABLE_RATE_SHADING = 0b000000000100000000000000000;
         /// Allows for use of TimeQueries
         const TIME_QUERIES          = 0b000000001000000000000000000;
+        /// Allows for use of Swapchain
+        const SWAPCHAIN             = 0b000000010000000000000000000;
 
         /// Device supports all types of operations
-        const BASE = Self::GRAPHICS.bits() | Self::COMPUTE.bits() | Self::TRANSFER.bits();
+        const BASE = Self::GRAPHICS.bits() | Self::COMPUTE.bits() | Self::TRANSFER.bits() | Self::SWAPCHAIN.bits();
     }
 }
 

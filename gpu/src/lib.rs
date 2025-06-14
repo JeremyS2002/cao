@@ -100,7 +100,7 @@ use std::ptr;
 use std::sync::Arc;
 use vk::Handle;
 
-use raw_window_handle::HasWindowHandle;
+use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 pub mod binding;
 pub mod buffer;
@@ -267,6 +267,9 @@ impl Instance {
     /// Panics if VK_LAYER_KHRONOS_validation is unavailable
     /// use [`Instance::no_validation`] to create an instance without validation for realease builds
     pub fn new(desc: &InstanceDesc<'_>) -> Result<Self, Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("gpu::Instance::new()");
+
         let mut validation_layers = desc.validation_layers.to_owned();
         validation_layers.push(KHRONOS_VALIDATION);
         let mut desc = (*desc).clone();
@@ -324,7 +327,7 @@ impl Instance {
             ..Default::default()
         };
 
-        let mut extension_names = extension_names();
+        let mut extension_names = instance_extension_names();
         if desc.validation_layers.len() != 0 {
             extension_names.push(ash::ext::debug_utils::NAME);
         }
@@ -348,7 +351,7 @@ impl Instance {
                     Some(n.as_ptr() as _)
                 } else {
                     #[cfg(feature = "logging")]
-                    log::warn!("Extension {:?} not present", n);
+                    log::warn!("gpu::Instance - create vkInstance extension {:?} not present", n);
                     None
                 }
             })
@@ -499,6 +502,13 @@ impl Instance {
                 .get_physical_device_memory_properties(physical_device)
         };
         let limits = properties.limits;
+
+        let raw_extensions = unsafe { self.raw.enumerate_device_extension_properties(physical_device)? };
+        let extensions = raw_extensions
+            .into_iter()
+            .map(|e| unsafe { CStr::from_ptr(&e.extension_name[0]).to_str().unwrap().to_string() })
+            .collect();
+
         Ok(crate::DeviceInfo {
             id: physical_device.as_raw(),
             name,
@@ -518,11 +528,12 @@ impl Instance {
             },
             mem_properties,
             limits,
+            extensions
         })
     }
 
     /// create a new surface
-    pub fn create_surface<W: HasWindowHandle>(
+    pub fn create_surface<W: HasWindowHandle + HasDisplayHandle>(
         &self,
         window: &W,
     ) -> Result<crate::Surface, Error> {

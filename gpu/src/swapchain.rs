@@ -11,6 +11,7 @@ use parking_lot::Mutex;
 
 use ash::khr;
 use ash::vk;
+use vk::Handle;
 
 use crate::error::*;
 use crate::utils;
@@ -95,13 +96,28 @@ pub struct SwapchainInfo {
     pub format: crate::Format,
 }
 
+#[derive(Debug)]
+pub(crate) struct SwapchainSync {
+    pub rendering_complete_semaphores: Vec<Arc<vk::Semaphore>>,
+    pub acquire_complete_semaphores: Vec<Arc<vk::Semaphore>>,
+    pub acquire_complete_fences: Vec<Arc<vk::Fence>>,
+}
+
+impl std::clone::Clone for SwapchainSync {
+    fn clone(&self) -> Self {
+        Self {
+            rendering_complete_semaphores: self.rendering_complete_semaphores.clone(),
+            acquire_complete_semaphores: self.acquire_complete_semaphores.clone(),
+            acquire_complete_fences: self.acquire_complete_fences.clone(),
+        }
+    }
+}
+
 pub(crate) struct SwapchainInner {
     pub utils: crate::utils::SwapchainUtils,
     pub raw: Md<Arc<Cell<vk::SwapchainKHR>>>,
 
-    pub fence: Md<Arc<vk::Fence>>,
-    pub rendering_complete_semaphores: Vec<Arc<vk::Semaphore>>,
-    pub acquire_complete_semaphores: Vec<Arc<vk::Semaphore>>,
+    pub sync: SwapchainSync,
 
     pub surface: Md<Arc<vk::SurfaceKHR>>,
     pub surface_loader: khr::surface::Instance,
@@ -114,9 +130,7 @@ impl std::clone::Clone for SwapchainInner {
         Self {
             utils: self.utils.clone(),
             raw: Md::new(Arc::clone(&self.raw)),
-            fence: Md::new(Arc::clone(&self.fence)),
-            rendering_complete_semaphores: self.rendering_complete_semaphores.clone(),
-            acquire_complete_semaphores: self.acquire_complete_semaphores.clone(),
+            sync: self.sync.clone(),
             surface: Md::new(Arc::clone(&self.surface)),
             surface_loader: self.surface_loader.clone(),
             device: Arc::clone(&self.device),
@@ -146,6 +160,8 @@ pub struct Swapchain {
 
     pub(crate) frames_in_flight: usize,
     pub(crate) frame: Cell<usize>,
+
+    pub(crate) name: Option<String>
 }
 
 impl std::fmt::Debug for Swapchain {
@@ -211,29 +227,31 @@ impl Swapchain {
         surface: &crate::Surface,
         desc: &SwapchainDesc,
     ) -> Result<Self, Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("gpu::Swapchain::new");
+
         let utils = crate::utils::SwapchainUtils::new(&device.raw);
         let (raw, format, extent, pre_transform) =
             Self::create_raw(device, surface, desc, &utils)?;
-        let (textures, views) = Self::create_frames(device, &utils, &raw, format, extent)?;
-        let (rendering_complete_semaphores, acquire_complete_semaphores) =
-            Self::create_sync(device, desc.frames_in_flight)?;
+        let (textures, views) = Self::create_frames(device, &utils, &raw, format, extent, desc.name.as_ref())?;
+        let sync = Self::create_sync(device, desc.frames_in_flight, desc.name.as_ref())?;
 
-        let fence_result = unsafe {
-            device.raw.create_fence(
-                &vk::FenceCreateInfo {
-                    s_type: vk::StructureType::FENCE_CREATE_INFO,
-                    p_next: ptr::null(),
-                    flags: vk::FenceCreateFlags::empty(),
-                    ..Default::default()
-                },
-                None,
-            )
-        };
+        // let fence_result = unsafe {
+        //     device.raw.create_fence(
+        //         &vk::FenceCreateInfo {
+        //             s_type: vk::StructureType::FENCE_CREATE_INFO,
+        //             p_next: ptr::null(),
+        //             flags: vk::FenceCreateFlags::empty(),
+        //             ..Default::default()
+        //         },
+        //         None,
+        //     )
+        // };
 
-        let fence = match fence_result {
-            Ok(f) => f,
-            Err(e) => return Err(e.into()),
-        };
+        // let fence = match fence_result {
+        //     Ok(f) => f,
+        //     Err(e) => return Err(e.into()),
+        // };
 
         let image_count = textures.len() as u32;
 
@@ -242,9 +260,7 @@ impl Swapchain {
                 utils,
                 raw: Md::new(Arc::new(Cell::new(raw))),
 
-                fence: Md::new(Arc::new(fence)),
-                rendering_complete_semaphores,
-                acquire_complete_semaphores,
+                sync,
 
                 surface: Md::new(Arc::clone(&surface.raw)),
                 surface_loader: surface.loader.clone(),
@@ -267,9 +283,11 @@ impl Swapchain {
 
             frames_in_flight: desc.frames_in_flight,
             frame: Cell::new(0),
+
+            name: desc.name.clone(),
         };
 
-        if let Some(name) = &desc.name {
+        if let Some(name) = &s.name {
             device.raw.set_swapchain_name(&s, name)?;
         }
 
@@ -380,6 +398,7 @@ impl Swapchain {
         swapchain: &vk::SwapchainKHR,
         format: vk::SurfaceFormatKHR,
         extent: vk::Extent2D,
+        swapchain_name: Option<&String>,
     ) -> Result<(Vec<crate::Texture>, Vec<crate::TextureView>), Error> {
         let raw_images_result = unsafe { utils.device.get_swapchain_images(*swapchain) };
         let raw_images = match raw_images_result {
@@ -389,9 +408,10 @@ impl Swapchain {
 
         let textures: Vec<crate::Texture> = raw_images
             .into_iter()
-            .map(|i| {
+            .enumerate()
+            .map(|(idx, i)| {
                 let t = crate::Texture {
-                    name: None,
+                    name: swapchain_name.map(|n| format!("{}.texture[{}]", n, idx)),
                     device: Arc::clone(&device.raw),
                     raw: Md::new(Arc::new(i)),
                     memory: None,
@@ -409,6 +429,10 @@ impl Swapchain {
 
                 crate::init_image_layout(&device, &t, crate::TextureLayout::SwapchainPresent)?;
 
+                if let Some(n) = &t.name {
+                    device.raw.set_texture_name(&t, n)?;
+                }
+
                 Ok(t)
             })
             .collect::<Result<_, crate::Error>>()?;
@@ -424,7 +448,8 @@ impl Swapchain {
     fn create_sync(
         device: &crate::Device,
         frames_in_flight: usize,
-    ) -> Result<(Vec<Arc<vk::Semaphore>>, Vec<Arc<vk::Semaphore>>), crate::Error> {
+        swapchain_name: Option<&String>,
+    ) -> Result<SwapchainSync, crate::Error> {
         let semaphore_create_info = vk::SemaphoreCreateInfo {
             s_type: vk::StructureType::SEMAPHORE_CREATE_INFO,
             p_next: ptr::null(),
@@ -432,36 +457,72 @@ impl Swapchain {
             ..Default::default()
         };
 
-        let mut semaphores_1 = Vec::new();
-        let mut semaphores_2 = Vec::new();
+        let fence_create_info = vk::FenceCreateInfo {
+            s_type: vk::StructureType::FENCE_CREATE_INFO,
+            p_next: ptr::null(),
+            flags: vk::FenceCreateFlags::empty(),
+            ..Default::default()
+        };
+
+        let mut acquire_complete_semaphores = Vec::new();
+        let mut rendering_complete_semaphores = Vec::new();
+        let mut acquire_complete_fences = Vec::new();
         // let mut fences = Vec::new();
 
-        for _ in 0..frames_in_flight {
-            let semaphore_1_res =
+        for idx in 0..frames_in_flight {
+            let acquire_complete_semaphore_res =
                 unsafe { device.raw.create_semaphore(&semaphore_create_info, None) };
 
-            let semaphore_1 = match semaphore_1_res {
+            let acquire_complete_semaphore = match acquire_complete_semaphore_res {
                 Ok(s) => s,
                 Err(e) => return Err(e.into()),
             };
 
-            semaphores_1.push(Arc::new(semaphore_1));
+            if let Some(n) = swapchain_name {
+                device.raw.set_name(acquire_complete_semaphore.as_raw(), vk::ObjectType::SEMAPHORE, &format!("{}.acquire_complete_semaphore[{}]", n, idx))?;
+            }
 
-            let semaphore_2_res =
+            acquire_complete_semaphores.push(Arc::new(acquire_complete_semaphore));
+
+            let rendering_complete_semaphore_res =
                 unsafe { device.raw.create_semaphore(&semaphore_create_info, None) };
 
-            let semaphore_2 = match semaphore_2_res {
+            let rendering_complete_semaphore = match rendering_complete_semaphore_res {
                 Ok(s) => s,
                 Err(e) => return Err(e.into()),
             };
 
-            semaphores_2.push(Arc::new(semaphore_2));
+            if let Some(n) = swapchain_name {
+                device.raw.set_name(rendering_complete_semaphore.as_raw(), vk::ObjectType::SEMAPHORE, &format!("{}.rendering_complete_semaphore[{}]", n, idx))?;
+            }
+
+            rendering_complete_semaphores.push(Arc::new(rendering_complete_semaphore));
+
+            let acquire_complete_fence_res = unsafe { device.raw.create_fence(&fence_create_info, None) };
+
+            let acquire_complete_fence = match acquire_complete_fence_res {
+                Ok(f) => f,
+                Err(e) => return Err(e.into()),
+            };
+
+            if let Some(n) = swapchain_name {
+                device.raw.set_name(acquire_complete_fence.as_raw(), vk::ObjectType::FENCE, &format!("{}.acquire_complete_fence[{}]", n, idx))?;
+            }
+
+            acquire_complete_fences.push(Arc::new(acquire_complete_fence));
         }
 
-        Ok((semaphores_1, semaphores_2))
+        Ok(SwapchainSync {
+            acquire_complete_semaphores, 
+            rendering_complete_semaphores,
+            acquire_complete_fences
+        })
     }
 
     pub fn recreate(&mut self, device: &crate::Device) -> Result<(), crate::Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("Swapchain::recreate");
+
         // destroy previous resources
         for texture in self.textures.drain(..) {
             drop(texture)
@@ -491,6 +552,9 @@ impl Swapchain {
             Ok(c) => c,
             Err(e) => return Err(e.into()),
         };
+
+        #[cfg(feature = "logging")]
+        log::trace!("Swapchain::recreate got extent {:?}", caps.current_extent);
 
         let create_info = vk::SwapchainCreateInfoKHR {
             s_type: vk::StructureType::SWAPCHAIN_CREATE_INFO_KHR,
@@ -533,6 +597,7 @@ impl Swapchain {
             &swapchain,
             self.format,
             self.extent,
+            self.name.as_ref()
         )?;
 
         self.inner.raw.set(swapchain);
@@ -571,17 +636,36 @@ impl Swapchain {
     ///
     /// Returns Ok((frame, suboptimal)) or Err(e)
     pub fn acquire<'a>(&'a self, timeout: u64) -> Result<(SwapchainView<'a>, bool), crate::Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("Swapchain::acquire");
+
         //let start = std::time::Instant::now();
         let frame = self.frame.get();
+
+        let wait_result = unsafe {
+            self.inner.device.wait_for_fences(&[*self.inner.sync.acquire_complete_fences[frame]], true, !0)
+        };
+
+        match wait_result {
+            Ok(_) => (),
+            Err(e) => return Err(e.into()),
+        }
+
+        let reset_result = unsafe { self.inner.device.reset_fences(&[*self.inner.sync.acquire_complete_fences[frame]]) };
+
+        match reset_result {
+            Ok(_) => (),
+            Err(e) => return Err(e.into()),
+        }
 
         let result = unsafe {
             self.inner.utils.device.acquire_next_image(
                 self.inner.raw.get(),
                 timeout,
-                *self.inner.acquire_complete_semaphores[frame],
+                *self.inner.sync.acquire_complete_semaphores[frame],
                 // vk::Semaphore::null(),
-                vk::Fence::null(),
-                //self.acquire_complete_fences[frame],
+                // vk::Fence::null(),
+                *self.inner.sync.acquire_complete_fences[frame],
             )
         };
 
@@ -589,6 +673,9 @@ impl Swapchain {
             Ok(t) => t,
             Err(e) => return Err(e.into()),
         };
+
+        #[cfg(feature = "logging")]
+        log::trace!("Swapchain::acquire - got index {} suboptimal {}", index, suboptimal);
 
         self.inner.device.check_errors()?;
 
@@ -606,7 +693,12 @@ impl Swapchain {
     }
 
     pub fn present(&self, view: SwapchainView<'_>) -> Result<bool, crate::Error> {
+        #[cfg(feature = "logging")]
+        log::trace!("Swapchain::present - index {}", view.index);
+
         if !view.drawn.get() {
+            #[cfg(feature = "logging")]
+            log::trace!("Swapchain::present - view hasn't been drawn");
             // why submit nothing?
             // the rest of the synchronisation logic for view expects
             // that the wait semaphore will be waited on and therefore reset
@@ -621,6 +713,7 @@ impl Swapchain {
                 wait_semaphore_count: 1,
                 p_wait_semaphores: Arc::as_ptr(
                     view.inner
+                        .sync
                         .acquire_complete_semaphores
                         .get(view.wait_semaphore)
                         .unwrap(),
@@ -631,6 +724,7 @@ impl Swapchain {
                 signal_semaphore_count: 1,
                 p_signal_semaphores: Arc::as_ptr(
                     view.inner
+                        .sync
                         .rendering_complete_semaphores
                         .get(view.signal_semaphore)
                         .unwrap(),
@@ -641,7 +735,8 @@ impl Swapchain {
             let submit_result = unsafe {
                 self.inner
                     .device
-                    .queue_submit(self.queue, &[submit_info], **self.inner.fence)
+                    // .queue_submit(self.queue, &[submit_info], **self.inner.fence)
+                    .queue_submit(self.queue, &[submit_info], vk::Fence::null())
             };
 
             match submit_result {
@@ -652,23 +747,23 @@ impl Swapchain {
             // wait for the submission to finish so that if the swapchain is dropped then the semaphores can safely be destroyed
             // this shouldn't have a major impact on performance as this submission doesn't depend on anything and should complete immediatly
             // Also this is such a strange position that this code shouldn't really run in any "real" program
-            let wait_result = unsafe {
-                self.inner
-                    .device
-                    .wait_for_fences(&[**self.inner.fence], true, !0)
-            };
+            // let wait_result = unsafe {
+            //     self.inner
+            //         .device
+            //         .wait_for_fences(&[**self.inner.fence], true, !0)
+            // };
 
-            match wait_result {
-                Ok(_) => (),
-                Err(e) => return Err(e.into()),
-            }
+            // match wait_result {
+            //     Ok(_) => (),
+            //     Err(e) => return Err(e.into()),
+            // }
 
-            let reset_result = unsafe { self.inner.device.reset_fences(&[**self.inner.fence]) };
+            // let reset_result = unsafe { self.inner.device.reset_fences(&[**self.inner.fence]) };
 
-            match reset_result {
-                Ok(_) => (),
-                Err(e) => return Err(e.into()),
-            }
+            // match reset_result {
+            //     Ok(_) => (),
+            //     Err(e) => return Err(e.into()),
+            // }
         }
 
         let present_info = vk::PresentInfoKHR {
@@ -678,7 +773,7 @@ impl Swapchain {
             p_swapchains: self.inner.raw.as_ptr(),
             swapchain_count: 1,
             p_wait_semaphores: Arc::as_ptr(
-                &self.inner.rendering_complete_semaphores[view.signal_semaphore],
+                &self.inner.sync.rendering_complete_semaphores[view.signal_semaphore],
             ),
             wait_semaphore_count: 1,
             p_results: ptr::null_mut(),
@@ -709,19 +804,19 @@ impl Swapchain {
 
 impl Drop for SwapchainInner {
     fn drop(&mut self) {
-        let fence = unsafe { Md::take(&mut self.fence) };
-        if let Ok(fence) = Arc::try_unwrap(fence) {
-            unsafe {
-                self.device.destroy_fence(fence, None);
-            }
-        }
+        // let fence = unsafe { Md::take(&mut self.fence) };
+        // if let Ok(fence) = Arc::try_unwrap(fence) {
+        //     unsafe {
+        //         self.device.destroy_fence(fence, None);
+        //     }
+        // }
 
         let swapchain = unsafe { Md::take(&mut self.raw) };
         if let Ok(swapchain) = Arc::try_unwrap(swapchain) {
             unsafe { self.utils.device.destroy_swapchain(swapchain.get(), None) }
         }        
 
-        for semaphore in self.acquire_complete_semaphores.drain(..) {
+        for semaphore in self.sync.acquire_complete_semaphores.drain(..) {
             if let Ok(semaphore) = Arc::try_unwrap(semaphore) {
                 unsafe {
                     self.device.destroy_semaphore(semaphore, None);
@@ -729,7 +824,7 @@ impl Drop for SwapchainInner {
             }
         }
 
-        for semaphore in self.rendering_complete_semaphores.drain(..) {
+        for semaphore in self.sync.rendering_complete_semaphores.drain(..) {
             if let Ok(semaphore) = Arc::try_unwrap(semaphore) {
                 unsafe {
                     self.device.destroy_semaphore(semaphore, None);

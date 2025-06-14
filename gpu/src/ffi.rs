@@ -21,30 +21,30 @@ pub(crate) unsafe extern "system" fn vulkan_debug_utils_callback(
     match message_severity {
         vk::DebugUtilsMessageSeverityFlagsEXT::ERROR => {
             #[cfg(feature = "logging")]
-            log::error!("GPU VALIDATION {:?}", message);
+            log::error!("GPU VALIDATION {}", message);
             #[cfg(not(feature = "logging"))]
-            eprintln!("GPU VALIDATION {:?}", message);
+            eprintln!("GPU VALIDATION {}", message);
 
             let mut error = raw_device.error.write();
             error.push(message.to_string());
         }
         vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE => {
             #[cfg(feature = "logging")]
-            log::trace!("GPU VALIDATION {} {:?}", ty, message);
+            log::trace!("GPU VALIDATION {} {}", ty, message);
             #[cfg(not(feature = "logging"))]
-            eprintln!("GPU VALIDATION {} {:?}", ty, message);
+            eprintln!("GPU VALIDATION {} {}", ty, message);
         }
         vk::DebugUtilsMessageSeverityFlagsEXT::WARNING => {
             #[cfg(feature = "logging")]
-            log::warn!("GPU VALIDATION {} {:?}", ty, message);
+            log::warn!("GPU VALIDATION {} {}", ty, message);
             #[cfg(not(feature = "logging"))]
-            eprintln!("GPU VALIDATION {} {:?}", ty, message);
+            eprintln!("GPU VALIDATION {} {}", ty, message);
         }
         vk::DebugUtilsMessageSeverityFlagsEXT::INFO => {
             #[cfg(feature = "logging")]
             log::info!("GPU VALIDATION {} {:?}", ty, message);
             #[cfg(not(feature = "logging"))]
-            eprintln!("GPU VALIDATION {} {:?}", ty, message);
+            eprintln!("GPU VALIDATION {} {}", ty, message);
         }
         _ => (),
     }
@@ -55,21 +55,18 @@ pub(crate) unsafe extern "system" fn vulkan_debug_utils_callback(
 }
 
 #[cfg(target_os = "macos")]
-fn required_extension_names() -> Vec<&'static CStr> {
-    vec![ash::extensions::mvk::MacOSSurface::name()]
+fn required_instance_extension_names() -> Vec<&'static CStr> {
+    vec![ash::extensions::mvk::macos_surface::NAME]
 }
 
 #[cfg(windows)]
-fn required_extension_names() -> Vec<&'static CStr> {
-    vec![ash::extensions::khr::Win32Surface::name()]
+fn required_instance_extension_names() -> Vec<&'static CStr> {
+    vec![ash::extensions::khr::win32_surface::NAME]
 }
 
 #[cfg(target_os = "linux")]
-fn required_extension_names() -> Vec<&'static CStr> {
+fn required_instance_extension_names() -> Vec<&'static CStr> {
     vec![
-        // ash::extensions::khr::XlibSurface::name(),
-        // ash::extensions::khr::XcbSurface::name(),
-        // ash::extensions::khr::WaylandSurface::name(),
         ash::khr::xlib_surface::NAME,
         ash::khr::xcb_surface::NAME,
         ash::khr::wayland_surface::NAME,
@@ -77,18 +74,30 @@ fn required_extension_names() -> Vec<&'static CStr> {
 }
 
 #[cfg(target_os = "android")]
-fn required_extension_names() -> Vec<&'static CStr> {
-    vec![ash::extensions::khr::AndroidSurface::name()]
+fn required_instance_extension_names() -> Vec<&'static CStr> {
+    vec![ash::khr::AndroidSurface::name()]
 }
 
-pub(crate) fn extension_names() -> Vec<&'static CStr> {
-    let mut v = required_extension_names();
+pub(crate) fn instance_extension_names() -> Vec<&'static CStr> {
+    let mut v = required_instance_extension_names();
     v.push(ash::khr::surface::NAME);
-    v.push(ash::khr::swapchain::NAME);
+    // v.push(ash::khr::swapchain::NAME);
     // v.push(ash::extensions::ext::DebugUtils::name());
     // #[cfg(feature = "ray")]
     // v.push(ash::extensions::khr::ray_tracing::name());
     // #[cfg(feature = "mesh")]
     // v.push(ash::extensions::nv::MeshShader::name());
+    v
+}
+
+pub(crate) fn required_device_extension_names() -> Vec<&'static CStr> {
+    vec![]
+}
+
+pub(crate) fn device_extension_names(features: crate::DeviceFeatures) -> Vec<&'static CStr> {
+    let mut v = required_device_extension_names();
+    if features.contains(crate::DeviceFeatures::SWAPCHAIN) {
+        v.push(ash::khr::swapchain::NAME);
+    }
     v
 }
