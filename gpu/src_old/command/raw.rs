@@ -762,14 +762,14 @@ where
                     let wait_semaphore = **s
                         .inner
                         .sync
-                        .acquire_complete_semaphores
-                        .get(s.wait_semaphore)
+                        .present_complete_semaphores
+                        .get(s.semaphore_idx)
                         .unwrap();
                     let signal_semaphore = **s
                         .inner
                         .sync
                         .rendering_complete_semaphores
-                        .get(s.signal_semaphore)
+                        .get(s.semaphore_idx)
                         .unwrap();
                     swapchain = Some((wait_semaphore, signal_semaphore));
                     s.drawn.set(true);

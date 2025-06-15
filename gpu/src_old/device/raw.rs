@@ -3,14 +3,13 @@ use std::thread::ThreadId;
 use std::{collections::HashMap, mem::ManuallyDrop as Md, ptr, sync::Arc};
 
 use ash::vk;
+use ash::ext;
 use vk::Handle;
 
 use parking_lot::Mutex;
 use parking_lot::RwLock;
 
 use crate::error::*;
-
-use super::utils;
 
 pub(crate) struct RawDevice {
     /// Kinda ugly :(
@@ -28,9 +27,9 @@ pub(crate) struct RawDevice {
     pub limits: crate::DeviceLimits,
     pub instance: Md<Arc<ash::Instance>>,
 
-    pub debug_utils: Option<utils::DebugUtils>,
+    pub debug_device: Option<ext::debug_utils::Device>,
 
-    pub error: RwLock<Vec<String>>,
+    pub validation_errors: Arc<RwLock<Vec<String>>>,
 
     pub semaphores: Mutex<HashMap<ThreadId, Arc<vk::Semaphore>>>,
 }
@@ -46,8 +45,8 @@ impl std::ops::Deref for RawDevice {
 impl RawDevice {
     #[inline]
     pub fn check_errors(&self) -> Result<(), crate::Error> {
-        if self.debug_utils.is_some() {
-            let mut errors = self.error.write();
+        if self.debug_device.is_some() {
+            let mut errors = self.validation_errors.write();
             if errors.len() == 0 {
                 return Ok(());
             } else {
@@ -73,7 +72,8 @@ impl RawDevice {
         instance: Arc<ash::Instance>,
         features: crate::DeviceFeatures,
         limits: crate::DeviceLimits,
-        debug_utils: Option<utils::DebugUtils>,
+        debug_device: Option<ext::debug_utils::Device>,
+        validation_errors: Arc<RwLock<Vec<String>>>,
     ) -> Self {
         Self {
             framebuffers: RwLock::new(HashMap::new()),
@@ -83,8 +83,8 @@ impl RawDevice {
             limits,
             instance: Md::new(instance),
 
-            debug_utils,
-            error: RwLock::new(Vec::new()),
+            debug_device,
+            validation_errors,
 
             semaphores: Mutex::new(HashMap::new()),
         }
@@ -100,8 +100,8 @@ impl RawDevice {
     pub fn set_name(&self, obj: u64, ty: vk::ObjectType, name: &str) -> Result<(), Error> {
         let c = CString::new(name.to_string()).unwrap();
         unsafe {
-            if let Some(loader) = &self.debug_utils {
-                let result = loader.device.set_debug_utils_object_name(
+            if let Some(debug_device) = &self.debug_device {
+                let result = debug_device.set_debug_utils_object_name(
                     &vk::DebugUtilsObjectNameInfoEXT {
                         s_type: vk::StructureType::DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
                         p_next: ptr::null(),
@@ -261,6 +261,8 @@ impl RawDevice {
 impl Drop for RawDevice {
     fn drop(&mut self) {
         unsafe {
+            self.wait_idle().unwrap();
+
             for (_, semaphore) in self.semaphores.lock().drain() {
                 if let Ok(semaphore) = Arc::try_unwrap(semaphore) {
                     self.device.destroy_semaphore(semaphore, None);
@@ -272,8 +274,6 @@ impl Drop for RawDevice {
                     self.device.destroy_framebuffer(framebuffer, None);
                 }
             }
-
-            self.wait_idle().unwrap();
 
             self.device.destroy_device(None);
             let instance = Md::take(&mut self.instance);

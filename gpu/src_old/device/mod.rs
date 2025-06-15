@@ -6,7 +6,7 @@
 
 use std::cmp::Ordering;
 use std::collections::HashSet;
-use std::ffi::{c_void, CStr};
+use std::ffi::CStr;
 use std::mem::ManuallyDrop as Md;
 use std::ptr;
 use std::sync::Arc;
@@ -14,6 +14,7 @@ use std::sync::Mutex;
 
 use ash::vk;
 use vk::Handle;
+use ash::ext;
 
 use crate::error::*;
 
@@ -98,9 +99,6 @@ pub struct Device {
     pub(crate) semaphore: Md<Arc<vk::Semaphore>>,
     pub(crate) fence: vk::Fence,
     pub(crate) waiting_on_semaphore: Mutex<Option<Arc<vk::Semaphore>>>,
-    // for debugging + error catching
-    pub(crate) debug_utils: Option<utils::DebugUtils>,
-    pub(crate) debug_messenger: Option<vk::DebugUtilsMessengerEXT>,
     // drop the raw last
     pub(crate) raw: Arc<RawDevice>,
 }
@@ -116,12 +114,12 @@ impl Device {
         &self.raw.device
     }
 
-    pub unsafe fn raw_debug_instance<'a>(&'a self) -> Option<&'a ash::ext::debug_utils::Instance> {
-        self.raw.debug_utils.as_ref().map(|x| &x.instance)
-    }
+    // pub unsafe fn raw_debug_instance<'a>(&'a self) -> Option<&'a ash::ext::debug_utils::Instance> {
+    //     self.raw.debug_utils.as_ref().map(|x| &x.instance)
+    // }
 
-    pub unsafe fn raw_debug_device<'a>(&'a self) -> Option<&'a ash::ext::debug_utils::Device> {
-        self.raw.debug_utils.as_ref().map(|x| &x.device)
+    pub unsafe fn raw_debug_device<'a>(&'a self) -> Option<&'a ext::debug_utils::Device> {
+        self.raw.debug_device.as_ref()
     }
 }
 
@@ -139,18 +137,35 @@ impl Device {
         let (_enabled_layer_names, enabled_extensions) =
             Self::enabled_layers_extension(instance, physical, features)?;
 
-        let reset_features = vk::PhysicalDeviceHostQueryResetFeatures {
+        let mut reset_features = vk::PhysicalDeviceHostQueryResetFeatures {
             s_type: vk::StructureType::PHYSICAL_DEVICE_HOST_QUERY_RESET_FEATURES,
             p_next: ptr::null_mut(),
             host_query_reset: vk::TRUE,
             ..Default::default()
         };
 
-        let p_next = if features.contains(crate::DeviceFeatures::TIME_QUERIES) {
-            &reset_features as *const _ as *const _
+        let mut p_next = if features.contains(crate::DeviceFeatures::TIME_QUERIES) {
+            &mut reset_features as *mut _ as *mut _
         } else {
-            ptr::null()
+            ptr::null_mut()
         };
+
+        let mut swapchain_features = vk::PhysicalDeviceSwapchainMaintenance1FeaturesEXT {
+            s_type: vk::StructureType::PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT,
+            p_next: ptr::null_mut(),
+            swapchain_maintenance1: vk::TRUE,
+            ..Default::default()
+        };
+
+        p_next = if features.contains(crate::DeviceFeatures::SWAPCHAIN) {
+            swapchain_features.p_next = p_next;
+            &mut swapchain_features as *mut _ as *mut _
+        } else {
+            p_next
+        };
+
+        #[cfg(feature = "logging")]
+        log::info!("create vk::Device with {} extensions", enabled_extensions.len());
 
         let create_info = vk::DeviceCreateInfo {
             s_type: vk::StructureType::DEVICE_CREATE_INFO,
@@ -185,50 +200,28 @@ impl Device {
         let (command_pool, command_buffer, fence, semaphore) =
             Self::create_command(&raw, queue_info.queue_family_index)?;
 
-        let debug_utils = if instance.validation_layers.len() != 0 {
-            Some(DebugUtils::new(instance, &raw))
+        // let debug_utils = if instance.validation_layers.len() != 0 {
+        //     Some(DebugUtils::new(instance, &raw))
+        // } else {
+        //     None
+        // };
+
+        let debug_device = if instance.debug_utils.is_some() {
+            Some(ext::debug_utils::Device::new(&**instance.raw, &raw))
         } else {
             None
         };
 
-        let mut raw = Arc::new(RawDevice::new(
+        let raw = Arc::new(RawDevice::new(
             raw,
             Arc::clone(&instance.raw),
             features,
             info.limits,
-            debug_utils.clone(),
+            debug_device,
+            Arc::clone(&instance.validation_errors)
         ));
 
-        // TODO: not this, it works but there's no way this is defined behaviour
-        let p_user_data = Arc::get_mut(&mut raw).unwrap() as *mut RawDevice as *mut c_void;
-
-        let debug_messenger = if let Some(utils) = &debug_utils {
-            let debug_create_info = vk::DebugUtilsMessengerCreateInfoEXT {
-                s_type: vk::StructureType::DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-                p_next: ptr::null(),
-                flags: vk::DebugUtilsMessengerCreateFlagsEXT::empty(),
-                message_severity: vk::DebugUtilsMessageSeverityFlagsEXT::WARNING
-                    | vk::DebugUtilsMessageSeverityFlagsEXT::VERBOSE
-                    | vk::DebugUtilsMessageSeverityFlagsEXT::INFO
-                    | vk::DebugUtilsMessageSeverityFlagsEXT::ERROR,
-                message_type: vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
-                    | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE
-                    | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION,
-                pfn_user_callback: Some(crate::ffi::vulkan_debug_utils_callback),
-                p_user_data,
-                ..Default::default()
-            };
-
-            let result = unsafe { utils.instance.create_debug_utils_messenger(&debug_create_info, None) };
-
-            let messenger = match result {
-                Ok(m) => m,
-                Err(e) => return Err(e.into()),
-            };
-            Some(messenger)
-        } else {
-            None
-        };
+        raw.check_errors()?;
 
         Ok(Self {
             raw,
@@ -241,8 +234,6 @@ impl Device {
             semaphore: Md::new(Arc::new(semaphore)),
             fence,
             waiting_on_semaphore: Mutex::new(None),
-            debug_utils,
-            debug_messenger,
         })
     }
 
@@ -480,6 +471,8 @@ impl Device {
             .iter()
             .filter_map(|&n| {
                 if available_extension_set.contains(n) {
+                    #[cfg(feature = "logging")]
+                    log::info!("gpu::Device use extension {:?}", n);
                     Some(n.as_ptr())
                 } else {
                     #[cfg(feature = "logging")]
@@ -655,9 +648,7 @@ impl Device {
 impl Drop for Device {
     fn drop(&mut self) {
         unsafe {
-            if let Some(utils) = self.debug_utils.take() {
-                utils.instance.destroy_debug_utils_messenger(self.debug_messenger.unwrap(), None);
-            }
+            self.raw.wait_idle().unwrap();
             self.raw.destroy_command_pool(self.command_pool, None);
             let semaphore = Md::take(&mut self.semaphore);
             if let Ok(semaphore) = Arc::try_unwrap(semaphore) {

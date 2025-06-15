@@ -1,7 +1,5 @@
 //! Interoperability types for converting to-from vulkan types
 
-use crate::DescType;
-
 use std::{borrow::Cow, num::NonZeroU32};
 
 use ash::vk;
@@ -62,8 +60,6 @@ bitflags::bitflags! {
         const BASE = Self::GRAPHICS.bits() | Self::COMPUTE.bits() | Self::TRANSFER.bits() | Self::SWAPCHAIN.bits();
     }
 }
-
-crate::impl_desc_type_primative!(DeviceFeatures,);
 
 impl Into<vk::PhysicalDeviceFeatures> for DeviceFeatures {
     fn into(self) -> vk::PhysicalDeviceFeatures {
@@ -1782,262 +1778,262 @@ impl Into<vk::DescriptorPoolSize> for DescriptorLayoutEntry {
     }
 }
 
-// /// An entry to a DescriptorLayout
-// #[derive(Debug, Clone)]
-// pub enum DescriptorSetEntry<'a> {
-//     /// Write a buffer to this binding
-//     Buffer(crate::BufferSlice<'a>),
-//     /// Write an array of buffers to this binding
-//     BufferArray(Cow<'a, [crate::BufferSlice<'a>]>),
-//     /// write a texture to this binding
-//     Texture(Cow<'a, crate::TextureView>, crate::TextureLayout),
-//     /// write an array of textures to this binding
-//     TextureArray(Cow<'a, [(Cow<'a, crate::TextureView>, crate::TextureLayout)]>),
-//     /// write a sampler to this binding
-//     Sampler(Cow<'a, crate::Sampler>),
-//     /// write a sampler array to this binding
-//     SamplerArray(Cow<'a, [Cow<'a, crate::Sampler>]>),
-//     /// write a combined texture/sampler to this binding
-//     CombinedTextureSampler(
-//         Cow<'a, crate::TextureView>,
-//         crate::TextureLayout,
-//         Cow<'a, crate::Sampler>,
-//     ),
-//     /// write an array of combined texture/samplers to this binding
-//     CombinedTextureSamplerArray(
-//         Cow<
-//             'a,
-//             [(
-//                 Cow<'a, crate::TextureView>,
-//                 crate::TextureLayout,
-//                 Cow<'a, crate::Sampler>,
-//             )],
-//         >,
-//     ),
-// }
+/// An entry to a DescriptorLayout
+#[derive(Debug, Clone)]
+pub enum DescriptorSetEntry<'a> {
+    /// Write a buffer to this binding
+    Buffer(crate::BufferSlice<'a>),
+    /// Write an array of buffers to this binding
+    BufferArray(Cow<'a, [crate::BufferSlice<'a>]>),
+    /// write a texture to this binding
+    Texture(Cow<'a, crate::TextureView>, crate::TextureLayout),
+    /// write an array of textures to this binding
+    TextureArray(Cow<'a, [(Cow<'a, crate::TextureView>, crate::TextureLayout)]>),
+    /// write a sampler to this binding
+    Sampler(Cow<'a, crate::Sampler>),
+    /// write a sampler array to this binding
+    SamplerArray(Cow<'a, [Cow<'a, crate::Sampler>]>),
+    /// write a combined texture/sampler to this binding
+    CombinedTextureSampler(
+        Cow<'a, crate::TextureView>,
+        crate::TextureLayout,
+        Cow<'a, crate::Sampler>,
+    ),
+    /// write an array of combined texture/samplers to this binding
+    CombinedTextureSamplerArray(
+        Cow<
+            'a,
+            [(
+                Cow<'a, crate::TextureView>,
+                crate::TextureLayout,
+                Cow<'a, crate::Sampler>,
+            )],
+        >,
+    ),
+}
 
-// impl<'a> DescriptorSetEntry<'a> {
-//     pub fn into_owned(self) -> DescriptorSetEntry<'static> {
-//         match self {
-//             DescriptorSetEntry::Buffer(b) => DescriptorSetEntry::Buffer(b.as_owned()),
-//             DescriptorSetEntry::BufferArray(b) => {
-//                 DescriptorSetEntry::BufferArray(b.into_iter().map(|a| a.as_owned()).collect())
-//             }
-//             DescriptorSetEntry::Texture(t, l) => {
-//                 DescriptorSetEntry::Texture(Cow::Owned(t.clone().into_owned()), l)
-//             }
-//             DescriptorSetEntry::TextureArray(t) => DescriptorSetEntry::TextureArray(
-//                 t.into_iter()
-//                     .map(|(t, l)| (Cow::Owned(t.clone().into_owned()), *l))
-//                     .collect(),
-//             ),
-//             DescriptorSetEntry::Sampler(s) => {
-//                 DescriptorSetEntry::Sampler(Cow::Owned(s.clone().into_owned()))
-//             }
-//             DescriptorSetEntry::SamplerArray(s) => DescriptorSetEntry::SamplerArray(
-//                 s.into_iter()
-//                     .map(|s| Cow::Owned(s.clone().into_owned()))
-//                     .collect(),
-//             ),
-//             DescriptorSetEntry::CombinedTextureSampler(t, l, s) => {
-//                 DescriptorSetEntry::CombinedTextureSampler(
-//                     Cow::Owned(t.clone().into_owned()),
-//                     l,
-//                     Cow::Owned(s.clone().into_owned()),
-//                 )
-//             }
-//             DescriptorSetEntry::CombinedTextureSamplerArray(a) => {
-//                 DescriptorSetEntry::CombinedTextureSamplerArray(
-//                     a.into_iter()
-//                         .map(|(t, l, s)| {
-//                             (
-//                                 Cow::Owned(t.clone().into_owned()),
-//                                 *l,
-//                                 Cow::Owned(s.clone().into_owned()),
-//                             )
-//                         })
-//                         .collect(),
-//                 )
-//             }
-//         }
-//     }
+impl<'a> DescriptorSetEntry<'a> {
+    pub fn into_owned(self) -> DescriptorSetEntry<'static> {
+        match self {
+            DescriptorSetEntry::Buffer(b) => DescriptorSetEntry::Buffer(b.as_owned()),
+            DescriptorSetEntry::BufferArray(b) => {
+                DescriptorSetEntry::BufferArray(b.into_iter().map(|a| a.as_owned()).collect())
+            }
+            DescriptorSetEntry::Texture(t, l) => {
+                DescriptorSetEntry::Texture(Cow::Owned(t.clone().into_owned()), l)
+            }
+            DescriptorSetEntry::TextureArray(t) => DescriptorSetEntry::TextureArray(
+                t.into_iter()
+                    .map(|(t, l)| (Cow::Owned(t.clone().into_owned()), *l))
+                    .collect(),
+            ),
+            DescriptorSetEntry::Sampler(s) => {
+                DescriptorSetEntry::Sampler(Cow::Owned(s.clone().into_owned()))
+            }
+            DescriptorSetEntry::SamplerArray(s) => DescriptorSetEntry::SamplerArray(
+                s.into_iter()
+                    .map(|s| Cow::Owned(s.clone().into_owned()))
+                    .collect(),
+            ),
+            DescriptorSetEntry::CombinedTextureSampler(t, l, s) => {
+                DescriptorSetEntry::CombinedTextureSampler(
+                    Cow::Owned(t.clone().into_owned()),
+                    l,
+                    Cow::Owned(s.clone().into_owned()),
+                )
+            }
+            DescriptorSetEntry::CombinedTextureSamplerArray(a) => {
+                DescriptorSetEntry::CombinedTextureSamplerArray(
+                    a.into_iter()
+                        .map(|(t, l, s)| {
+                            (
+                                Cow::Owned(t.clone().into_owned()),
+                                *l,
+                                Cow::Owned(s.clone().into_owned()),
+                            )
+                        })
+                        .collect(),
+                )
+            }
+        }
+    }
 
-//     pub fn as_owned(&self) -> DescriptorSetEntry<'static> {
-//         match self {
-//             DescriptorSetEntry::Buffer(b) => DescriptorSetEntry::Buffer(b.as_owned()),
-//             DescriptorSetEntry::BufferArray(b) => {
-//                 DescriptorSetEntry::BufferArray(b.into_iter().map(|a| a.as_owned()).collect())
-//             }
-//             DescriptorSetEntry::Texture(t, l) => {
-//                 DescriptorSetEntry::Texture(Cow::Owned(t.clone().into_owned()), *l)
-//             }
-//             DescriptorSetEntry::TextureArray(t) => DescriptorSetEntry::TextureArray(
-//                 t.into_iter()
-//                     .map(|(t, l)| (Cow::Owned(t.clone().into_owned()), *l))
-//                     .collect(),
-//             ),
-//             DescriptorSetEntry::Sampler(s) => {
-//                 DescriptorSetEntry::Sampler(Cow::Owned(s.clone().into_owned()))
-//             }
-//             DescriptorSetEntry::SamplerArray(s) => DescriptorSetEntry::SamplerArray(
-//                 s.into_iter()
-//                     .map(|s| Cow::Owned(s.clone().into_owned()))
-//                     .collect(),
-//             ),
-//             DescriptorSetEntry::CombinedTextureSampler(t, l, s) => {
-//                 DescriptorSetEntry::CombinedTextureSampler(
-//                     Cow::Owned(t.clone().into_owned()),
-//                     *l,
-//                     Cow::Owned(s.clone().into_owned()),
-//                 )
-//             }
-//             DescriptorSetEntry::CombinedTextureSamplerArray(a) => {
-//                 DescriptorSetEntry::CombinedTextureSamplerArray(
-//                     a.into_iter()
-//                         .map(|(t, l, s)| {
-//                             (
-//                                 Cow::Owned(t.clone().into_owned()),
-//                                 *l,
-//                                 Cow::Owned(s.clone().into_owned()),
-//                             )
-//                         })
-//                         .collect(),
-//                 )
-//             }
-//         }
-//     }
+    pub fn as_owned(&self) -> DescriptorSetEntry<'static> {
+        match self {
+            DescriptorSetEntry::Buffer(b) => DescriptorSetEntry::Buffer(b.as_owned()),
+            DescriptorSetEntry::BufferArray(b) => {
+                DescriptorSetEntry::BufferArray(b.into_iter().map(|a| a.as_owned()).collect())
+            }
+            DescriptorSetEntry::Texture(t, l) => {
+                DescriptorSetEntry::Texture(Cow::Owned(t.clone().into_owned()), *l)
+            }
+            DescriptorSetEntry::TextureArray(t) => DescriptorSetEntry::TextureArray(
+                t.into_iter()
+                    .map(|(t, l)| (Cow::Owned(t.clone().into_owned()), *l))
+                    .collect(),
+            ),
+            DescriptorSetEntry::Sampler(s) => {
+                DescriptorSetEntry::Sampler(Cow::Owned(s.clone().into_owned()))
+            }
+            DescriptorSetEntry::SamplerArray(s) => DescriptorSetEntry::SamplerArray(
+                s.into_iter()
+                    .map(|s| Cow::Owned(s.clone().into_owned()))
+                    .collect(),
+            ),
+            DescriptorSetEntry::CombinedTextureSampler(t, l, s) => {
+                DescriptorSetEntry::CombinedTextureSampler(
+                    Cow::Owned(t.clone().into_owned()),
+                    *l,
+                    Cow::Owned(s.clone().into_owned()),
+                )
+            }
+            DescriptorSetEntry::CombinedTextureSamplerArray(a) => {
+                DescriptorSetEntry::CombinedTextureSamplerArray(
+                    a.into_iter()
+                        .map(|(t, l, s)| {
+                            (
+                                Cow::Owned(t.clone().into_owned()),
+                                *l,
+                                Cow::Owned(s.clone().into_owned()),
+                            )
+                        })
+                        .collect(),
+                )
+            }
+        }
+    }
 
-//     /// Create a buffer entry from a reference to a buffer
-//     #[inline]
-//     pub fn buffer(buffer: crate::BufferSlice<'a>) -> Self {
-//         Self::Buffer(buffer)
-//     }
+    /// Create a buffer entry from a reference to a buffer
+    #[inline]
+    pub fn buffer(buffer: crate::BufferSlice<'a>) -> Self {
+        Self::Buffer(buffer)
+    }
 
-//     /// Create a buffer array entry from references to buffers
-//     #[inline]
-//     pub fn buffer_array_ref(buffers: &'a [crate::BufferSlice<'a>]) -> Self {
-//         Self::BufferArray(Cow::Borrowed(buffers))
-//     }
+    /// Create a buffer array entry from references to buffers
+    #[inline]
+    pub fn buffer_array_ref(buffers: &'a [crate::BufferSlice<'a>]) -> Self {
+        Self::BufferArray(Cow::Borrowed(buffers))
+    }
 
-//     /// Create a buffer array entry from buffers
-//     #[inline]
-//     pub fn buffer_array_owned(buffers: Vec<crate::BufferSlice<'a>>) -> Self {
-//         let buffers = buffers.into_iter().map(|b| b).collect::<Vec<_>>();
-//         Self::BufferArray(Cow::Owned(buffers))
-//     }
+    /// Create a buffer array entry from buffers
+    #[inline]
+    pub fn buffer_array_owned(buffers: Vec<crate::BufferSlice<'a>>) -> Self {
+        let buffers = buffers.into_iter().map(|b| b).collect::<Vec<_>>();
+        Self::BufferArray(Cow::Owned(buffers))
+    }
 
-//     /// Create a texture entry from a reference to a texture
-//     #[inline]
-//     pub fn texture_ref(texture: &'a crate::TextureView, layout: crate::TextureLayout) -> Self {
-//         Self::Texture(Cow::Borrowed(texture), layout)
-//     }
+    /// Create a texture entry from a reference to a texture
+    #[inline]
+    pub fn texture_ref(texture: &'a crate::TextureView, layout: crate::TextureLayout) -> Self {
+        Self::Texture(Cow::Borrowed(texture), layout)
+    }
 
-//     /// Create a texture entry from a texture
-//     #[inline]
-//     pub fn texture_owned(texture: crate::TextureView, layout: crate::TextureLayout) -> Self {
-//         Self::Texture(Cow::Owned(texture), layout)
-//     }
+    /// Create a texture entry from a texture
+    #[inline]
+    pub fn texture_owned(texture: crate::TextureView, layout: crate::TextureLayout) -> Self {
+        Self::Texture(Cow::Owned(texture), layout)
+    }
 
-//     /// Create a texture array entry from references to textures
-//     #[inline]
-//     pub fn texture_array_ref(textures: &[(&'a crate::TextureView, crate::TextureLayout)]) -> Self {
-//         let textures = textures
-//             .iter()
-//             .map(|&(t, l)| (Cow::Borrowed(t), l))
-//             .collect::<Vec<_>>();
-//         Self::TextureArray(Cow::Owned(textures))
-//     }
+    /// Create a texture array entry from references to textures
+    #[inline]
+    pub fn texture_array_ref(textures: &[(&'a crate::TextureView, crate::TextureLayout)]) -> Self {
+        let textures = textures
+            .iter()
+            .map(|&(t, l)| (Cow::Borrowed(t), l))
+            .collect::<Vec<_>>();
+        Self::TextureArray(Cow::Owned(textures))
+    }
 
-//     /// Create a texture array entry from textures
-//     #[inline]
-//     pub fn texture_array_owned(textures: Vec<(crate::TextureView, crate::TextureLayout)>) -> Self {
-//         let textures = textures
-//             .into_iter()
-//             .map(|(t, l)| (Cow::Owned(t), l))
-//             .collect::<Vec<_>>();
-//         Self::TextureArray(Cow::Owned(textures))
-//     }
+    /// Create a texture array entry from textures
+    #[inline]
+    pub fn texture_array_owned(textures: Vec<(crate::TextureView, crate::TextureLayout)>) -> Self {
+        let textures = textures
+            .into_iter()
+            .map(|(t, l)| (Cow::Owned(t), l))
+            .collect::<Vec<_>>();
+        Self::TextureArray(Cow::Owned(textures))
+    }
 
-//     /// Create a sampler entry from a reference to a sampler
-//     #[inline]
-//     pub fn sampler_ref(sampler: &'a crate::Sampler) -> Self {
-//         Self::Sampler(Cow::Borrowed(sampler))
-//     }
+    /// Create a sampler entry from a reference to a sampler
+    #[inline]
+    pub fn sampler_ref(sampler: &'a crate::Sampler) -> Self {
+        Self::Sampler(Cow::Borrowed(sampler))
+    }
 
-//     /// Create a sampler entry from a sampler
-//     #[inline]
-//     pub fn sampler_owned(sampler: crate::Sampler) -> Self {
-//         Self::Sampler(Cow::Owned(sampler))
-//     }
+    /// Create a sampler entry from a sampler
+    #[inline]
+    pub fn sampler_owned(sampler: crate::Sampler) -> Self {
+        Self::Sampler(Cow::Owned(sampler))
+    }
 
-//     /// Create a sampler array entry from references to samplers
-//     #[inline]
-//     pub fn sampler_array_ref(samplers: &[&'a crate::Sampler]) -> Self {
-//         let samplers = samplers
-//             .iter()
-//             .map(|&s| Cow::Borrowed(s))
-//             .collect::<Vec<_>>();
-//         Self::SamplerArray(Cow::Owned(samplers))
-//     }
+    /// Create a sampler array entry from references to samplers
+    #[inline]
+    pub fn sampler_array_ref(samplers: &[&'a crate::Sampler]) -> Self {
+        let samplers = samplers
+            .iter()
+            .map(|&s| Cow::Borrowed(s))
+            .collect::<Vec<_>>();
+        Self::SamplerArray(Cow::Owned(samplers))
+    }
 
-//     /// Create a sampler array entry from samplers
-//     #[inline]
-//     pub fn sampler_array_owned(samplers: Vec<crate::Sampler>) -> Self {
-//         let samplers = samplers
-//             .into_iter()
-//             .map(|s| Cow::Owned(s))
-//             .collect::<Vec<_>>();
-//         Self::SamplerArray(Cow::Owned(samplers))
-//     }
+    /// Create a sampler array entry from samplers
+    #[inline]
+    pub fn sampler_array_owned(samplers: Vec<crate::Sampler>) -> Self {
+        let samplers = samplers
+            .into_iter()
+            .map(|s| Cow::Owned(s))
+            .collect::<Vec<_>>();
+        Self::SamplerArray(Cow::Owned(samplers))
+    }
 
-//     /// Create a combined texture sampler entry from references
-//     #[inline]
-//     pub fn combined_texture_sampler_ref(
-//         texture: &'a crate::TextureView,
-//         layout: crate::TextureLayout,
-//         sampler: &'a crate::Sampler,
-//     ) -> Self {
-//         Self::CombinedTextureSampler(Cow::Borrowed(texture), layout, Cow::Borrowed(sampler))
-//     }
+    /// Create a combined texture sampler entry from references
+    #[inline]
+    pub fn combined_texture_sampler_ref(
+        texture: &'a crate::TextureView,
+        layout: crate::TextureLayout,
+        sampler: &'a crate::Sampler,
+    ) -> Self {
+        Self::CombinedTextureSampler(Cow::Borrowed(texture), layout, Cow::Borrowed(sampler))
+    }
 
-//     /// Create a combined texture sampler entry from values
-//     #[inline]
-//     pub fn combined_texture_sampler_owned(
-//         texture: crate::TextureView,
-//         layout: crate::TextureLayout,
-//         sampler: crate::Sampler,
-//     ) -> Self {
-//         Self::CombinedTextureSampler(Cow::Owned(texture), layout, Cow::Owned(sampler))
-//     }
+    /// Create a combined texture sampler entry from values
+    #[inline]
+    pub fn combined_texture_sampler_owned(
+        texture: crate::TextureView,
+        layout: crate::TextureLayout,
+        sampler: crate::Sampler,
+    ) -> Self {
+        Self::CombinedTextureSampler(Cow::Owned(texture), layout, Cow::Owned(sampler))
+    }
 
-//     /// Create a combined texture sampler entry from references
-//     #[inline]
-//     pub fn combined_texture_sampler_array_ref(
-//         refs: &[(
-//             &'a crate::TextureView,
-//             crate::TextureLayout,
-//             &'a crate::Sampler,
-//         )],
-//     ) -> Self {
-//         let result = refs
-//             .iter()
-//             .map(|&(t, l, s)| (Cow::Borrowed(t), l, Cow::Borrowed(s)))
-//             .collect::<Vec<_>>();
-//         Self::CombinedTextureSamplerArray(Cow::Owned(result))
-//     }
+    /// Create a combined texture sampler entry from references
+    #[inline]
+    pub fn combined_texture_sampler_array_ref(
+        refs: &[(
+            &'a crate::TextureView,
+            crate::TextureLayout,
+            &'a crate::Sampler,
+        )],
+    ) -> Self {
+        let result = refs
+            .iter()
+            .map(|&(t, l, s)| (Cow::Borrowed(t), l, Cow::Borrowed(s)))
+            .collect::<Vec<_>>();
+        Self::CombinedTextureSamplerArray(Cow::Owned(result))
+    }
 
-//     /// Create a combined texture sampler entry from references
-//     #[inline]
-//     pub fn combined_texture_sampler_array_owned(
-//         refs: Vec<(crate::TextureView, crate::TextureLayout, crate::Sampler)>,
-//     ) -> Self {
-//         let result = refs
-//             .into_iter()
-//             .map(|(t, l, s)| (Cow::Owned(t), l, Cow::Owned(s)))
-//             .collect::<Vec<_>>();
-//         Self::CombinedTextureSamplerArray(Cow::Owned(result))
-//     }
-// }
+    /// Create a combined texture sampler entry from references
+    #[inline]
+    pub fn combined_texture_sampler_array_owned(
+        refs: Vec<(crate::TextureView, crate::TextureLayout, crate::Sampler)>,
+    ) -> Self {
+        let result = refs
+            .into_iter()
+            .map(|(t, l, s)| (Cow::Owned(t), l, Cow::Owned(s)))
+            .collect::<Vec<_>>();
+        Self::CombinedTextureSamplerArray(Cow::Owned(result))
+    }
+}
 
 bitflags::bitflags! {
     #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
@@ -2199,626 +2195,626 @@ pub type Size = u32;
 /// Represents the number of array layers
 pub type Layer = u32;
 
-// /// More representitive of how texture dimensions are represented in vulkan
-// #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
-// #[allow(missing_docs)]
-// pub enum TextureKind {
-//     D1,
-//     D2,
-//     D3,
-// }
+/// More representitive of how texture dimensions are represented in vulkan
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+#[allow(missing_docs)]
+pub enum TextureKind {
+    D1,
+    D2,
+    D3,
+}
 
-// impl Into<vk::ImageType> for TextureKind {
-//     fn into(self) -> vk::ImageType {
-//         match self {
-//             Self::D1 => vk::ImageType::TYPE_1D,
-//             Self::D2 => vk::ImageType::TYPE_2D,
-//             Self::D3 => vk::ImageType::TYPE_3D,
-//         }
-//     }
-// }
+impl Into<vk::ImageType> for TextureKind {
+    fn into(self) -> vk::ImageType {
+        match self {
+            Self::D1 => vk::ImageType::TYPE_1D,
+            Self::D2 => vk::ImageType::TYPE_2D,
+            Self::D3 => vk::ImageType::TYPE_3D,
+        }
+    }
+}
 
-// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-// #[allow(missing_docs)]
-// pub struct TextureFormatProperties {
-//     pub max_extent: Extent3D,
-//     pub max_mip_levels: u32,
-//     pub sample_counts: SampleCountFlags,
-//     pub max_array_layers: u32,
-// }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct TextureFormatProperties {
+    pub max_extent: Extent3D,
+    pub max_mip_levels: u32,
+    pub sample_counts: SampleCountFlags,
+    pub max_array_layers: u32,
+}
 
-// impl From<vk::ImageFormatProperties> for TextureFormatProperties {
-//     fn from(p: vk::ImageFormatProperties) -> Self {
-//         Self {
-//             max_extent: p.max_extent.into(),
-//             max_mip_levels: p.max_mip_levels,
-//             max_array_layers: p.max_array_layers,
-//             sample_counts: p.sample_counts,
-//         }
-//     }
-// }
+impl From<vk::ImageFormatProperties> for TextureFormatProperties {
+    fn from(p: vk::ImageFormatProperties) -> Self {
+        Self {
+            max_extent: p.max_extent.into(),
+            max_mip_levels: p.max_mip_levels,
+            max_array_layers: p.max_array_layers,
+            sample_counts: p.sample_counts,
+        }
+    }
+}
 
-// /// Describes the dimension of a texture
-// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-// pub enum TextureDimension {
-//     /// 1 dimensional image with Size number of pixels
-//     D1(Size),
-//     /// 1 dimensional image with Size number of pixels and Layer number of layers
-//     D1Array(Size, Layer),
-//     /// 2 dimensional image of Size x Size pixels
-//     D2(Size, Size, Samples),
-//     /// 2 dimensional image of Size x Size pixels and Layer number of layers
-//     D2Array(Size, Size, Samples, Layer),
-//     /// Cube image with each face of Size x Size pixels
-//     Cube(Size),
-//     /// Cube image with each face of Size x Size pixels and Layer number of layers
-//     CubeArray(Size, Layer),
-//     // Cube image with each face of Size x Size and multisampling support
-//     //CubeMs(Size, Size, Samples),
-//     // Cube image with each face of Size x Size and Layer number of layers and multisampling support
-//     //CubeArrayMs(Size, Size, Layer, Samples),
-//     /// 3 dimensions image with Size x Size x Size dimensions
-//     D3(Size, Size, Size),
-// }
+/// Describes the dimension of a texture
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum TextureDimension {
+    /// 1 dimensional image with Size number of pixels
+    D1(Size),
+    /// 1 dimensional image with Size number of pixels and Layer number of layers
+    D1Array(Size, Layer),
+    /// 2 dimensional image of Size x Size pixels
+    D2(Size, Size, Samples),
+    /// 2 dimensional image of Size x Size pixels and Layer number of layers
+    D2Array(Size, Size, Samples, Layer),
+    /// Cube image with each face of Size x Size pixels
+    Cube(Size),
+    /// Cube image with each face of Size x Size pixels and Layer number of layers
+    CubeArray(Size, Layer),
+    // Cube image with each face of Size x Size and multisampling support
+    //CubeMs(Size, Size, Samples),
+    // Cube image with each face of Size x Size and Layer number of layers and multisampling support
+    //CubeArrayMs(Size, Size, Layer, Samples),
+    /// 3 dimensions image with Size x Size x Size dimensions
+    D3(Size, Size, Size),
+}
 
-// impl TextureDimension {
-//     /// Get the number of array layers in the dimension
-//     pub fn layers(&self) -> Layer {
-//         match self {
-//             TextureDimension::D1Array(_, l) => *l,
-//             TextureDimension::D2Array(_, _, _, l) => *l,
-//             TextureDimension::Cube(_) => 6,
-//             TextureDimension::CubeArray(_, l) => 6 * *l,
-//             //TextureDimension::CubeMs(_, _, _) => 6,
-//             //TextureDimension::CubeArrayMs(_, _, l, _) => 6 * *l,
-//             _ => 1,
-//         }
-//     }
+impl TextureDimension {
+    /// Get the number of array layers in the dimension
+    pub fn layers(&self) -> Layer {
+        match self {
+            TextureDimension::D1Array(_, l) => *l,
+            TextureDimension::D2Array(_, _, _, l) => *l,
+            TextureDimension::Cube(_) => 6,
+            TextureDimension::CubeArray(_, l) => 6 * *l,
+            //TextureDimension::CubeMs(_, _, _) => 6,
+            //TextureDimension::CubeArrayMs(_, _, l, _) => 6 * *l,
+            _ => 1,
+        }
+    }
 
-//     /// Get the number of samples in the dimension
-//     pub fn samples(&self) -> Samples {
-//         match self {
-//             TextureDimension::D2(_, _, s) => *s,
-//             TextureDimension::D2Array(_, _, s, _) => *s,
-//             //TextureDimension::CubeMs(_, _, s) => *s,
-//             //TextureDimension::CubeArrayMs(_, _, _, s) => *s,
-//             _ => Samples::S1,
-//         }
-//     }
+    /// Get the number of samples in the dimension
+    pub fn samples(&self) -> Samples {
+        match self {
+            TextureDimension::D2(_, _, s) => *s,
+            TextureDimension::D2Array(_, _, s, _) => *s,
+            //TextureDimension::CubeMs(_, _, s) => *s,
+            //TextureDimension::CubeArrayMs(_, _, _, s) => *s,
+            _ => Samples::S1,
+        }
+    }
 
-//     /// Get the kind of the dimension
-//     pub fn kind(&self) -> TextureKind {
-//         match self {
-//             TextureDimension::D1(_) => TextureKind::D1,
-//             TextureDimension::D1Array(_, _) => TextureKind::D1,
-//             TextureDimension::D2(_, _, _) => TextureKind::D2,
-//             TextureDimension::D2Array(_, _, _, _) => TextureKind::D2,
-//             TextureDimension::Cube(_) => TextureKind::D2,
-//             TextureDimension::CubeArray(_, _) => TextureKind::D2,
-//             //TextureDimension::CubeMs(_, _, _) => TextureKind::D2,
-//             //TextureDimension::CubeArrayMs(_, _, _, _) => TextureKind::D2,
-//             TextureDimension::D3(_, _, _) => TextureKind::D3,
-//         }
-//     }
+    /// Get the kind of the dimension
+    pub fn kind(&self) -> TextureKind {
+        match self {
+            TextureDimension::D1(_) => TextureKind::D1,
+            TextureDimension::D1Array(_, _) => TextureKind::D1,
+            TextureDimension::D2(_, _, _) => TextureKind::D2,
+            TextureDimension::D2Array(_, _, _, _) => TextureKind::D2,
+            TextureDimension::Cube(_) => TextureKind::D2,
+            TextureDimension::CubeArray(_, _) => TextureKind::D2,
+            //TextureDimension::CubeMs(_, _, _) => TextureKind::D2,
+            //TextureDimension::CubeArrayMs(_, _, _, _) => TextureKind::D2,
+            TextureDimension::D3(_, _, _) => TextureKind::D3,
+        }
+    }
 
-//     pub(crate) fn flags(&self) -> vk::ImageCreateFlags {
-//         match self {
-//             TextureDimension::D2Array(_, _, _, _) => vk::ImageCreateFlags::TYPE_2D_ARRAY_COMPATIBLE,
-//             TextureDimension::Cube(_) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
-//             TextureDimension::CubeArray(_, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
-//             //TextureDimension::CubeMs(_, _, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
-//             //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
-//             TextureDimension::D3(_, _, _) => vk::ImageCreateFlags::TYPE_2D_ARRAY_COMPATIBLE,
-//             _ => vk::ImageCreateFlags::empty(),
-//         }
-//     }
-// }
+    pub(crate) fn flags(&self) -> vk::ImageCreateFlags {
+        match self {
+            TextureDimension::D2Array(_, _, _, _) => vk::ImageCreateFlags::TYPE_2D_ARRAY_COMPATIBLE,
+            TextureDimension::Cube(_) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
+            TextureDimension::CubeArray(_, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
+            //TextureDimension::CubeMs(_, _, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
+            //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
+            TextureDimension::D3(_, _, _) => vk::ImageCreateFlags::TYPE_2D_ARRAY_COMPATIBLE,
+            _ => vk::ImageCreateFlags::empty(),
+        }
+    }
+}
 
-// impl Into<vk::ImageType> for TextureDimension {
-//     fn into(self) -> vk::ImageType {
-//         match self {
-//             TextureDimension::D1(_) => vk::ImageType::TYPE_1D,
-//             TextureDimension::D1Array(_, _) => vk::ImageType::TYPE_1D,
-//             TextureDimension::D2(_, _, _) => vk::ImageType::TYPE_2D,
-//             TextureDimension::D2Array(_, _, _, _) => vk::ImageType::TYPE_2D,
-//             TextureDimension::Cube(_) => vk::ImageType::TYPE_2D,
-//             TextureDimension::CubeArray(_, _) => vk::ImageType::TYPE_2D,
-//             //TextureDimension::CubeMs(_, _, _) => vk::ImageType::TYPE_2D,
-//             //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageType::TYPE_2D,
-//             TextureDimension::D3(_, _, _) => vk::ImageType::TYPE_3D,
-//         }
-//     }
-// }
+impl Into<vk::ImageType> for TextureDimension {
+    fn into(self) -> vk::ImageType {
+        match self {
+            TextureDimension::D1(_) => vk::ImageType::TYPE_1D,
+            TextureDimension::D1Array(_, _) => vk::ImageType::TYPE_1D,
+            TextureDimension::D2(_, _, _) => vk::ImageType::TYPE_2D,
+            TextureDimension::D2Array(_, _, _, _) => vk::ImageType::TYPE_2D,
+            TextureDimension::Cube(_) => vk::ImageType::TYPE_2D,
+            TextureDimension::CubeArray(_, _) => vk::ImageType::TYPE_2D,
+            //TextureDimension::CubeMs(_, _, _) => vk::ImageType::TYPE_2D,
+            //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageType::TYPE_2D,
+            TextureDimension::D3(_, _, _) => vk::ImageType::TYPE_3D,
+        }
+    }
+}
 
-// impl Into<vk::ImageViewType> for TextureDimension {
-//     fn into(self) -> vk::ImageViewType {
-//         match self {
-//             TextureDimension::D1(_) => vk::ImageViewType::TYPE_1D,
-//             TextureDimension::D1Array(_, _) => vk::ImageViewType::TYPE_1D,
-//             TextureDimension::D2(_, _, _) => vk::ImageViewType::TYPE_2D,
-//             TextureDimension::D2Array(_, _, _, _) => vk::ImageViewType::TYPE_2D_ARRAY,
-//             TextureDimension::Cube(_) => vk::ImageViewType::CUBE,
-//             TextureDimension::CubeArray(_, _) => vk::ImageViewType::CUBE_ARRAY,
-//             //TextureDimension::CubeMs(_, _, _) => vk::ImageViewType::TYPE_2D,
-//             //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageViewType::TYPE_2D,
-//             TextureDimension::D3(_, _, _) => vk::ImageViewType::TYPE_3D,
-//         }
-//     }
-// }
+impl Into<vk::ImageViewType> for TextureDimension {
+    fn into(self) -> vk::ImageViewType {
+        match self {
+            TextureDimension::D1(_) => vk::ImageViewType::TYPE_1D,
+            TextureDimension::D1Array(_, _) => vk::ImageViewType::TYPE_1D,
+            TextureDimension::D2(_, _, _) => vk::ImageViewType::TYPE_2D,
+            TextureDimension::D2Array(_, _, _, _) => vk::ImageViewType::TYPE_2D_ARRAY,
+            TextureDimension::Cube(_) => vk::ImageViewType::CUBE,
+            TextureDimension::CubeArray(_, _) => vk::ImageViewType::CUBE_ARRAY,
+            //TextureDimension::CubeMs(_, _, _) => vk::ImageViewType::TYPE_2D,
+            //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageViewType::TYPE_2D,
+            TextureDimension::D3(_, _, _) => vk::ImageViewType::TYPE_3D,
+        }
+    }
+}
 
-// impl Into<vk::Extent3D> for TextureDimension {
-//     fn into(self) -> vk::Extent3D {
-//         let tmp: crate::Extent3D = self.into();
-//         tmp.into()
-//     }
-// }
+impl Into<vk::Extent3D> for TextureDimension {
+    fn into(self) -> vk::Extent3D {
+        let tmp: crate::Extent3D = self.into();
+        tmp.into()
+    }
+}
 
-// impl Into<crate::Extent3D> for TextureDimension {
-//     fn into(self) -> crate::Extent3D {
-//         match self {
-//             TextureDimension::D1(w) => crate::Extent3D {
-//                 width: w,
-//                 height: 1,
-//                 depth: 1,
-//             },
-//             TextureDimension::D1Array(w, _) => crate::Extent3D {
-//                 width: w,
-//                 height: 1,
-//                 depth: 1,
-//             },
-//             TextureDimension::D2(w, h, _) => crate::Extent3D {
-//                 width: w,
-//                 height: h,
-//                 depth: 1,
-//             },
-//             TextureDimension::D2Array(w, h, _, _) => crate::Extent3D {
-//                 width: w,
-//                 height: h,
-//                 depth: 1,
-//             },
-//             TextureDimension::Cube(w) => crate::Extent3D {
-//                 width: w,
-//                 height: w,
-//                 depth: 1,
-//             },
-//             TextureDimension::CubeArray(w, _) => crate::Extent3D {
-//                 width: w,
-//                 height: w,
-//                 depth: 1,
-//             },
-//             /*
-//             TextureDimension::CubeMs(w, h, _) => crate::Extent3D {
-//                 width: w,
-//                 height: h,
-//                 depth: 1,
-//             },
-//             TextureDimension::CubeArrayMs(w, h, _, _) => crate::Extent3D {
-//                 width: w,
-//                 height: h,
-//                 depth: 1,
-//             },*/
-//             TextureDimension::D3(w, h, d) => crate::Extent3D {
-//                 width: w,
-//                 height: h,
-//                 depth: d,
-//             },
-//         }
-//     }
-// }
+impl Into<crate::Extent3D> for TextureDimension {
+    fn into(self) -> crate::Extent3D {
+        match self {
+            TextureDimension::D1(w) => crate::Extent3D {
+                width: w,
+                height: 1,
+                depth: 1,
+            },
+            TextureDimension::D1Array(w, _) => crate::Extent3D {
+                width: w,
+                height: 1,
+                depth: 1,
+            },
+            TextureDimension::D2(w, h, _) => crate::Extent3D {
+                width: w,
+                height: h,
+                depth: 1,
+            },
+            TextureDimension::D2Array(w, h, _, _) => crate::Extent3D {
+                width: w,
+                height: h,
+                depth: 1,
+            },
+            TextureDimension::Cube(w) => crate::Extent3D {
+                width: w,
+                height: w,
+                depth: 1,
+            },
+            TextureDimension::CubeArray(w, _) => crate::Extent3D {
+                width: w,
+                height: w,
+                depth: 1,
+            },
+            /*
+            TextureDimension::CubeMs(w, h, _) => crate::Extent3D {
+                width: w,
+                height: h,
+                depth: 1,
+            },
+            TextureDimension::CubeArrayMs(w, h, _, _) => crate::Extent3D {
+                width: w,
+                height: h,
+                depth: 1,
+            },*/
+            TextureDimension::D3(w, h, d) => crate::Extent3D {
+                width: w,
+                height: h,
+                depth: d,
+            },
+        }
+    }
+}
 
-// /// Describes how sampling outside image dimensions should be performed
-// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-// pub enum WrapMode {
-//     /// repeat with the image if sampling outside the image dimensions
-//     Repeat,
-//     /// reflect and repeat the image if sampling outside the image dimensions
-//     MirroredRepeat,
-//     /// clamp the color to the edge of the image
-//     ClampToEdge,
-//     /// clamp the color to the border of the image
-//     ClampToBorder,
-// }
+/// Describes how sampling outside image dimensions should be performed
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum WrapMode {
+    /// repeat with the image if sampling outside the image dimensions
+    Repeat,
+    /// reflect and repeat the image if sampling outside the image dimensions
+    MirroredRepeat,
+    /// clamp the color to the edge of the image
+    ClampToEdge,
+    /// clamp the color to the border of the image
+    ClampToBorder,
+}
 
-// impl Into<vk::SamplerAddressMode> for WrapMode {
-//     fn into(self) -> vk::SamplerAddressMode {
-//         match self {
-//             Self::Repeat => vk::SamplerAddressMode::REPEAT,
-//             Self::MirroredRepeat => vk::SamplerAddressMode::MIRRORED_REPEAT,
-//             Self::ClampToEdge => vk::SamplerAddressMode::CLAMP_TO_EDGE,
-//             Self::ClampToBorder => vk::SamplerAddressMode::CLAMP_TO_BORDER,
-//         }
-//     }
-// }
+impl Into<vk::SamplerAddressMode> for WrapMode {
+    fn into(self) -> vk::SamplerAddressMode {
+        match self {
+            Self::Repeat => vk::SamplerAddressMode::REPEAT,
+            Self::MirroredRepeat => vk::SamplerAddressMode::MIRRORED_REPEAT,
+            Self::ClampToEdge => vk::SamplerAddressMode::CLAMP_TO_EDGE,
+            Self::ClampToBorder => vk::SamplerAddressMode::CLAMP_TO_BORDER,
+        }
+    }
+}
 
-// /// Descibes how sampling between pixels is performed
-// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-// pub enum FilterMode {
-//     /// take the nearest pixel to the coordinate
-//     Nearest,
-//     /// linearly interpolate between pixels
-//     Linear,
-// }
+/// Descibes how sampling between pixels is performed
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum FilterMode {
+    /// take the nearest pixel to the coordinate
+    Nearest,
+    /// linearly interpolate between pixels
+    Linear,
+}
 
-// impl Into<vk::SamplerMipmapMode> for FilterMode {
-//     fn into(self) -> vk::SamplerMipmapMode {
-//         match self {
-//             Self::Nearest => vk::SamplerMipmapMode::NEAREST,
-//             Self::Linear => vk::SamplerMipmapMode::LINEAR,
-//         }
-//     }
-// }
+impl Into<vk::SamplerMipmapMode> for FilterMode {
+    fn into(self) -> vk::SamplerMipmapMode {
+        match self {
+            Self::Nearest => vk::SamplerMipmapMode::NEAREST,
+            Self::Linear => vk::SamplerMipmapMode::LINEAR,
+        }
+    }
+}
 
-// impl Into<vk::Filter> for FilterMode {
-//     fn into(self) -> vk::Filter {
-//         match self {
-//             Self::Nearest => vk::Filter::NEAREST,
-//             Self::Linear => vk::Filter::LINEAR,
-//         }
-//     }
-// }
+impl Into<vk::Filter> for FilterMode {
+    fn into(self) -> vk::Filter {
+        match self {
+            Self::Nearest => vk::Filter::NEAREST,
+            Self::Linear => vk::Filter::LINEAR,
+        }
+    }
+}
 
-// /// Describes the color to be used when WrapMode::ClampToBorder is used
-// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-// pub enum BorderColor {
-//     /// Border opaque black
-//     OpaqueBlack,
-//     /// Border transparent black
-//     TransparentBlack,
-//     /// Border opaque white
-//     OpaqueWhite,
-// }
+/// Describes the color to be used when WrapMode::ClampToBorder is used
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum BorderColor {
+    /// Border opaque black
+    OpaqueBlack,
+    /// Border transparent black
+    TransparentBlack,
+    /// Border opaque white
+    OpaqueWhite,
+}
 
-// impl Into<vk::BorderColor> for BorderColor {
-//     fn into(self) -> vk::BorderColor {
-//         match self {
-//             Self::OpaqueBlack => vk::BorderColor::FLOAT_OPAQUE_BLACK,
-//             Self::TransparentBlack => vk::BorderColor::FLOAT_TRANSPARENT_BLACK,
-//             Self::OpaqueWhite => vk::BorderColor::FLOAT_OPAQUE_WHITE,
-//         }
-//     }
-// }
+impl Into<vk::BorderColor> for BorderColor {
+    fn into(self) -> vk::BorderColor {
+        match self {
+            Self::OpaqueBlack => vk::BorderColor::FLOAT_OPAQUE_BLACK,
+            Self::TransparentBlack => vk::BorderColor::FLOAT_TRANSPARENT_BLACK,
+            Self::OpaqueWhite => vk::BorderColor::FLOAT_OPAQUE_WHITE,
+        }
+    }
+}
 
-// /// A Layout of a texture in memory
-// ///
-// /// will be different for different implementations
-// /// or some may be the same in the underlying implementation of vulkan
-// #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-// #[allow(missing_docs)]
-// pub enum TextureLayout {
-//     Undefined,
-//     General,
-//     ColorAttachmentOptimal,
-//     DepthStencilAttachmentOptimal,
-//     DepthStencilReadOnlyOptimal,
-//     ShaderReadOnlyOptimal,
-//     CopySrcOptimal,
-//     CopyDstOptimal,
-//     DepthAttachmentOptimal,
-//     DepthReadOnlyOptimal,
-//     StencilReadOnlyOptimal,
-//     SwapchainPresent,
-// }
+/// A Layout of a texture in memory
+///
+/// will be different for different implementations
+/// or some may be the same in the underlying implementation of vulkan
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[allow(missing_docs)]
+pub enum TextureLayout {
+    Undefined,
+    General,
+    ColorAttachmentOptimal,
+    DepthStencilAttachmentOptimal,
+    DepthStencilReadOnlyOptimal,
+    ShaderReadOnlyOptimal,
+    CopySrcOptimal,
+    CopyDstOptimal,
+    DepthAttachmentOptimal,
+    DepthReadOnlyOptimal,
+    StencilReadOnlyOptimal,
+    SwapchainPresent,
+}
 
-// impl Into<vk::ImageLayout> for TextureLayout {
-//     fn into(self) -> vk::ImageLayout {
-//         match self {
-//             Self::Undefined => vk::ImageLayout::UNDEFINED,
-//             Self::General => vk::ImageLayout::GENERAL,
-//             Self::ColorAttachmentOptimal => vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-//             Self::DepthStencilAttachmentOptimal => {
-//                 vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-//             }
-//             Self::DepthStencilReadOnlyOptimal => vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-//             Self::ShaderReadOnlyOptimal => vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-//             Self::CopySrcOptimal => vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
-//             Self::CopyDstOptimal => vk::ImageLayout::TRANSFER_DST_OPTIMAL,
-//             Self::DepthAttachmentOptimal => vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL,
-//             Self::DepthReadOnlyOptimal => vk::ImageLayout::DEPTH_READ_ONLY_OPTIMAL,
-//             Self::StencilReadOnlyOptimal => vk::ImageLayout::STENCIL_READ_ONLY_OPTIMAL,
-//             Self::SwapchainPresent => vk::ImageLayout::PRESENT_SRC_KHR,
-//         }
-//     }
-// }
+impl Into<vk::ImageLayout> for TextureLayout {
+    fn into(self) -> vk::ImageLayout {
+        match self {
+            Self::Undefined => vk::ImageLayout::UNDEFINED,
+            Self::General => vk::ImageLayout::GENERAL,
+            Self::ColorAttachmentOptimal => vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            Self::DepthStencilAttachmentOptimal => {
+                vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+            }
+            Self::DepthStencilReadOnlyOptimal => vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+            Self::ShaderReadOnlyOptimal => vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            Self::CopySrcOptimal => vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+            Self::CopyDstOptimal => vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            Self::DepthAttachmentOptimal => vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL,
+            Self::DepthReadOnlyOptimal => vk::ImageLayout::DEPTH_READ_ONLY_OPTIMAL,
+            Self::StencilReadOnlyOptimal => vk::ImageLayout::STENCIL_READ_ONLY_OPTIMAL,
+            Self::SwapchainPresent => vk::ImageLayout::PRESENT_SRC_KHR,
+        }
+    }
+}
 
-// /// Tells a CommandRecoder where to set a DescriptorSet
-// #[derive(Copy, Clone, Debug)]
-// pub enum PipelineBindPoint {
-//     /// set the DescriptorSet in the graphics pipeline bound
-//     Graphics,
-//     /// set the DescriptorSet in the compute pipeline bound
-//     Compute,
-//     /// set the DescriptorSet in the ray pipeline bound
-//     #[cfg(feature = "ray")]
-//     Ray,
-//     /// set the DescriptorSet in the mesh pipeline bound
-//     #[cfg(feature = "mesh")]
-//     Mesh,
-// }
+/// Tells a CommandRecoder where to set a DescriptorSet
+#[derive(Copy, Clone, Debug)]
+pub enum PipelineBindPoint {
+    /// set the DescriptorSet in the graphics pipeline bound
+    Graphics,
+    /// set the DescriptorSet in the compute pipeline bound
+    Compute,
+    /// set the DescriptorSet in the ray pipeline bound
+    #[cfg(feature = "ray")]
+    Ray,
+    /// set the DescriptorSet in the mesh pipeline bound
+    #[cfg(feature = "mesh")]
+    Mesh,
+}
 
-// impl Into<vk::PipelineBindPoint> for PipelineBindPoint {
-//     fn into(self) -> vk::PipelineBindPoint {
-//         match self {
-//             Self::Graphics => vk::PipelineBindPoint::GRAPHICS,
-//             Self::Compute => vk::PipelineBindPoint::COMPUTE,
-//             #[cfg(feature = "ray")]
-//             Self::Ray => vk::PipelineBindPoint::RAY_TRACING_KHR,
-//         }
-//     }
-// }
+impl Into<vk::PipelineBindPoint> for PipelineBindPoint {
+    fn into(self) -> vk::PipelineBindPoint {
+        match self {
+            Self::Graphics => vk::PipelineBindPoint::GRAPHICS,
+            Self::Compute => vk::PipelineBindPoint::COMPUTE,
+            #[cfg(feature = "ray")]
+            Self::Ray => vk::PipelineBindPoint::RAY_TRACING_KHR,
+        }
+    }
+}
 
-// bitflags::bitflags! {
-//     /// Describes how a resource (Buffer/Texture) is accessed in a command buffer
-//     #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-//     pub struct AccessFlags: u32 {
-//         #[allow(missing_docs)]
-//         const INDEX_READ                     = 0b000000000000000001;
-//         #[allow(missing_docs)]
-//         const VERTEX_ATTRIBUTE_READ          = 0b000000000000000010;
-//         #[allow(missing_docs)]
-//         const UNIFORM_READ                   = 0b000000000000000100;
-//         #[allow(missing_docs)]
-//         #[allow(missing_docs)]
-//         const INPUT_ATTACHMENT_READ          = 0b000000000000001000;
-//         #[allow(missing_docs)]
-//         const SHADER_READ                    = 0b000000000000010000;
-//         #[allow(missing_docs)]
-//         const SHADER_WRITE                   = 0b000000000000100000;
-//         #[allow(missing_docs)]
-//         const COLOR_ATTACHMENT_READ          = 0b000000000001000000;
-//         #[allow(missing_docs)]
-//         const COLOR_ATTACHMENT_WRITE         = 0b000000000010000000;
-//         #[allow(missing_docs)]
-//         const DEPTH_STENCIL_ATTACHMENT_READ  = 0b000000000100000000;
-//         #[allow(missing_docs)]
-//         const DEPTH_STENCIL_ATTACHMENT_WRITE = 0b000000001000000000;
-//         #[allow(missing_docs)]
-//         const COPY_READ                      = 0b000000010000000000;
-//         #[allow(missing_docs)]
-//         const COPY_WRITE                     = 0b000000100000000000;
-//         #[allow(missing_docs)]
-//         const HOST_READ                      = 0b000001000000000000;
-//         #[allow(missing_docs)]
-//         const MEMORY_READ                    = 0b000010000000000000;
-//         #[allow(missing_docs)]
-//         const MEMORY_WRITE                   = 0b000100000000000000;
-//         #[cfg(feature = "ray")]
-//         #[allow(missing_docs)]
-//         const ACCELERATION_STRUCTURE_READ    = 0b001000000000000000;
-//         #[cfg(feature = "ray")]
-//         #[allow(missing_docs)]
-//         const ACCELERATION_STRUCTURE_WRITE   = 0b010000000000000000;
-//     }
-// }
+bitflags::bitflags! {
+    /// Describes how a resource (Buffer/Texture) is accessed in a command buffer
+    #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+    pub struct AccessFlags: u32 {
+        #[allow(missing_docs)]
+        const INDEX_READ                     = 0b000000000000000001;
+        #[allow(missing_docs)]
+        const VERTEX_ATTRIBUTE_READ          = 0b000000000000000010;
+        #[allow(missing_docs)]
+        const UNIFORM_READ                   = 0b000000000000000100;
+        #[allow(missing_docs)]
+        #[allow(missing_docs)]
+        const INPUT_ATTACHMENT_READ          = 0b000000000000001000;
+        #[allow(missing_docs)]
+        const SHADER_READ                    = 0b000000000000010000;
+        #[allow(missing_docs)]
+        const SHADER_WRITE                   = 0b000000000000100000;
+        #[allow(missing_docs)]
+        const COLOR_ATTACHMENT_READ          = 0b000000000001000000;
+        #[allow(missing_docs)]
+        const COLOR_ATTACHMENT_WRITE         = 0b000000000010000000;
+        #[allow(missing_docs)]
+        const DEPTH_STENCIL_ATTACHMENT_READ  = 0b000000000100000000;
+        #[allow(missing_docs)]
+        const DEPTH_STENCIL_ATTACHMENT_WRITE = 0b000000001000000000;
+        #[allow(missing_docs)]
+        const COPY_READ                      = 0b000000010000000000;
+        #[allow(missing_docs)]
+        const COPY_WRITE                     = 0b000000100000000000;
+        #[allow(missing_docs)]
+        const HOST_READ                      = 0b000001000000000000;
+        #[allow(missing_docs)]
+        const MEMORY_READ                    = 0b000010000000000000;
+        #[allow(missing_docs)]
+        const MEMORY_WRITE                   = 0b000100000000000000;
+        #[cfg(feature = "ray")]
+        #[allow(missing_docs)]
+        const ACCELERATION_STRUCTURE_READ    = 0b001000000000000000;
+        #[cfg(feature = "ray")]
+        #[allow(missing_docs)]
+        const ACCELERATION_STRUCTURE_WRITE   = 0b010000000000000000;
+    }
+}
 
-// impl Into<vk::AccessFlags> for AccessFlags {
-//     fn into(self) -> vk::AccessFlags {
-//         let mut result = vk::AccessFlags::empty();
-//         if self.contains(Self::INDEX_READ) {
-//             result |= vk::AccessFlags::INDEX_READ;
-//         }
-//         if self.contains(Self::VERTEX_ATTRIBUTE_READ) {
-//             result |= vk::AccessFlags::VERTEX_ATTRIBUTE_READ;
-//         }
-//         if self.contains(Self::UNIFORM_READ) {
-//             result |= vk::AccessFlags::UNIFORM_READ;
-//         }
-//         if self.contains(Self::INPUT_ATTACHMENT_READ) {
-//             result |= vk::AccessFlags::INPUT_ATTACHMENT_READ;
-//         }
-//         if self.contains(Self::SHADER_READ) {
-//             result |= vk::AccessFlags::SHADER_READ;
-//         }
-//         if self.contains(Self::SHADER_WRITE) {
-//             result |= vk::AccessFlags::SHADER_WRITE;
-//         }
-//         if self.contains(Self::COLOR_ATTACHMENT_READ) {
-//             result |= vk::AccessFlags::COLOR_ATTACHMENT_READ;
-//         }
-//         if self.contains(Self::COLOR_ATTACHMENT_WRITE) {
-//             result |= vk::AccessFlags::COLOR_ATTACHMENT_WRITE;
-//         }
-//         if self.contains(Self::DEPTH_STENCIL_ATTACHMENT_READ) {
-//             result |= vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ;
-//         }
-//         if self.contains(Self::DEPTH_STENCIL_ATTACHMENT_WRITE) {
-//             result |= vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE;
-//         }
-//         if self.contains(Self::COPY_READ) {
-//             result |= vk::AccessFlags::TRANSFER_READ;
-//         }
-//         if self.contains(Self::COPY_WRITE) {
-//             result |= vk::AccessFlags::TRANSFER_WRITE;
-//         }
-//         if self.contains(Self::HOST_READ) {
-//             result |= vk::AccessFlags::HOST_READ;
-//         }
-//         if self.contains(Self::MEMORY_READ) {
-//             result |= vk::AccessFlags::MEMORY_READ;
-//         }
-//         if self.contains(Self::MEMORY_WRITE) {
-//             result |= vk::AccessFlags::MEMORY_WRITE;
-//         }
-//         #[cfg(feature = "ray")]
-//         if self.contains(Self::ACCELERATION_STRUCTURE_READ) {
-//             result |= vk::AccessFlags::ACCELERATION_STRUCTURE_READ_KHR;
-//         }
-//         #[cfg(feature = "ray")]
-//         if self.contains(Self::ACCELERATION_STRUCTURE_WRITE) {
-//             result |= vk::AccessFlags::ACCELERATION_STRUCTURE_WRITE_KHR;
-//         }
-//         return result;
-//     }
-// }
+impl Into<vk::AccessFlags> for AccessFlags {
+    fn into(self) -> vk::AccessFlags {
+        let mut result = vk::AccessFlags::empty();
+        if self.contains(Self::INDEX_READ) {
+            result |= vk::AccessFlags::INDEX_READ;
+        }
+        if self.contains(Self::VERTEX_ATTRIBUTE_READ) {
+            result |= vk::AccessFlags::VERTEX_ATTRIBUTE_READ;
+        }
+        if self.contains(Self::UNIFORM_READ) {
+            result |= vk::AccessFlags::UNIFORM_READ;
+        }
+        if self.contains(Self::INPUT_ATTACHMENT_READ) {
+            result |= vk::AccessFlags::INPUT_ATTACHMENT_READ;
+        }
+        if self.contains(Self::SHADER_READ) {
+            result |= vk::AccessFlags::SHADER_READ;
+        }
+        if self.contains(Self::SHADER_WRITE) {
+            result |= vk::AccessFlags::SHADER_WRITE;
+        }
+        if self.contains(Self::COLOR_ATTACHMENT_READ) {
+            result |= vk::AccessFlags::COLOR_ATTACHMENT_READ;
+        }
+        if self.contains(Self::COLOR_ATTACHMENT_WRITE) {
+            result |= vk::AccessFlags::COLOR_ATTACHMENT_WRITE;
+        }
+        if self.contains(Self::DEPTH_STENCIL_ATTACHMENT_READ) {
+            result |= vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ;
+        }
+        if self.contains(Self::DEPTH_STENCIL_ATTACHMENT_WRITE) {
+            result |= vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE;
+        }
+        if self.contains(Self::COPY_READ) {
+            result |= vk::AccessFlags::TRANSFER_READ;
+        }
+        if self.contains(Self::COPY_WRITE) {
+            result |= vk::AccessFlags::TRANSFER_WRITE;
+        }
+        if self.contains(Self::HOST_READ) {
+            result |= vk::AccessFlags::HOST_READ;
+        }
+        if self.contains(Self::MEMORY_READ) {
+            result |= vk::AccessFlags::MEMORY_READ;
+        }
+        if self.contains(Self::MEMORY_WRITE) {
+            result |= vk::AccessFlags::MEMORY_WRITE;
+        }
+        #[cfg(feature = "ray")]
+        if self.contains(Self::ACCELERATION_STRUCTURE_READ) {
+            result |= vk::AccessFlags::ACCELERATION_STRUCTURE_READ_KHR;
+        }
+        #[cfg(feature = "ray")]
+        if self.contains(Self::ACCELERATION_STRUCTURE_WRITE) {
+            result |= vk::AccessFlags::ACCELERATION_STRUCTURE_WRITE_KHR;
+        }
+        return result;
+    }
+}
 
-// /// Tessellation options for graphics shaders
-// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-// pub struct Tesselation<'a> {
-//     /// the tessellation evaulation shader
-//     pub eval: (&'a crate::ShaderModule, Option<crate::Specialization<'a>>),
-//     /// the tessellation control shader, not required
-//     pub control: Option<(&'a crate::ShaderModule, Option<crate::Specialization<'a>>)>,
-//     /// the number of control points per patch, not required
-//     pub patch_points: Option<u32>,
-// }
+/// Tessellation options for graphics shaders
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub struct Tesselation<'a> {
+    /// the tessellation evaulation shader
+    pub eval: (&'a crate::ShaderModule, Option<crate::Specialization<'a>>),
+    /// the tessellation control shader, not required
+    pub control: Option<(&'a crate::ShaderModule, Option<crate::Specialization<'a>>)>,
+    /// the number of control points per patch, not required
+    pub patch_points: Option<u32>,
+}
 
-// /// Describes what a color attachment will look like in a RenderPass
-// #[allow(missing_docs)]
-// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-// pub struct ColorAttachmentDesc {
-//     pub format: crate::Format,
-//     pub load: crate::LoadOp,
-//     pub store: crate::StoreOp,
-//     pub initial_layout: crate::TextureLayout,
-//     pub final_layout: crate::TextureLayout,
-// }
+/// Describes what a color attachment will look like in a RenderPass
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ColorAttachmentDesc {
+    pub format: crate::Format,
+    pub load: crate::LoadOp,
+    pub store: crate::StoreOp,
+    pub initial_layout: crate::TextureLayout,
+    pub final_layout: crate::TextureLayout,
+}
 
-// /// Describes what a resolve attachment will look like in a RenderPass
-// ///
-// /// Note that there is no format field as the resolve attachment must have the same format as the
-// /// corresponding color attachment
-// #[allow(missing_docs)]
-// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-// pub struct ResolveAttachmentDesc {
-//     pub load: crate::LoadOp,
-//     pub store: crate::StoreOp,
-//     pub initial_layout: crate::TextureLayout,
-//     pub final_layout: crate::TextureLayout,
-// }
+/// Describes what a resolve attachment will look like in a RenderPass
+///
+/// Note that there is no format field as the resolve attachment must have the same format as the
+/// corresponding color attachment
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ResolveAttachmentDesc {
+    pub load: crate::LoadOp,
+    pub store: crate::StoreOp,
+    pub initial_layout: crate::TextureLayout,
+    pub final_layout: crate::TextureLayout,
+}
 
-// /// Describes what a depth attachment will look like in a RenderPass
-// #[allow(missing_docs)]
-// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-// pub struct DepthAttachmentDesc {
-//     pub format: crate::Format,
-//     pub load: crate::LoadOp,
-//     pub store: crate::StoreOp,
-//     pub initial_layout: crate::TextureLayout,
-//     pub final_layout: crate::TextureLayout,
-// }
+/// Describes what a depth attachment will look like in a RenderPass
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DepthAttachmentDesc {
+    pub format: crate::Format,
+    pub load: crate::LoadOp,
+    pub store: crate::StoreOp,
+    pub initial_layout: crate::TextureLayout,
+    pub final_layout: crate::TextureLayout,
+}
 
-// #[derive(Debug, Clone, PartialEq)]
-// pub enum Attachment<'a> {
-//     /// Render to a texture view
-//     View(Cow<'a, crate::TextureView>, crate::ClearValue),
-//     /// Render to the swapchain
-//     /// (Doesn't make sense to own the view as then it can't be presented)
-//     Swapchain(&'a crate::SwapchainView<'a>, crate::ClearValue),
-// }
+#[derive(Debug, Clone, PartialEq)]
+pub enum Attachment<'a> {
+    /// Render to a texture view
+    View(Cow<'a, crate::TextureView>, crate::ClearValue),
+    /// Render to the swapchain
+    /// (Doesn't make sense to own the view as then it can't be presented)
+    Swapchain(&'a crate::SwapchainView<'a>, crate::ClearValue),
+}
 
-// impl<'a> Attachment<'a> {
-//     pub fn clear_value(&self) -> crate::ClearValue {
-//         match self {
-//             Self::View(_, c) => *c,
-//             Self::Swapchain(_, c) => *c,
-//         }
-//     }
+impl<'a> Attachment<'a> {
+    pub fn clear_value(&self) -> crate::ClearValue {
+        match self {
+            Self::View(_, c) => *c,
+            Self::Swapchain(_, c) => *c,
+        }
+    }
 
-//     pub fn view(&self) -> &crate::TextureView {
-//         match self {
-//             Self::View(v, _) => &*v,
-//             Self::Swapchain(s, _) => s.view,
-//         }
-//     }
-// }
+    pub fn view(&self) -> &crate::TextureView {
+        match self {
+            Self::View(v, _) => &*v,
+            Self::Swapchain(s, _) => s.view,
+        }
+    }
+}
 
-// pub enum QueryType {
-//     Occlusion,
-//     PipelineStatistics,
-// }
+pub enum QueryType {
+    Occlusion,
+    PipelineStatistics,
+}
 
-// impl Into<vk::QueryType> for QueryType {
-//     fn into(self) -> vk::QueryType {
-//         match self {
-//             QueryType::Occlusion => vk::QueryType::OCCLUSION,
-//             QueryType::PipelineStatistics => vk::QueryType::PIPELINE_STATISTICS,
-//         }
-//     }
-// }
+impl Into<vk::QueryType> for QueryType {
+    fn into(self) -> vk::QueryType {
+        match self {
+            QueryType::Occlusion => vk::QueryType::OCCLUSION,
+            QueryType::PipelineStatistics => vk::QueryType::PIPELINE_STATISTICS,
+        }
+    }
+}
 
-// /// One entry in specialization constants 
-// /// 
-// /// See [`Specialization`] for more information on how to use these
-// #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-// pub struct SpecializationEntry {
-//     /// The id declared in the shader module
-//     pub id: u32,
-//     /// The offset of the data to read from in the data field of the parent
-//     pub offset: u32,
-//     /// The size of this entry
-//     pub size: usize,
-// }
+/// One entry in specialization constants 
+/// 
+/// See [`Specialization`] for more information on how to use these
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub struct SpecializationEntry {
+    /// The id declared in the shader module
+    pub id: u32,
+    /// The offset of the data to read from in the data field of the parent
+    pub offset: u32,
+    /// The size of this entry
+    pub size: usize,
+}
 
-// /// Specialize a pipeline on creation to allow for user supplied parameters or more optimizations
-// /// 
-// /// declare specilization constants in shaders eg:
-// /// ```glsl
-// /// layout (constant_id = 0) const int NUM_SAMPLES = 64;
-// /// ```
-// /// then declare their usage on pipeline creation
-// /// ```
-// /// let num_samples = 32;
-// /// 
-// /// let specialization = Specialization {
-// ///     entries: &[SpecializationEntry {
-// ///         id: 0,
-// ///         offset: 0,
-// ///         size: std::mem::size_of::<i32>(),
-// ///     }],
-// ///     data: bytemuck::bytes_of(num_samples),
-// /// };
-// /// ```
-// #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
-// pub struct Specialization<'a> {
-//     /// The specialization constants to be used
-//     pub entries: &'a [SpecializationEntry],
-//     /// The data to read the constant values from 
-//     pub data: &'a [u8],
-// }
+/// Specialize a pipeline on creation to allow for user supplied parameters or more optimizations
+/// 
+/// declare specilization constants in shaders eg:
+/// ```glsl
+/// layout (constant_id = 0) const int NUM_SAMPLES = 64;
+/// ```
+/// then declare their usage on pipeline creation
+/// ```
+/// let num_samples = 32;
+/// 
+/// let specialization = Specialization {
+///     entries: &[SpecializationEntry {
+///         id: 0,
+///         offset: 0,
+///         size: std::mem::size_of::<i32>(),
+///     }],
+///     data: bytemuck::bytes_of(num_samples),
+/// };
+/// ```
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
+pub struct Specialization<'a> {
+    /// The specialization constants to be used
+    pub entries: &'a [SpecializationEntry],
+    /// The data to read the constant values from 
+    pub data: &'a [u8],
+}
 
-// #[repr(C)]
-// #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-// pub struct DrawIndirectCommand {
-//     pub vertex_count: u32,
-//     pub instance_count: u32,
-//     pub first_vertex: u32,
-//     pub first_instance: u32,
-// }
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct DrawIndirectCommand {
+    pub vertex_count: u32,
+    pub instance_count: u32,
+    pub first_vertex: u32,
+    pub first_instance: u32,
+}
 
-// impl Into<vk::DrawIndirectCommand> for DrawIndirectCommand {
-//     fn into(self) -> vk::DrawIndirectCommand {
-//         vk::DrawIndirectCommand {
-//             vertex_count: self.vertex_count,
-//             instance_count: self.instance_count,
-//             first_vertex: self.first_vertex,
-//             first_instance: self.first_instance,
-//         }
-//     }
-// }
+impl Into<vk::DrawIndirectCommand> for DrawIndirectCommand {
+    fn into(self) -> vk::DrawIndirectCommand {
+        vk::DrawIndirectCommand {
+            vertex_count: self.vertex_count,
+            instance_count: self.instance_count,
+            first_vertex: self.first_vertex,
+            first_instance: self.first_instance,
+        }
+    }
+}
 
-// unsafe impl bytemuck::Pod for DrawIndirectCommand { }
-// unsafe impl bytemuck::Zeroable for DrawIndirectCommand { }
+unsafe impl bytemuck::Pod for DrawIndirectCommand { }
+unsafe impl bytemuck::Zeroable for DrawIndirectCommand { }
 
-// #[repr(C)]
-// #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-// pub struct DrawIndexedIndirectCommand {
-//     pub index_count: u32,
-//     pub instance_count: u32,
-//     pub first_index: u32,
-//     pub vertex_offset: i32,
-//     pub first_instance: u32,
-// }
+#[repr(C)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct DrawIndexedIndirectCommand {
+    pub index_count: u32,
+    pub instance_count: u32,
+    pub first_index: u32,
+    pub vertex_offset: i32,
+    pub first_instance: u32,
+}
 
-// impl Into<vk::DrawIndexedIndirectCommand> for DrawIndexedIndirectCommand {
-//     fn into(self) -> vk::DrawIndexedIndirectCommand {
-//         vk::DrawIndexedIndirectCommand {
-//             index_count: self.index_count,
-//             instance_count: self.instance_count,
-//             first_index: self.first_index,
-//             vertex_offset: self.vertex_offset,
-//             first_instance: self.first_instance,
-//         }
-//     }
-// }
+impl Into<vk::DrawIndexedIndirectCommand> for DrawIndexedIndirectCommand {
+    fn into(self) -> vk::DrawIndexedIndirectCommand {
+        vk::DrawIndexedIndirectCommand {
+            index_count: self.index_count,
+            instance_count: self.instance_count,
+            first_index: self.first_index,
+            vertex_offset: self.vertex_offset,
+            first_instance: self.first_instance,
+        }
+    }
+}
 
-// unsafe impl bytemuck::Pod for DrawIndexedIndirectCommand { }
-// unsafe impl bytemuck::Zeroable for DrawIndexedIndirectCommand { }
+unsafe impl bytemuck::Pod for DrawIndexedIndirectCommand { }
+unsafe impl bytemuck::Zeroable for DrawIndexedIndirectCommand { }

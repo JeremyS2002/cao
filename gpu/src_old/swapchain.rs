@@ -3,9 +3,13 @@
 //! A Swapchain is really a series of images so that while one is being shown on screen another can be drawn to
 
 use std::cell::Cell;
+// use std::ffi::c_void;
 use std::mem::ManuallyDrop as Md;
 use std::ptr;
 use std::sync::Arc;
+
+#[cfg(feature = "logging")]
+use std::time::SystemTime;
 
 use parking_lot::Mutex;
 
@@ -37,19 +41,34 @@ pub struct SwapchainDesc {
 impl SwapchainDesc {
     /// Create a SwapchainDesc from a surface to match dimensions
     /// and pick a valid present_mode/format/image_count
-    pub fn from_surface(surface: &crate::Surface, device: &crate::Device) -> Result<Self, Error> {
+    pub fn from_surface(surface: &crate::Surface, device: &crate::Device, vsync: bool) -> Result<Self, Error> {
         let info = surface.info(device)?;
-        let texture_count = if info.min_images > 3 {
-            info.min_images
+        let mut texture_count = if info.min_images > 3 {
+            info.min_images + 1
         } else {
             3
         };
+        if info.max_images > 0 {
+            texture_count = texture_count.min(info.max_images);
+        }
+        let mut present_mode = info.present_modes[0];
+        if (!vsync) {
+            for mode in info.present_modes {
+                if mode == crate::PresentMode::Mailbox {
+                    present_mode = mode;
+                    break;
+                }
+                if mode == crate::PresentMode::Immediate {
+                    present_mode = mode;
+                }
+            }
+        }
         Ok(Self {
             format: info.formats[0],
-            present_mode: info.present_modes[0],
+            present_mode,
             texture_count,
             texture_usage: crate::TextureUsage::COLOR_OUTPUT,
-            frames_in_flight: texture_count as _,
+            frames_in_flight: texture_count.min(2) as _,
             name: None,
         })
     }
@@ -61,10 +80,8 @@ pub struct SwapchainView<'a> {
     pub(crate) inner: &'a SwapchainInner,
     /// The texture view that is currently acquired
     pub(crate) view: &'a crate::TextureView,
-    /// Index of the semaphore to wait on before rendering to this frame
-    pub(crate) wait_semaphore: usize,
-    /// Index of the semaphore to signal when rendering to this frame is complete
-    pub(crate) signal_semaphore: usize,
+    pub(crate) fence_idx: usize,
+    pub(crate) semaphore_idx:usize,
     /// The index of the view
     pub(crate) index: u32,
     /// Flags to store if the view has been rendered to
@@ -96,22 +113,27 @@ pub struct SwapchainInfo {
     pub format: crate::Format,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct SwapchainSync {
+    pub present_complete_semaphores: Vec<Arc<vk::Semaphore>>,
     pub rendering_complete_semaphores: Vec<Arc<vk::Semaphore>>,
-    pub acquire_complete_semaphores: Vec<Arc<vk::Semaphore>>,
-    pub acquire_complete_fences: Vec<Arc<vk::Fence>>,
+    // need all the fences because user could choose not to render or present some frames??
+    // pub acquire_complete_fences: Vec<Arc<vk::Fence>>,
+    pub rendering_complete_fences: Vec<Arc<vk::Fence>>,
+    // pub present_complete_fences: Vec<Arc<vk::Fence>>,
 }
 
-impl std::clone::Clone for SwapchainSync {
-    fn clone(&self) -> Self {
-        Self {
-            rendering_complete_semaphores: self.rendering_complete_semaphores.clone(),
-            acquire_complete_semaphores: self.acquire_complete_semaphores.clone(),
-            acquire_complete_fences: self.acquire_complete_fences.clone(),
-        }
-    }
-}
+// impl std::clone::Clone for SwapchainSync {
+//     fn clone(&self) -> Self {
+//         Self {
+//             present_complete_semaphores: self.present_complete_semaphores.clone(),
+//             rendering_complete_semaphores: self.rendering_complete_semaphores.clone(),
+//             acquire_complete_fences: self.acquire_complete_fences.clone(),
+//             rendering_complete_fences: self.rendering_complete_fences.clone(),
+//             present_complete_fences: self.present_complete_fences.clone(),
+//         }
+//     }
+// }
 
 pub(crate) struct SwapchainInner {
     pub utils: crate::utils::SwapchainUtils,
@@ -152,16 +174,16 @@ pub struct Swapchain {
     pub(crate) version: u64,
     pub(crate) queue: vk::Queue,
 
-    pub(crate) format: vk::SurfaceFormatKHR,
-    pub(crate) extent: vk::Extent2D,
-    pub(crate) pre_transform: vk::SurfaceTransformFlagsKHR,
-    pub(crate) present_mode: vk::PresentModeKHR,
-    pub(crate) image_count: u32,
+    // pub(crate) format: vk::SurfaceFormatKHR,
+    // pub(crate) extent: vk::Extent2D,
+    // pub(crate) pre_transform: vk::SurfaceTransformFlagsKHR,
+    // pub(crate) present_mode: vk::PresentModeKHR,
+    // pub(crate) image_count: u32,
+    pub(crate) desc: SwapchainDesc,
 
     pub(crate) frames_in_flight: usize,
-    pub(crate) frame: Cell<usize>,
-
-    pub(crate) name: Option<String>
+    pub(crate) fence_idx: Cell<usize>,
+    pub(crate) semaphore_idx: Cell<usize>,
 }
 
 impl std::fmt::Debug for Swapchain {
@@ -231,29 +253,9 @@ impl Swapchain {
         log::trace!("gpu::Swapchain::new");
 
         let utils = crate::utils::SwapchainUtils::new(&device.raw);
-        let (raw, format, extent, pre_transform) =
-            Self::create_raw(device, surface, desc, &utils)?;
+        let raw= Self::create_raw(device, surface, desc, &utils)?;
         let (textures, views) = Self::create_frames(device, &utils, &raw, format, extent, desc.name.as_ref())?;
-        let sync = Self::create_sync(device, desc.frames_in_flight, desc.name.as_ref())?;
-
-        // let fence_result = unsafe {
-        //     device.raw.create_fence(
-        //         &vk::FenceCreateInfo {
-        //             s_type: vk::StructureType::FENCE_CREATE_INFO,
-        //             p_next: ptr::null(),
-        //             flags: vk::FenceCreateFlags::empty(),
-        //             ..Default::default()
-        //         },
-        //         None,
-        //     )
-        // };
-
-        // let fence = match fence_result {
-        //     Ok(f) => f,
-        //     Err(e) => return Err(e.into()),
-        // };
-
-        let image_count = textures.len() as u32;
+        let sync = Self::create_sync(device, desc.frames_in_flight, textures.len(), desc.name.as_ref())?;
 
         let s = Self {
             inner: SwapchainInner {
@@ -272,22 +274,22 @@ impl Swapchain {
             views,
             framebuffers: Mutex::new(Vec::new()),
 
-            format,
-            extent,
-            pre_transform,
-            present_mode: desc.present_mode.into(),
-            image_count,
+            // format,
+            // extent,
+            // pre_transform,
+            // present_mode: desc.present_mode.into(),
+            // image_count,
+            desc: desc.clone(),
 
             version: 0,
             queue: device.queue,
 
             frames_in_flight: desc.frames_in_flight,
-            frame: Cell::new(0),
-
-            name: desc.name.clone(),
+            fence_idx: Cell::new(0),
+            semaphore_idx: Cell::new(0),
         };
 
-        if let Some(name) = &s.name {
+        if let Some(name) = &s.desc.name {
             device.raw.set_swapchain_name(&s, name)?;
         }
 
@@ -298,18 +300,10 @@ impl Swapchain {
 
     fn create_raw(
         device: &crate::Device,
-        surface: &crate::Surface,
+        surface: &vk::SurfaceKHR,
         desc: &SwapchainDesc,
         utils: &utils::SwapchainUtils,
-    ) -> Result<
-        (
-            vk::SwapchainKHR,
-            vk::SurfaceFormatKHR,
-            vk::Extent2D,
-            vk::SurfaceTransformFlagsKHR,
-        ),
-        crate::Error,
-    > {
+    ) -> Result<vk::SwapchainKHR, crate::Error> {
         let raw_format = desc.format.into();
 
         let supported_formats_result = unsafe {
@@ -350,6 +344,21 @@ impl Swapchain {
             caps.current_transform
         };
 
+        let mut composite_alpha = vk::CompositeAlphaFlagsKHR::OPAQUE;
+        
+        let desired_alpha_flags = [
+            vk::CompositeAlphaFlagsKHR::OPAQUE, 
+            vk::CompositeAlphaFlagsKHR::PRE_MULTIPLIED,
+            vk::CompositeAlphaFlagsKHR::POST_MULTIPLIED,
+            vk::CompositeAlphaFlagsKHR::INHERIT
+        ];
+        for &desired_alpha in &desired_alpha_flags {
+            if caps.supported_composite_alpha.contains(desired_alpha) {
+                composite_alpha = desired_alpha;
+                break;
+            }
+        }
+
         let mut image_extent = caps.current_extent;
         image_extent.width = image_extent
             .width
@@ -365,14 +374,14 @@ impl Swapchain {
             p_next: ptr::null(),
             surface: **surface.raw,
             old_swapchain: vk::SwapchainKHR::null(),
-            min_image_count: desc.texture_count,
+            min_image_count: desc.texture_count.min(caps.max_image_count).max(caps.min_image_count),
             image_extent,
             image_format: format.format,
             image_color_space: format.color_space,
             image_usage: vk::ImageUsageFlags::COLOR_ATTACHMENT,
             image_sharing_mode: vk::SharingMode::EXCLUSIVE,
             pre_transform: pre_transform,
-            composite_alpha: vk::CompositeAlphaFlagsKHR::OPAQUE,
+            composite_alpha,
             present_mode: desc.present_mode.into(),
             clipped: vk::TRUE,
             image_array_layers: 1,
@@ -389,7 +398,7 @@ impl Swapchain {
             Err(e) => return Err(e.into()),
         };
 
-        return Ok((swapchain, format, caps.current_extent, pre_transform));
+        return Ok(swapchain);
     }
 
     fn create_frames(
@@ -448,6 +457,7 @@ impl Swapchain {
     fn create_sync(
         device: &crate::Device,
         frames_in_flight: usize,
+        swapchain_images: usize,
         swapchain_name: Option<&String>,
     ) -> Result<SwapchainSync, crate::Error> {
         let semaphore_create_info = vk::SemaphoreCreateInfo {
@@ -460,62 +470,57 @@ impl Swapchain {
         let fence_create_info = vk::FenceCreateInfo {
             s_type: vk::StructureType::FENCE_CREATE_INFO,
             p_next: ptr::null(),
-            flags: vk::FenceCreateFlags::empty(),
+            flags: vk::FenceCreateFlags::SIGNALED,
             ..Default::default()
         };
 
-        let mut acquire_complete_semaphores = Vec::new();
+        let mut present_complete_semaphores = Vec::new();
         let mut rendering_complete_semaphores = Vec::new();
-        let mut acquire_complete_fences = Vec::new();
-        // let mut fences = Vec::new();
+        // let mut acquire_complete_fences = Vec::new();
+        let mut rendering_complete_fences = Vec::new();
+        // let mut present_complete_fences = Vec::new();
 
-        for idx in 0..frames_in_flight {
-            let acquire_complete_semaphore_res =
-                unsafe { device.raw.create_semaphore(&semaphore_create_info, None) };
 
-            let acquire_complete_semaphore = match acquire_complete_semaphore_res {
-                Ok(s) => s,
-                Err(e) => return Err(e.into()),
-            };
-
+        for idx in 0..swapchain_images {
+            let present_complete_semaphore = unsafe { device.raw.create_semaphore(&semaphore_create_info, None)? };
             if let Some(n) = swapchain_name {
-                device.raw.set_name(acquire_complete_semaphore.as_raw(), vk::ObjectType::SEMAPHORE, &format!("{}.acquire_complete_semaphore[{}]", n, idx))?;
+                device.raw.set_name(present_complete_semaphore.as_raw(), vk::ObjectType::SEMAPHORE, &format!("{}.present_complete_semaphore[{}]", n, idx))?;
             }
+            present_complete_semaphores.push(Arc::new(present_complete_semaphore));
 
-            acquire_complete_semaphores.push(Arc::new(acquire_complete_semaphore));
-
-            let rendering_complete_semaphore_res =
-                unsafe { device.raw.create_semaphore(&semaphore_create_info, None) };
-
-            let rendering_complete_semaphore = match rendering_complete_semaphore_res {
-                Ok(s) => s,
-                Err(e) => return Err(e.into()),
-            };
-
+            let rendering_complete_semaphore = unsafe { device.raw.create_semaphore(&semaphore_create_info, None)? };
             if let Some(n) = swapchain_name {
                 device.raw.set_name(rendering_complete_semaphore.as_raw(), vk::ObjectType::SEMAPHORE, &format!("{}.rendering_complete_semaphore[{}]", n, idx))?;
             }
-
             rendering_complete_semaphores.push(Arc::new(rendering_complete_semaphore));
+        }
 
-            let acquire_complete_fence_res = unsafe { device.raw.create_fence(&fence_create_info, None) };
+        for idx in 0..frames_in_flight {
+            // let acquire_complete_fence = unsafe { device.raw.create_fence(&fence_create_info, None)? };
+            // if let Some(n) = swapchain_name {
+            //     device.raw.set_name(acquire_complete_fence.as_raw(), vk::ObjectType::FENCE, &format!("{}.acquire_complete_fence[{}]", n, idx))?;
+            // }
+            // acquire_complete_fences.push(Arc::new(acquire_complete_fence));
 
-            let acquire_complete_fence = match acquire_complete_fence_res {
-                Ok(f) => f,
-                Err(e) => return Err(e.into()),
-            };
-
+            let rendering_complete_fence = unsafe { device.raw.create_fence(&fence_create_info, None)? };
             if let Some(n) = swapchain_name {
-                device.raw.set_name(acquire_complete_fence.as_raw(), vk::ObjectType::FENCE, &format!("{}.acquire_complete_fence[{}]", n, idx))?;
+                device.raw.set_name(rendering_complete_fence.as_raw(), vk::ObjectType::FENCE, &format!("{}.rendering_complete_fence[{}]", n, idx))?;
             }
+            rendering_complete_fences.push(Arc::new(rendering_complete_fence));
 
-            acquire_complete_fences.push(Arc::new(acquire_complete_fence));
+            // let present_complete_fence = unsafe { device.raw.create_fence(&fence_create_info, None)? };
+            // if let Some(n) = swapchain_name {
+            //     device.raw.set_name(present_complete_fence.as_raw(), vk::ObjectType::FENCE, &format!("{}.present_complete_fence[{}]", n, idx))?;
+            // }
+            // present_complete_fences.push(Arc::new(present_complete_fence));
         }
 
         Ok(SwapchainSync {
-            acquire_complete_semaphores, 
+            present_complete_semaphores, 
             rendering_complete_semaphores,
-            acquire_complete_fences
+            // acquire_complete_fences,
+            rendering_complete_fences,
+            // present_complete_fences,
         })
     }
 
@@ -523,24 +528,28 @@ impl Swapchain {
         #[cfg(feature = "logging")]
         log::trace!("Swapchain::recreate");
 
-        // destroy previous resources
-        for texture in self.textures.drain(..) {
-            drop(texture)
-        }
+        // let mut start = SystemTime::now();
 
-        for view in self.views.drain(..) {
-            drop(view)
-        }
+        self.inner.device.wait_idle()?;
+        // let wait_result = unsafe {
+        //     let fences = self.inner.sync.acquire_complete_fences
+        //         .iter()
+        //         .chain(&self.inner.sync.rendering_complete_fences)
+        //         .chain(&self.inner.sync.present_complete_fences)
+        //         .map(|f| **f)
+        //         .collect::<Vec<_>>();
+        //     self.inner.device.wait_for_fences(&fences, true, !0)
+        // };
+        // match wait_result {
+        //     Ok(_) => (),
+        //     Err(e) => return Err(e.into()),
+        // }
 
-        for key in self.framebuffers.lock().drain(..) {
-            unsafe {
-                if let Some(framebuffer) = self.inner.device.framebuffers.write().remove(&key) {
-                    if let Ok(framebuffer) = Arc::try_unwrap(framebuffer) {
-                        self.inner.device.destroy_framebuffer(framebuffer, None);
-                    }
-                }
-            }
-        }
+        // log::info!("wait took                 : {:?}", start.elapsed().unwrap());
+        // start = SystemTime::now();
+
+        // log::info!("destroy images took       : {:?}", start.elapsed().unwrap());
+        // start = SystemTime::now();
 
         let caps_result = unsafe {
             self.inner
@@ -553,42 +562,65 @@ impl Swapchain {
             Err(e) => return Err(e.into()),
         };
 
-        #[cfg(feature = "logging")]
-        log::trace!("Swapchain::recreate got extent {:?}", caps.current_extent);
+        // #[cfg(feature = "logging")]
+        // log::trace!("Swapchain::recreate got extent {:?}", caps.current_extent);
 
-        let create_info = vk::SwapchainCreateInfoKHR {
-            s_type: vk::StructureType::SWAPCHAIN_CREATE_INFO_KHR,
-            p_next: ptr::null(),
-            surface: **self.inner.surface,
-            old_swapchain: self.inner.raw.get(),
-            min_image_count: self.image_count,
-            image_extent: caps.current_extent,
-            image_format: self.format.format,
-            image_color_space: self.format.color_space,
-            image_usage: vk::ImageUsageFlags::COLOR_ATTACHMENT,
-            image_sharing_mode: vk::SharingMode::EXCLUSIVE,
-            pre_transform: self.pre_transform,
-            composite_alpha: vk::CompositeAlphaFlagsKHR::OPAQUE,
-            present_mode: self.present_mode,
-            clipped: vk::TRUE,
-            image_array_layers: 1,
-            queue_family_index_count: 0,
-            p_queue_family_indices: ptr::null(),
-            flags: vk::SwapchainCreateFlagsKHR::empty(),
-            ..Default::default()
-        };
+        // let create_info = vk::SwapchainCreateInfoKHR {
+        //     s_type: vk::StructureType::SWAPCHAIN_CREATE_INFO_KHR,
+        //     p_next: ptr::null(),
+        //     surface: **self.inner.surface,
+        //     old_swapchain: self.inner.raw.get(),
+        //     min_image_count: self.image_count,
+        //     image_extent: caps.current_extent,
+        //     image_format: self.format.format,
+        //     image_color_space: self.format.color_space,
+        //     image_usage: vk::ImageUsageFlags::COLOR_ATTACHMENT,
+        //     image_sharing_mode: vk::SharingMode::EXCLUSIVE,
+        //     pre_transform: self.pre_transform,
+        //     composite_alpha: vk::CompositeAlphaFlagsKHR::OPAQUE,
+        //     present_mode: self.present_mode,
+        //     clipped: vk::TRUE,
+        //     image_array_layers: 1,
+        //     queue_family_index_count: 0,
+        //     p_queue_family_indices: ptr::null(),
+        //     flags: vk::SwapchainCreateFlagsKHR::empty(),
+        //     ..Default::default()
+        // };
 
-        let swapchain_result = unsafe { self.inner.utils.device.create_swapchain(&create_info, None) };
+        // let swapchain_result = unsafe { self.inner.utils.device.create_swapchain(&create_info, None) };
 
-        let swapchain = match swapchain_result {
-            Ok(s) => s,
-            Err(e) => return Err(e.into()),
-        };
+        // let swapchain = match swapchain_result {
+        //     Ok(s) => s,
+        //     Err(e) => return Err(e.into()),
+        // };
+
+        let (swapcahin, ) = Self::create_raw()        
+
+        // log::info!("create new swapchain took : {:?}", start.elapsed().unwrap());
+        // start = SystemTime::now();
 
         unsafe { 
+            for texture in self.textures.drain(..) {
+                drop(texture)
+            }
+
+            for view in self.views.drain(..) {
+                drop(view)
+            }
+
+            for key in self.framebuffers.lock().drain(..) {
+                    if let Some(framebuffer) = self.inner.device.framebuffers.write().remove(&key) {
+                    if let Ok(framebuffer) = Arc::try_unwrap(framebuffer) {
+                        self.inner.device.destroy_framebuffer(framebuffer, None);
+                    }
+                }
+            }
             self.inner.utils.device.destroy_swapchain(self.inner.raw.get(), None); 
         }        
         
+        // log::info!("destory swapchain took    : {:?}", start.elapsed().unwrap());
+        // start = SystemTime::now();
+
         self.extent = caps.current_extent;
 
         let (textures, views) = Self::create_frames(
@@ -600,12 +632,39 @@ impl Swapchain {
             self.name.as_ref()
         )?;
 
+        // log::info!("create new textures took  : {:?}", start.elapsed().unwrap());
+        // start = SystemTime::now();
+
         self.inner.raw.set(swapchain);
         self.textures = textures;
         self.views = views;
         self.version += 1;
 
+        for fence  in self.inner.sync.rendering_complete_fences.drain(..) {
+            if let Ok(fence) = Arc::try_unwrap(fence) {
+                unsafe { self.inner.device.destroy_fence(fence, None) };
+            }
+        }
+
+        let fence_create_info = vk::FenceCreateInfo {
+            s_type: vk::StructureType::FENCE_CREATE_INFO,
+            p_next: ptr::null(),
+            flags: vk::FenceCreateFlags::SIGNALED,
+            ..Default::default()
+        };
+
+        for idx in 0..self.frames_in_flight {
+            let rendering_complete_fence = unsafe { device.raw.create_fence(&fence_create_info, None)? };
+            if let Some(n) = self.name.as_ref() {
+                device.raw.set_name(rendering_complete_fence.as_raw(), vk::ObjectType::FENCE, &format!("{}.rendering_complete_fence[{}]", n, idx))?;
+            }
+            self.inner.sync.rendering_complete_fences.push(Arc::new(rendering_complete_fence));
+        }
+
         device.raw.check_errors()?;
+
+        // log::info!("check errors took         : {:?}", start.elapsed().unwrap());
+        // log::info!("");
 
         Ok(())
     }
@@ -621,13 +680,13 @@ impl Swapchain {
     /// The view returned hasn't been acquired so can't be presented
     /// Note: If implementing multiple frames in flight then the frame index must be different for each view otherwise they
     /// could cause errors about semaphores being used without waiting on them
-    pub fn frame<'a>(&'a self, index: usize, frame: usize) -> SwapchainView<'a> {
+    pub fn frame<'a>(&'a self, index: usize, fence_idx: usize, semaphore_idx: usize) -> SwapchainView<'a> {
         SwapchainView {
             inner: &self.inner,
             view: self.views.get(index).unwrap(),
-            wait_semaphore: frame,
-            signal_semaphore: frame,
             index: index as _,
+            fence_idx,
+            semaphore_idx,
             drawn: Cell::new(false),
         }
     }
@@ -637,37 +696,56 @@ impl Swapchain {
     /// Returns Ok((frame, suboptimal)) or Err(e)
     pub fn acquire<'a>(&'a self, timeout: u64) -> Result<(SwapchainView<'a>, bool), crate::Error> {
         #[cfg(feature = "logging")]
-        log::trace!("Swapchain::acquire");
+        log::trace!("Swapchain::acquire fence_idx {}, semaphore_idx {}", self.fence_idx.get(), self.semaphore_idx.get());
+
+        #[cfg(feature = "logging")]
+        let mut start = SystemTime::now();
 
         //let start = std::time::Instant::now();
-        let frame = self.frame.get();
+        // let frame = self.fence_idx.get();
+        let fence_idx = self.fence_idx.get();
+        let semaphore_idx = self.semaphore_idx.get();
 
-        let wait_result = unsafe {
-            self.inner.device.wait_for_fences(&[*self.inner.sync.acquire_complete_fences[frame]], true, !0)
+        // wait for the previous acquisition of this frame to complete
+        // wait for the previous rendering to this frame to complete
+        unsafe {
+            self.inner.device.wait_for_fences(&[
+                // *self.inner.sync.acquire_complete_fences[fence_idx],
+                *self.inner.sync.rendering_complete_fences[fence_idx],
+                // *self.inner.sync.present_complete_fences[fence_idx],
+            ], true, !0)?;
         };
 
-        match wait_result {
-            Ok(_) => (),
-            Err(e) => return Err(e.into()),
+        #[cfg(feature = "logging")]
+        {
+            log::info!("wait for fences took {:?}", start.elapsed().unwrap());
+            start = SystemTime::now();
         }
 
-        let reset_result = unsafe { self.inner.device.reset_fences(&[*self.inner.sync.acquire_complete_fences[frame]]) };
+        // reset as it will be signaled when we have acquired a fence
+        unsafe { self.inner.device.reset_fences(&[*self.inner.sync.rendering_complete_fences[fence_idx]])?; }
 
-        match reset_result {
-            Ok(_) => (),
-            Err(e) => return Err(e.into()),
+        #[cfg(feature = "logging")]
+        {
+            log::info!("reset fence took {:?}", start.elapsed().unwrap());
+            start = SystemTime::now();
         }
 
         let result = unsafe {
             self.inner.utils.device.acquire_next_image(
                 self.inner.raw.get(),
                 timeout,
-                *self.inner.sync.acquire_complete_semaphores[frame],
-                // vk::Semaphore::null(),
-                // vk::Fence::null(),
-                *self.inner.sync.acquire_complete_fences[frame],
+                *self.inner.sync.present_complete_semaphores[semaphore_idx],
+                // *self.inner.sync.acquire_complete_fences[fence_idx],
+                vk::Fence::null(),
             )
         };
+
+        #[cfg(feature = "logging")]
+        {
+            log::info!("acquire took {:?}", start.elapsed().unwrap());
+            start = SystemTime::now();
+        }
 
         let (index, suboptimal) = match result {
             Ok(t) => t,
@@ -679,13 +757,18 @@ impl Swapchain {
 
         self.inner.device.check_errors()?;
 
+        #[cfg(feature = "logging")]
+        log::info!("check errors took {:?}", start.elapsed().unwrap());
+        #[cfg(feature = "logging")]
+        log::info!("");
+
         Ok((
             SwapchainView {
                 inner: &self.inner,
                 view: self.views.get(index as usize).unwrap(),
                 index: index as _,
-                wait_semaphore: frame,
-                signal_semaphore: frame,
+                fence_idx,
+                semaphore_idx,
                 drawn: Cell::new(false),
             },
             suboptimal,
@@ -694,9 +777,14 @@ impl Swapchain {
 
     pub fn present(&self, view: SwapchainView<'_>) -> Result<bool, crate::Error> {
         #[cfg(feature = "logging")]
-        log::trace!("Swapchain::present - index {}", view.index);
+        let mut start = SystemTime::now();
+
+        #[cfg(feature = "logging")]
+        log::trace!("Swapchain::present - index {} fence_idx {}, semaphore_idx {}", view.index, view.fence_idx, view.semaphore_idx);
 
         if !view.drawn.get() {
+            // unsafe { self.inner.device.reset_fences(&[*self.inner.sync.rendering_complete_fences[view.]])? };
+
             #[cfg(feature = "logging")]
             log::trace!("Swapchain::present - view hasn't been drawn");
             // why submit nothing?
@@ -714,8 +802,8 @@ impl Swapchain {
                 p_wait_semaphores: Arc::as_ptr(
                     view.inner
                         .sync
-                        .acquire_complete_semaphores
-                        .get(view.wait_semaphore)
+                        .present_complete_semaphores
+                        .get(view.semaphore_idx)
                         .unwrap(),
                 ),
                 p_wait_dst_stage_mask: &stage,
@@ -726,7 +814,7 @@ impl Swapchain {
                     view.inner
                         .sync
                         .rendering_complete_semaphores
-                        .get(view.signal_semaphore)
+                        .get(view.semaphore_idx)
                         .unwrap(),
                 ),
                 ..Default::default()
@@ -736,7 +824,7 @@ impl Swapchain {
                 self.inner
                     .device
                     // .queue_submit(self.queue, &[submit_info], **self.inner.fence)
-                    .queue_submit(self.queue, &[submit_info], vk::Fence::null())
+                    .queue_submit(self.queue, &[submit_info], *self.inner.sync.rendering_complete_fences[view.fence_idx])
             };
 
             match submit_result {
@@ -744,36 +832,35 @@ impl Swapchain {
                 Err(e) => return Err(e.into()),
             }
 
-            // wait for the submission to finish so that if the swapchain is dropped then the semaphores can safely be destroyed
-            // this shouldn't have a major impact on performance as this submission doesn't depend on anything and should complete immediatly
-            // Also this is such a strange position that this code shouldn't really run in any "real" program
-            // let wait_result = unsafe {
-            //     self.inner
-            //         .device
-            //         .wait_for_fences(&[**self.inner.fence], true, !0)
-            // };
-
-            // match wait_result {
-            //     Ok(_) => (),
-            //     Err(e) => return Err(e.into()),
-            // }
-
-            // let reset_result = unsafe { self.inner.device.reset_fences(&[**self.inner.fence]) };
-
-            // match reset_result {
-            //     Ok(_) => (),
-            //     Err(e) => return Err(e.into()),
-            // }
+            #[cfg(feature = "logging")]
+            {
+                log::info!("fake render took : {:?}", start.elapsed().unwrap());
+                start = SystemTime::now();
+            }
         }
+
+        #[cfg(feature = "logging")]
+        log::trace!("present swapchain image {} semaphore_idx {}", view.index, view.semaphore_idx);
+
+        // unsafe { self.inner.device.reset_fences(&[*self.inner.sync.present_complete_fences[view.sync_index]])? }
+
+        // let fence_info = vk::SwapchainPresentFenceInfoEXT {
+        //     s_type: vk::StructureType::SWAPCHAIN_PRESENT_FENCE_INFO_EXT,
+        //     p_next: ptr::null(),
+        //     swapchain_count: 1,
+        //     p_fences: Arc::as_ptr(&self.inner.sync.present_complete_fences[view.sync_index]),
+        //     ..Default::default()
+        // };
 
         let present_info = vk::PresentInfoKHR {
             s_type: vk::StructureType::PRESENT_INFO_KHR,
+            // p_next: &fence_info as *const _ as *const c_void,
             p_next: ptr::null(),
             p_image_indices: &view.index as _,
             p_swapchains: self.inner.raw.as_ptr(),
             swapchain_count: 1,
             p_wait_semaphores: Arc::as_ptr(
-                &self.inner.sync.rendering_complete_semaphores[view.signal_semaphore],
+                &self.inner.sync.rendering_complete_semaphores[view.semaphore_idx],
             ),
             wait_semaphore_count: 1,
             p_results: ptr::null_mut(),
@@ -782,11 +869,21 @@ impl Swapchain {
 
         let result = unsafe { self.inner.utils.device.queue_present(self.queue, &present_info) };
 
+        #[cfg(feature = "logging")]
+        {
+            log::info!("queue_present took {:?}", start.elapsed().unwrap());
+            log::info!("");
+        }
+
+        let fence_idx = (self.fence_idx.get() + 1) % self.frames_in_flight;
+        self.fence_idx.set(fence_idx);
+
+        let semaphore_idx = (self.semaphore_idx.get() + 1) % self.textures.len();
+        self.semaphore_idx.set(semaphore_idx);
+
         match result {
             Ok(b) => {
                 self.inner.device.check_errors()?;
-                let frame = (self.frame.get() + 1) % self.frames_in_flight;
-                self.frame.set(frame);
                 Ok(b)
             }
             Err(e) => Err(e.into()),
@@ -804,10 +901,39 @@ impl Swapchain {
 
 impl Drop for SwapchainInner {
     fn drop(&mut self) {
-        // let fence = unsafe { Md::take(&mut self.fence) };
-        // if let Ok(fence) = Arc::try_unwrap(fence) {
-        //     unsafe {
-        //         self.device.destroy_fence(fence, None);
+        self.device.wait_idle().unwrap();
+        unsafe {
+            // let fences = self.sync.acquire_complete_fences
+            //     .iter()
+            //     .chain(&self.sync.rendering_complete_fences)
+            //     .chain(&self.sync.present_complete_fences)
+            //     .map(|f| **f)
+            //     .collect::<Vec<_>>();
+            let fences = self.sync.rendering_complete_fences.iter().map(|f| **f).collect::<Vec<_>>();
+            self.device.wait_for_fences(&fences, true, !0).unwrap();
+        }
+
+        // for fence in self.sync.acquire_complete_fences.drain(..) {
+        //     if let Ok(fence) = Arc::try_unwrap(fence) {
+        //         unsafe {
+        //             self.device.destroy_fence(fence, None);
+        //         }
+        //     }
+        // }
+
+        for fence in self.sync.rendering_complete_fences.drain(..) {
+            if let Ok(fence) = Arc::try_unwrap(fence) {
+                unsafe {
+                    self.device.destroy_fence(fence, None);
+                }
+            }
+        }
+
+        // for fence in self.sync.present_complete_fences.drain(..) {
+        //     if let Ok(fence) = Arc::try_unwrap(fence) {
+        //         unsafe {
+        //             self.device.destroy_fence(fence, None);
+        //         }
         //     }
         // }
 
@@ -816,7 +942,7 @@ impl Drop for SwapchainInner {
             unsafe { self.utils.device.destroy_swapchain(swapchain.get(), None) }
         }        
 
-        for semaphore in self.sync.acquire_complete_semaphores.drain(..) {
+        for semaphore in self.sync.present_complete_semaphores.drain(..) {
             if let Ok(semaphore) = Arc::try_unwrap(semaphore) {
                 unsafe {
                     self.device.destroy_semaphore(semaphore, None);

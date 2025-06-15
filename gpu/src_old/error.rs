@@ -54,3 +54,23 @@ impl From<vk::Result> for Error {
         Self::Explicit(e)
     }
 }
+
+/// An error when converting data to a spirv module
+#[derive(Debug)]
+pub enum MakeSpirvError {
+    /// Missing the spirv magic number
+    MissingMagicNumber,
+    /// Spirv must be 4 byte alligned
+    NotMultipleOfFour,
+}
+
+impl std::fmt::Display for MakeSpirvError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MissingMagicNumber => write!(f, "Missing magic number"),
+            Self::NotMultipleOfFour => write!(f, "Spirv bytes len must be multiple of 4"),
+        }
+    }
+}
+
+impl std::error::Error for MakeSpirvError {}

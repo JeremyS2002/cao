@@ -196,7 +196,7 @@ pub fn spv_struct(input: TokenStream) -> TokenStream {
 
     let name_str = name.to_string();
 
-    let gen = quote::quote! {
+    let generated = quote::quote! {
         impl #name {
             const MEMBERS: &'static [::spv::StructMember] = &[#(
                 ::spv::StructMember {
@@ -413,5 +413,5 @@ pub fn spv_struct(input: TokenStream) -> TokenStream {
         impl<'a> ::spv::IsType for #spv_name<'a> { }
     };
 
-    TokenStream::from(gen)
+    TokenStream::from(generated)
 }

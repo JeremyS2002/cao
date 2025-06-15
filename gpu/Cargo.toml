@@ -4,12 +4,15 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
+default            = []
+
 logging            = ["log"]
 
 ray                = []
 mesh               = []
 
 [dependencies]
+gpu_derive         = { path = "../gpu/gpu_derive" }
 ash                = "^0.38.0"
 raw-window-handle  = "^0.6.2"
 bitflags           = "^2.9.1"
@@ -18,6 +21,7 @@ parking_lot        = "^0.12.4"
 bytemuck           = "^1.23.1"
 
 log                = { version = "^0.4.27", optional = true }
+# profiling          = { version = "^1.0.16", optional = true }
 
 [target.'cfg(target_os = "^macos")'.dependencies]
 metal              = "^0.20.0"
@@ -32,7 +36,6 @@ image              = "^0.25.6"
 winit              = { version = "^0.30.11", default-features = false, features = ["x11", "rwh_06"] }
 glam               = { version = "^0.30.4", features = ["bytemuck"] }
 env_logger         = "0.11.8"
-
 
 [[example]]
 name = "basic"

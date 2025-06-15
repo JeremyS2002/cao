@@ -1,57 +1,7 @@
-
-use std::ffi::{CStr, c_void};
-
 use ash::vk;
+use std::ffi::{c_void, CStr};
 
 use parking_lot::RwLock;
-
-pub const KHRONOS_VALIDATION_NAME: &'static str = "VK_LAYER_KHRONOS_validation";
-
-#[cfg(target_os = "macos")]
-fn platform_instance_extensions() -> Vec<&'static CStr> {
-    vec![ash::mvk::macos_surface::NAME]
-}
-
-#[cfg(windows)]
-fn platform_instance_extensions() -> Vec<&'static CStr> {
-    vec![ash::khr::win32_surface::NAME]
-}
-
-#[cfg(target_os = "linux")]
-fn platform_instance_extensions() -> Vec<&'static CStr> {
-    vec![
-        ash::khr::xlib_surface::NAME,
-        ash::khr::xcb_surface::NAME,
-        ash::khr::wayland_surface::NAME,
-    ]
-}
-
-#[cfg(target_os = "android")]
-fn platform_instance_extensions() -> Vec<&'static CStr> {
-    vec![ash::khr::AndroidSurface::NAME]
-}
-
-pub(crate) fn instance_extension_names(debug: bool) -> Vec<&'static CStr> {
-	let mut v = platform_instance_extensions();
-    v.push(ash::khr::surface::NAME);
-    v.push(ash::khr::get_surface_capabilities2::NAME);
-    v.push(ash::ext::surface_maintenance1::NAME);
-    v.push(ash::khr::get_physical_device_properties2::NAME);
-    if debug {
-        v.push(ash::ext::debug_utils::NAME);    
-    }
-    v
-}
-
-// pub(crate) fn device_extension_names(features: crate::DeviceFeatures) -> Vec<&'static CStr> {
-pub(crate) fn device_extension_names() -> Vec<&'static CStr> {
-    let v = vec![];
-    // if features.contains(crate::DeviceFeatures::SWAPCHAIN) {
-    //     v.push(ash::khr::swapchain::NAME);
-    //     v.push(ash::ext::swapchain_maintenance1::NAME);
-    // }
-    v
-}
 
 #[allow(unused_variables)]
 pub(crate) unsafe extern "system" fn vulkan_debug_utils_callback(
@@ -104,4 +54,55 @@ pub(crate) unsafe extern "system" fn vulkan_debug_utils_callback(
     //println!("[Debug]{:?}{}{:?}", message_severity, ty, message);
 
     vk::FALSE
+}
+
+#[cfg(target_os = "macos")]
+fn required_instance_extension_names() -> Vec<&'static CStr> {
+    vec![ash::extensions::mvk::macos_surface::NAME]
+}
+
+#[cfg(windows)]
+fn required_instance_extension_names() -> Vec<&'static CStr> {
+    vec![ash::extensions::khr::win32_surface::NAME]
+}
+
+#[cfg(target_os = "linux")]
+fn required_instance_extension_names() -> Vec<&'static CStr> {
+    vec![
+        ash::khr::xlib_surface::NAME,
+        ash::khr::xcb_surface::NAME,
+        ash::khr::wayland_surface::NAME,
+    ]
+}
+
+#[cfg(target_os = "android")]
+fn required_instance_extension_names() -> Vec<&'static CStr> {
+    vec![ash::khr::AndroidSurface::name()]
+}
+
+pub(crate) fn instance_extension_names() -> Vec<&'static CStr> {
+    let mut v = required_instance_extension_names();
+    v.push(ash::khr::surface::NAME);
+    v.push(ash::khr::get_surface_capabilities2::NAME);
+    v.push(ash::ext::surface_maintenance1::NAME);
+    v.push(ash::khr::get_physical_device_properties2::NAME);
+    // v.push(ash::extensions::ext::DebugUtils::name());
+    // #[cfg(feature = "ray")]
+    // v.push(ash::extensions::khr::ray_tracing::name());
+    // #[cfg(feature = "mesh")]
+    // v.push(ash::extensions::nv::MeshShader::name());
+    v
+}
+
+pub(crate) fn required_device_extension_names() -> Vec<&'static CStr> {
+    vec![]
+}
+
+pub(crate) fn device_extension_names(features: crate::DeviceFeatures) -> Vec<&'static CStr> {
+    let mut v = required_device_extension_names();
+    if features.contains(crate::DeviceFeatures::SWAPCHAIN) {
+        v.push(ash::khr::swapchain::NAME);
+        v.push(ash::ext::swapchain_maintenance1::NAME);
+    }
+    v
 }

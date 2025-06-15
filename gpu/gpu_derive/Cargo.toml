@@ -1,0 +1,17 @@
+[package]
+name = "gpu_derive"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote              = "^1.0.23"
+syn                = "^1.0.107"
+
+[dev-dependencies]
+gpu                = { path = "../../gpu" }
+gfx                = { path = "../../gfx" }
+glam               = { version = "^0.30.4", features = ["bytemuck"] }
+bytemuck           = { version = "^1.23.1", features=["extern_crate_alloc"] }
