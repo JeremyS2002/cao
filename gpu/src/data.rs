@@ -5,12 +5,16 @@ use crate::DescType;
 use std::{borrow::Cow, num::NonZeroU32};
 
 use ash::vk;
+use gpu_derive::DescType;
 use std::ptr;
 
 pub use vk::FormatFeatureFlags;
 pub use vk::PhysicalDeviceLimits as DeviceLimits;
 pub use vk::PhysicalDeviceMemoryProperties as MemoryProperties;
 pub use vk::SampleCountFlags;
+
+// If adding more features need to modify the conversion to vk::PhysicalDeviceFeatures and the 
+// generation of extensions and Instance::phys_device_supports_features
 
 bitflags::bitflags! {
     /// Optional features that a device can support
@@ -111,7 +115,7 @@ pub enum DeviceType {
 }
 
 /// Methods on how images can be presented to the screen
-#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone, Hash, DescType)]
 pub enum PresentMode {
     /// do not wait for vertical blanking to update the current image
     /// This mode may result in visible tearing
@@ -2098,6 +2102,8 @@ pub enum MemoryType {
     Host,
 }
 
+crate::impl_desc_type_primative!(MemoryType,);
+
 impl Into<vk::MemoryPropertyFlags> for MemoryType {
     fn into(self) -> vk::MemoryPropertyFlags {
         match self {
@@ -2131,6 +2137,8 @@ bitflags::bitflags! {
         const TRANSIENT      = 0b00010000000;
     }
 }
+
+crate::impl_desc_type_primative!(TextureUsage,);
 
 impl TextureUsage {
     pub(crate) fn flags(&self) -> vk::ImageCreateFlags {
@@ -2199,341 +2207,353 @@ pub type Size = u32;
 /// Represents the number of array layers
 pub type Layer = u32;
 
-// /// More representitive of how texture dimensions are represented in vulkan
-// #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
-// #[allow(missing_docs)]
-// pub enum TextureKind {
-//     D1,
-//     D2,
-//     D3,
-// }
+/// More representitive of how texture dimensions are represented in vulkan
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+#[allow(missing_docs)]
+pub enum TextureKind {
+    D1,
+    D2,
+    D3,
+}
 
-// impl Into<vk::ImageType> for TextureKind {
-//     fn into(self) -> vk::ImageType {
-//         match self {
-//             Self::D1 => vk::ImageType::TYPE_1D,
-//             Self::D2 => vk::ImageType::TYPE_2D,
-//             Self::D3 => vk::ImageType::TYPE_3D,
-//         }
-//     }
-// }
+crate::impl_desc_type_primative!(TextureKind,);
 
-// #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-// #[allow(missing_docs)]
-// pub struct TextureFormatProperties {
-//     pub max_extent: Extent3D,
-//     pub max_mip_levels: u32,
-//     pub sample_counts: SampleCountFlags,
-//     pub max_array_layers: u32,
-// }
+impl Into<vk::ImageType> for TextureKind {
+    fn into(self) -> vk::ImageType {
+        match self {
+            Self::D1 => vk::ImageType::TYPE_1D,
+            Self::D2 => vk::ImageType::TYPE_2D,
+            Self::D3 => vk::ImageType::TYPE_3D,
+        }
+    }
+}
 
-// impl From<vk::ImageFormatProperties> for TextureFormatProperties {
-//     fn from(p: vk::ImageFormatProperties) -> Self {
-//         Self {
-//             max_extent: p.max_extent.into(),
-//             max_mip_levels: p.max_mip_levels,
-//             max_array_layers: p.max_array_layers,
-//             sample_counts: p.sample_counts,
-//         }
-//     }
-// }
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(missing_docs)]
+pub struct TextureFormatProperties {
+    pub max_extent: Extent3D,
+    pub max_mip_levels: u32,
+    pub sample_counts: SampleCountFlags,
+    pub max_array_layers: u32,
+}
 
-// /// Describes the dimension of a texture
-// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-// pub enum TextureDimension {
-//     /// 1 dimensional image with Size number of pixels
-//     D1(Size),
-//     /// 1 dimensional image with Size number of pixels and Layer number of layers
-//     D1Array(Size, Layer),
-//     /// 2 dimensional image of Size x Size pixels
-//     D2(Size, Size, Samples),
-//     /// 2 dimensional image of Size x Size pixels and Layer number of layers
-//     D2Array(Size, Size, Samples, Layer),
-//     /// Cube image with each face of Size x Size pixels
-//     Cube(Size),
-//     /// Cube image with each face of Size x Size pixels and Layer number of layers
-//     CubeArray(Size, Layer),
-//     // Cube image with each face of Size x Size and multisampling support
-//     //CubeMs(Size, Size, Samples),
-//     // Cube image with each face of Size x Size and Layer number of layers and multisampling support
-//     //CubeArrayMs(Size, Size, Layer, Samples),
-//     /// 3 dimensions image with Size x Size x Size dimensions
-//     D3(Size, Size, Size),
-// }
+impl From<vk::ImageFormatProperties> for TextureFormatProperties {
+    fn from(p: vk::ImageFormatProperties) -> Self {
+        Self {
+            max_extent: p.max_extent.into(),
+            max_mip_levels: p.max_mip_levels,
+            max_array_layers: p.max_array_layers,
+            sample_counts: p.sample_counts,
+        }
+    }
+}
 
-// impl TextureDimension {
-//     /// Get the number of array layers in the dimension
-//     pub fn layers(&self) -> Layer {
-//         match self {
-//             TextureDimension::D1Array(_, l) => *l,
-//             TextureDimension::D2Array(_, _, _, l) => *l,
-//             TextureDimension::Cube(_) => 6,
-//             TextureDimension::CubeArray(_, l) => 6 * *l,
-//             //TextureDimension::CubeMs(_, _, _) => 6,
-//             //TextureDimension::CubeArrayMs(_, _, l, _) => 6 * *l,
-//             _ => 1,
-//         }
-//     }
+/// Describes the dimension of a texture
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum TextureDimension {
+    /// 1 dimensional image with Size number of pixels
+    D1(Size),
+    /// 1 dimensional image with Size number of pixels and Layer number of layers
+    D1Array(Size, Layer),
+    /// 2 dimensional image of Size x Size pixels
+    D2(Size, Size, Samples),
+    /// 2 dimensional image of Size x Size pixels and Layer number of layers
+    D2Array(Size, Size, Samples, Layer),
+    /// Cube image with each face of Size x Size pixels
+    Cube(Size),
+    /// Cube image with each face of Size x Size pixels and Layer number of layers
+    CubeArray(Size, Layer),
+    // Cube image with each face of Size x Size and multisampling support
+    //CubeMs(Size, Size, Samples),
+    // Cube image with each face of Size x Size and Layer number of layers and multisampling support
+    //CubeArrayMs(Size, Size, Layer, Samples),
+    /// 3 dimensions image with Size x Size x Size dimensions
+    D3(Size, Size, Size),
+}
 
-//     /// Get the number of samples in the dimension
-//     pub fn samples(&self) -> Samples {
-//         match self {
-//             TextureDimension::D2(_, _, s) => *s,
-//             TextureDimension::D2Array(_, _, s, _) => *s,
-//             //TextureDimension::CubeMs(_, _, s) => *s,
-//             //TextureDimension::CubeArrayMs(_, _, _, s) => *s,
-//             _ => Samples::S1,
-//         }
-//     }
+crate::impl_desc_type_primative!(TextureDimension,);
 
-//     /// Get the kind of the dimension
-//     pub fn kind(&self) -> TextureKind {
-//         match self {
-//             TextureDimension::D1(_) => TextureKind::D1,
-//             TextureDimension::D1Array(_, _) => TextureKind::D1,
-//             TextureDimension::D2(_, _, _) => TextureKind::D2,
-//             TextureDimension::D2Array(_, _, _, _) => TextureKind::D2,
-//             TextureDimension::Cube(_) => TextureKind::D2,
-//             TextureDimension::CubeArray(_, _) => TextureKind::D2,
-//             //TextureDimension::CubeMs(_, _, _) => TextureKind::D2,
-//             //TextureDimension::CubeArrayMs(_, _, _, _) => TextureKind::D2,
-//             TextureDimension::D3(_, _, _) => TextureKind::D3,
-//         }
-//     }
+impl TextureDimension {
+    /// Get the number of array layers in the dimension
+    pub fn layers(&self) -> Layer {
+        match self {
+            TextureDimension::D1Array(_, l) => *l,
+            TextureDimension::D2Array(_, _, _, l) => *l,
+            TextureDimension::Cube(_) => 6,
+            TextureDimension::CubeArray(_, l) => 6 * *l,
+            //TextureDimension::CubeMs(_, _, _) => 6,
+            //TextureDimension::CubeArrayMs(_, _, l, _) => 6 * *l,
+            _ => 1,
+        }
+    }
 
-//     pub(crate) fn flags(&self) -> vk::ImageCreateFlags {
-//         match self {
-//             TextureDimension::D2Array(_, _, _, _) => vk::ImageCreateFlags::TYPE_2D_ARRAY_COMPATIBLE,
-//             TextureDimension::Cube(_) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
-//             TextureDimension::CubeArray(_, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
-//             //TextureDimension::CubeMs(_, _, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
-//             //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
-//             TextureDimension::D3(_, _, _) => vk::ImageCreateFlags::TYPE_2D_ARRAY_COMPATIBLE,
-//             _ => vk::ImageCreateFlags::empty(),
-//         }
-//     }
-// }
+    /// Get the number of samples in the dimension
+    pub fn samples(&self) -> Samples {
+        match self {
+            TextureDimension::D2(_, _, s) => *s,
+            TextureDimension::D2Array(_, _, s, _) => *s,
+            //TextureDimension::CubeMs(_, _, s) => *s,
+            //TextureDimension::CubeArrayMs(_, _, _, s) => *s,
+            _ => Samples::S1,
+        }
+    }
 
-// impl Into<vk::ImageType> for TextureDimension {
-//     fn into(self) -> vk::ImageType {
-//         match self {
-//             TextureDimension::D1(_) => vk::ImageType::TYPE_1D,
-//             TextureDimension::D1Array(_, _) => vk::ImageType::TYPE_1D,
-//             TextureDimension::D2(_, _, _) => vk::ImageType::TYPE_2D,
-//             TextureDimension::D2Array(_, _, _, _) => vk::ImageType::TYPE_2D,
-//             TextureDimension::Cube(_) => vk::ImageType::TYPE_2D,
-//             TextureDimension::CubeArray(_, _) => vk::ImageType::TYPE_2D,
-//             //TextureDimension::CubeMs(_, _, _) => vk::ImageType::TYPE_2D,
-//             //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageType::TYPE_2D,
-//             TextureDimension::D3(_, _, _) => vk::ImageType::TYPE_3D,
-//         }
-//     }
-// }
+    /// Get the kind of the dimension
+    pub fn kind(&self) -> TextureKind {
+        match self {
+            TextureDimension::D1(_) => TextureKind::D1,
+            TextureDimension::D1Array(_, _) => TextureKind::D1,
+            TextureDimension::D2(_, _, _) => TextureKind::D2,
+            TextureDimension::D2Array(_, _, _, _) => TextureKind::D2,
+            TextureDimension::Cube(_) => TextureKind::D2,
+            TextureDimension::CubeArray(_, _) => TextureKind::D2,
+            //TextureDimension::CubeMs(_, _, _) => TextureKind::D2,
+            //TextureDimension::CubeArrayMs(_, _, _, _) => TextureKind::D2,
+            TextureDimension::D3(_, _, _) => TextureKind::D3,
+        }
+    }
 
-// impl Into<vk::ImageViewType> for TextureDimension {
-//     fn into(self) -> vk::ImageViewType {
-//         match self {
-//             TextureDimension::D1(_) => vk::ImageViewType::TYPE_1D,
-//             TextureDimension::D1Array(_, _) => vk::ImageViewType::TYPE_1D,
-//             TextureDimension::D2(_, _, _) => vk::ImageViewType::TYPE_2D,
-//             TextureDimension::D2Array(_, _, _, _) => vk::ImageViewType::TYPE_2D_ARRAY,
-//             TextureDimension::Cube(_) => vk::ImageViewType::CUBE,
-//             TextureDimension::CubeArray(_, _) => vk::ImageViewType::CUBE_ARRAY,
-//             //TextureDimension::CubeMs(_, _, _) => vk::ImageViewType::TYPE_2D,
-//             //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageViewType::TYPE_2D,
-//             TextureDimension::D3(_, _, _) => vk::ImageViewType::TYPE_3D,
-//         }
-//     }
-// }
+    pub(crate) fn flags(&self) -> vk::ImageCreateFlags {
+        match self {
+            TextureDimension::D2Array(_, _, _, _) => vk::ImageCreateFlags::TYPE_2D_ARRAY_COMPATIBLE,
+            TextureDimension::Cube(_) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
+            TextureDimension::CubeArray(_, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
+            //TextureDimension::CubeMs(_, _, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
+            //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageCreateFlags::CUBE_COMPATIBLE,
+            TextureDimension::D3(_, _, _) => vk::ImageCreateFlags::TYPE_2D_ARRAY_COMPATIBLE,
+            _ => vk::ImageCreateFlags::empty(),
+        }
+    }
+}
 
-// impl Into<vk::Extent3D> for TextureDimension {
-//     fn into(self) -> vk::Extent3D {
-//         let tmp: crate::Extent3D = self.into();
-//         tmp.into()
-//     }
-// }
+impl Into<vk::ImageType> for TextureDimension {
+    fn into(self) -> vk::ImageType {
+        match self {
+            TextureDimension::D1(_) => vk::ImageType::TYPE_1D,
+            TextureDimension::D1Array(_, _) => vk::ImageType::TYPE_1D,
+            TextureDimension::D2(_, _, _) => vk::ImageType::TYPE_2D,
+            TextureDimension::D2Array(_, _, _, _) => vk::ImageType::TYPE_2D,
+            TextureDimension::Cube(_) => vk::ImageType::TYPE_2D,
+            TextureDimension::CubeArray(_, _) => vk::ImageType::TYPE_2D,
+            //TextureDimension::CubeMs(_, _, _) => vk::ImageType::TYPE_2D,
+            //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageType::TYPE_2D,
+            TextureDimension::D3(_, _, _) => vk::ImageType::TYPE_3D,
+        }
+    }
+}
 
-// impl Into<crate::Extent3D> for TextureDimension {
-//     fn into(self) -> crate::Extent3D {
-//         match self {
-//             TextureDimension::D1(w) => crate::Extent3D {
-//                 width: w,
-//                 height: 1,
-//                 depth: 1,
-//             },
-//             TextureDimension::D1Array(w, _) => crate::Extent3D {
-//                 width: w,
-//                 height: 1,
-//                 depth: 1,
-//             },
-//             TextureDimension::D2(w, h, _) => crate::Extent3D {
-//                 width: w,
-//                 height: h,
-//                 depth: 1,
-//             },
-//             TextureDimension::D2Array(w, h, _, _) => crate::Extent3D {
-//                 width: w,
-//                 height: h,
-//                 depth: 1,
-//             },
-//             TextureDimension::Cube(w) => crate::Extent3D {
-//                 width: w,
-//                 height: w,
-//                 depth: 1,
-//             },
-//             TextureDimension::CubeArray(w, _) => crate::Extent3D {
-//                 width: w,
-//                 height: w,
-//                 depth: 1,
-//             },
-//             /*
-//             TextureDimension::CubeMs(w, h, _) => crate::Extent3D {
-//                 width: w,
-//                 height: h,
-//                 depth: 1,
-//             },
-//             TextureDimension::CubeArrayMs(w, h, _, _) => crate::Extent3D {
-//                 width: w,
-//                 height: h,
-//                 depth: 1,
-//             },*/
-//             TextureDimension::D3(w, h, d) => crate::Extent3D {
-//                 width: w,
-//                 height: h,
-//                 depth: d,
-//             },
-//         }
-//     }
-// }
+impl Into<vk::ImageViewType> for TextureDimension {
+    fn into(self) -> vk::ImageViewType {
+        match self {
+            TextureDimension::D1(_) => vk::ImageViewType::TYPE_1D,
+            TextureDimension::D1Array(_, _) => vk::ImageViewType::TYPE_1D,
+            TextureDimension::D2(_, _, _) => vk::ImageViewType::TYPE_2D,
+            TextureDimension::D2Array(_, _, _, _) => vk::ImageViewType::TYPE_2D_ARRAY,
+            TextureDimension::Cube(_) => vk::ImageViewType::CUBE,
+            TextureDimension::CubeArray(_, _) => vk::ImageViewType::CUBE_ARRAY,
+            //TextureDimension::CubeMs(_, _, _) => vk::ImageViewType::TYPE_2D,
+            //TextureDimension::CubeArrayMs(_, _, _, _) => vk::ImageViewType::TYPE_2D,
+            TextureDimension::D3(_, _, _) => vk::ImageViewType::TYPE_3D,
+        }
+    }
+}
 
-// /// Describes how sampling outside image dimensions should be performed
-// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-// pub enum WrapMode {
-//     /// repeat with the image if sampling outside the image dimensions
-//     Repeat,
-//     /// reflect and repeat the image if sampling outside the image dimensions
-//     MirroredRepeat,
-//     /// clamp the color to the edge of the image
-//     ClampToEdge,
-//     /// clamp the color to the border of the image
-//     ClampToBorder,
-// }
+impl Into<vk::Extent3D> for TextureDimension {
+    fn into(self) -> vk::Extent3D {
+        let tmp: crate::Extent3D = self.into();
+        tmp.into()
+    }
+}
 
-// impl Into<vk::SamplerAddressMode> for WrapMode {
-//     fn into(self) -> vk::SamplerAddressMode {
-//         match self {
-//             Self::Repeat => vk::SamplerAddressMode::REPEAT,
-//             Self::MirroredRepeat => vk::SamplerAddressMode::MIRRORED_REPEAT,
-//             Self::ClampToEdge => vk::SamplerAddressMode::CLAMP_TO_EDGE,
-//             Self::ClampToBorder => vk::SamplerAddressMode::CLAMP_TO_BORDER,
-//         }
-//     }
-// }
+impl Into<crate::Extent3D> for TextureDimension {
+    fn into(self) -> crate::Extent3D {
+        match self {
+            TextureDimension::D1(w) => crate::Extent3D {
+                width: w,
+                height: 1,
+                depth: 1,
+            },
+            TextureDimension::D1Array(w, _) => crate::Extent3D {
+                width: w,
+                height: 1,
+                depth: 1,
+            },
+            TextureDimension::D2(w, h, _) => crate::Extent3D {
+                width: w,
+                height: h,
+                depth: 1,
+            },
+            TextureDimension::D2Array(w, h, _, _) => crate::Extent3D {
+                width: w,
+                height: h,
+                depth: 1,
+            },
+            TextureDimension::Cube(w) => crate::Extent3D {
+                width: w,
+                height: w,
+                depth: 1,
+            },
+            TextureDimension::CubeArray(w, _) => crate::Extent3D {
+                width: w,
+                height: w,
+                depth: 1,
+            },
+            /*
+            TextureDimension::CubeMs(w, h, _) => crate::Extent3D {
+                width: w,
+                height: h,
+                depth: 1,
+            },
+            TextureDimension::CubeArrayMs(w, h, _, _) => crate::Extent3D {
+                width: w,
+                height: h,
+                depth: 1,
+            },*/
+            TextureDimension::D3(w, h, d) => crate::Extent3D {
+                width: w,
+                height: h,
+                depth: d,
+            },
+        }
+    }
+}
 
-// /// Descibes how sampling between pixels is performed
-// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-// pub enum FilterMode {
-//     /// take the nearest pixel to the coordinate
-//     Nearest,
-//     /// linearly interpolate between pixels
-//     Linear,
-// }
+/// Describes how sampling outside image dimensions should be performed
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum WrapMode {
+    /// repeat with the image if sampling outside the image dimensions
+    Repeat,
+    /// reflect and repeat the image if sampling outside the image dimensions
+    MirroredRepeat,
+    /// clamp the color to the edge of the image
+    ClampToEdge,
+    /// clamp the color to the border of the image
+    ClampToBorder,
+}
 
-// impl Into<vk::SamplerMipmapMode> for FilterMode {
-//     fn into(self) -> vk::SamplerMipmapMode {
-//         match self {
-//             Self::Nearest => vk::SamplerMipmapMode::NEAREST,
-//             Self::Linear => vk::SamplerMipmapMode::LINEAR,
-//         }
-//     }
-// }
+crate::impl_desc_type_primative!(WrapMode,);
 
-// impl Into<vk::Filter> for FilterMode {
-//     fn into(self) -> vk::Filter {
-//         match self {
-//             Self::Nearest => vk::Filter::NEAREST,
-//             Self::Linear => vk::Filter::LINEAR,
-//         }
-//     }
-// }
+impl Into<vk::SamplerAddressMode> for WrapMode {
+    fn into(self) -> vk::SamplerAddressMode {
+        match self {
+            Self::Repeat => vk::SamplerAddressMode::REPEAT,
+            Self::MirroredRepeat => vk::SamplerAddressMode::MIRRORED_REPEAT,
+            Self::ClampToEdge => vk::SamplerAddressMode::CLAMP_TO_EDGE,
+            Self::ClampToBorder => vk::SamplerAddressMode::CLAMP_TO_BORDER,
+        }
+    }
+}
 
-// /// Describes the color to be used when WrapMode::ClampToBorder is used
-// #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-// pub enum BorderColor {
-//     /// Border opaque black
-//     OpaqueBlack,
-//     /// Border transparent black
-//     TransparentBlack,
-//     /// Border opaque white
-//     OpaqueWhite,
-// }
+/// Descibes how sampling between pixels is performed
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum FilterMode {
+    /// take the nearest pixel to the coordinate
+    Nearest,
+    /// linearly interpolate between pixels
+    Linear,
+}
 
-// impl Into<vk::BorderColor> for BorderColor {
-//     fn into(self) -> vk::BorderColor {
-//         match self {
-//             Self::OpaqueBlack => vk::BorderColor::FLOAT_OPAQUE_BLACK,
-//             Self::TransparentBlack => vk::BorderColor::FLOAT_TRANSPARENT_BLACK,
-//             Self::OpaqueWhite => vk::BorderColor::FLOAT_OPAQUE_WHITE,
-//         }
-//     }
-// }
+crate::impl_desc_type_primative!(FilterMode,);
 
-// /// A Layout of a texture in memory
-// ///
-// /// will be different for different implementations
-// /// or some may be the same in the underlying implementation of vulkan
-// #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-// #[allow(missing_docs)]
-// pub enum TextureLayout {
-//     Undefined,
-//     General,
-//     ColorAttachmentOptimal,
-//     DepthStencilAttachmentOptimal,
-//     DepthStencilReadOnlyOptimal,
-//     ShaderReadOnlyOptimal,
-//     CopySrcOptimal,
-//     CopyDstOptimal,
-//     DepthAttachmentOptimal,
-//     DepthReadOnlyOptimal,
-//     StencilReadOnlyOptimal,
-//     SwapchainPresent,
-// }
+impl Into<vk::SamplerMipmapMode> for FilterMode {
+    fn into(self) -> vk::SamplerMipmapMode {
+        match self {
+            Self::Nearest => vk::SamplerMipmapMode::NEAREST,
+            Self::Linear => vk::SamplerMipmapMode::LINEAR,
+        }
+    }
+}
 
-// impl Into<vk::ImageLayout> for TextureLayout {
-//     fn into(self) -> vk::ImageLayout {
-//         match self {
-//             Self::Undefined => vk::ImageLayout::UNDEFINED,
-//             Self::General => vk::ImageLayout::GENERAL,
-//             Self::ColorAttachmentOptimal => vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-//             Self::DepthStencilAttachmentOptimal => {
-//                 vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL
-//             }
-//             Self::DepthStencilReadOnlyOptimal => vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL,
-//             Self::ShaderReadOnlyOptimal => vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-//             Self::CopySrcOptimal => vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
-//             Self::CopyDstOptimal => vk::ImageLayout::TRANSFER_DST_OPTIMAL,
-//             Self::DepthAttachmentOptimal => vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL,
-//             Self::DepthReadOnlyOptimal => vk::ImageLayout::DEPTH_READ_ONLY_OPTIMAL,
-//             Self::StencilReadOnlyOptimal => vk::ImageLayout::STENCIL_READ_ONLY_OPTIMAL,
-//             Self::SwapchainPresent => vk::ImageLayout::PRESENT_SRC_KHR,
-//         }
-//     }
-// }
+impl Into<vk::Filter> for FilterMode {
+    fn into(self) -> vk::Filter {
+        match self {
+            Self::Nearest => vk::Filter::NEAREST,
+            Self::Linear => vk::Filter::LINEAR,
+        }
+    }
+}
 
-// /// Tells a CommandRecoder where to set a DescriptorSet
-// #[derive(Copy, Clone, Debug)]
-// pub enum PipelineBindPoint {
-//     /// set the DescriptorSet in the graphics pipeline bound
-//     Graphics,
-//     /// set the DescriptorSet in the compute pipeline bound
-//     Compute,
-//     /// set the DescriptorSet in the ray pipeline bound
-//     #[cfg(feature = "ray")]
-//     Ray,
-//     /// set the DescriptorSet in the mesh pipeline bound
-//     #[cfg(feature = "mesh")]
-//     Mesh,
-// }
+/// Describes the color to be used when WrapMode::ClampToBorder is used
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+pub enum BorderColor {
+    /// Border opaque black
+    OpaqueBlack,
+    /// Border transparent black
+    TransparentBlack,
+    /// Border opaque white
+    OpaqueWhite,
+}
+
+crate::impl_desc_type_primative!(BorderColor,);
+
+impl Into<vk::BorderColor> for BorderColor {
+    fn into(self) -> vk::BorderColor {
+        match self {
+            Self::OpaqueBlack => vk::BorderColor::FLOAT_OPAQUE_BLACK,
+            Self::TransparentBlack => vk::BorderColor::FLOAT_TRANSPARENT_BLACK,
+            Self::OpaqueWhite => vk::BorderColor::FLOAT_OPAQUE_WHITE,
+        }
+    }
+}
+
+/// A Layout of a texture in memory
+///
+/// will be different for different implementations
+/// or some may be the same in the underlying implementation of vulkan
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[allow(missing_docs)]
+pub enum TextureLayout {
+    Undefined,
+    General,
+    ColorAttachmentOptimal,
+    DepthStencilAttachmentOptimal,
+    DepthStencilReadOnlyOptimal,
+    ShaderReadOnlyOptimal,
+    CopySrcOptimal,
+    CopyDstOptimal,
+    DepthAttachmentOptimal,
+    DepthReadOnlyOptimal,
+    StencilReadOnlyOptimal,
+    SwapchainPresent,
+}
+
+crate::impl_desc_type_primative!(TextureLayout,);
+
+impl Into<vk::ImageLayout> for TextureLayout {
+    fn into(self) -> vk::ImageLayout {
+        match self {
+            Self::Undefined => vk::ImageLayout::UNDEFINED,
+            Self::General => vk::ImageLayout::GENERAL,
+            Self::ColorAttachmentOptimal => vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            Self::DepthStencilAttachmentOptimal => {
+                vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+            }
+            Self::DepthStencilReadOnlyOptimal => vk::ImageLayout::DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+            Self::ShaderReadOnlyOptimal => vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            Self::CopySrcOptimal => vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+            Self::CopyDstOptimal => vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            Self::DepthAttachmentOptimal => vk::ImageLayout::DEPTH_ATTACHMENT_OPTIMAL,
+            Self::DepthReadOnlyOptimal => vk::ImageLayout::DEPTH_READ_ONLY_OPTIMAL,
+            Self::StencilReadOnlyOptimal => vk::ImageLayout::STENCIL_READ_ONLY_OPTIMAL,
+            Self::SwapchainPresent => vk::ImageLayout::PRESENT_SRC_KHR,
+        }
+    }
+}
+
+/// Tells a CommandRecoder where to set a DescriptorSet
+#[derive(Copy, Clone, Debug)]
+pub enum PipelineBindPoint {
+    /// set the DescriptorSet in the graphics pipeline bound
+    Graphics,
+    /// set the DescriptorSet in the compute pipeline bound
+    Compute,
+    /// set the DescriptorSet in the ray pipeline bound
+    #[cfg(feature = "ray")]
+    Ray,
+    /// set the DescriptorSet in the mesh pipeline bound
+    #[cfg(feature = "mesh")]
+    Mesh,
+}
 
 // impl Into<vk::PipelineBindPoint> for PipelineBindPoint {
 //     fn into(self) -> vk::PipelineBindPoint {

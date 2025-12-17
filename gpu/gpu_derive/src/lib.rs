@@ -173,69 +173,93 @@ pub fn derive_gpu_desc(input: TokenStream) -> TokenStream {
     let desc_generics = input.generics;
 
     let desc_name_str = desc_name.to_string();
-    let info_name_str = if desc_name_str.ends_with("Desc") {
+    let new_info_struct = desc_name_str.ends_with("Desc");
+    let info_name_str = if new_info_struct {
         let mut n = desc_name_str.clone();
         n.truncate(desc_name_str.len() - 4);
         n.push_str("Info");
         n
     } else {
-        let mut n = desc_name_str.clone();
-        n.push_str("Info");
-        n
+        desc_name_str.clone()
     };
     // println!("info_name_str {}", info_name_str);
     let info_name = syn::Ident::new(&info_name_str, desc_name.span());
 
-    let Data::Struct(struct_data) = input.data else {
-        unimplemented!("derive(DescType) can only be used on Data::Struct");
-    };
+    if let Data::Struct(struct_data) = input.data {
+        let mut field_names = Vec::new();
+        let mut desc_field_types = Vec::new();
+        let mut info_field_types = Vec::new();
 
-    let mut field_names = Vec::new();
-    let mut desc_field_types = Vec::new();
-    let mut info_field_types = Vec::new();
+        for field in &struct_data.fields {
+            let Some(ident) = &field.ident else {
+                unimplemented!("derive(DescType) can only be used on structs with named fields");
+            };
 
-    for field in &struct_data.fields {
-        let Some(ident) = &field.ident else {
-            unimplemented!("derive(DescType) can only be used on structs with named fields");
-        };
-
-        let mut skip = false;
-        for attr in &field.attrs {
-            if attr.path.is_ident("skip_info") {
-                skip = true;
-                break;
-            }
-        }
-
-        if skip { continue; }
-
-        field_names.push(ident);
-        info_field_types.push(convert_type_to_owned(&field.ty));
-        desc_field_types.push(field.ty.clone());
-    }
-
-    let expanded = quote!(
-        #[derive(Clone, Debug)]
-        pub struct #info_name {
-            #(
-                pub #field_names : #info_field_types,
-            )*
-        }
-
-        impl #desc_generics DescType for #desc_name #desc_generics {
-            type InfoType = #info_name;
-
-            fn to_info(&self) -> #info_name {
-                #info_name {
-                    #(
-                        #field_names: self.#field_names.to_info(),
-                    )*
+            let mut skip = false;
+            for attr in &field.attrs {
+                if attr.path.is_ident("skip_info") {
+                    skip = true;
+                    break;
                 }
             }
+
+            if skip { continue; }
+
+            field_names.push(ident);
+            info_field_types.push(convert_type_to_owned(&field.ty));
+            desc_field_types.push(field.ty.clone());
         }
-    );
 
-    // let expanded = quote!();
+        let new_struct_stream = if new_info_struct {
+            quote!(
+                #[derive(Clone, Debug)]
+                pub struct #info_name {
+                    #(
+                        pub #field_names : #info_field_types,
+                    )*
+                }
+            )
+        } else {
+            quote!()
+        };
 
-    TokenStream::from(expanded)
+        let impl_stream = quote!(
+            impl #desc_generics DescType for #desc_name #desc_generics {
+                type InfoType = #info_name;
+
+                fn to_info(&self) -> #info_name {
+                    #info_name {
+                        #(
+                            #field_names: self.#field_names.to_info(),
+                        )*
+                    }
+                }
+            }
+        );
+
+        let expanded = quote!(
+            #new_struct_stream
+
+            #impl_stream
+        );
+
+        TokenStream::from(expanded)
+    } else {
+        if new_info_struct {
+            unimplemented!("ERROR: only implemented making new info struct for structs");
+        }
+
+        let expanded = quote!(
+            impl #desc_generics DescType for #desc_name #desc_generics {
+                type InfoType = #info_name;
+
+                fn to_info(&self) -> #info_name {
+                    self.clone()
+                }
+            }
+        );
+
+        TokenStream::from(expanded)
+    }
+
 }

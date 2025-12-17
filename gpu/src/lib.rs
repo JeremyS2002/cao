@@ -5,15 +5,24 @@ pub(crate) mod ffi;
 pub mod error;
 pub mod desc;
 pub mod data;
+pub mod format;
 pub mod device;
 pub mod surface;
+pub mod swapchain;
+pub mod texture;
+pub mod view;
 
 pub use error::*;
 pub use desc::*;
 pub use data::*;
 pub use device::*;
-use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 pub use surface::*;
+pub use format::*;
+pub use swapchain::*;
+pub use texture::*;
+pub use view::*;
+
+use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use std::collections::HashSet;
 use std::mem::ManuallyDrop as Md;
@@ -25,7 +34,7 @@ use std::sync::OnceLock;
 use parking_lot::RwLock;
 
 use ash::{ext, vk};
-use vk::Handle;
+// use vk::Handle;
 
 lazy_static::lazy_static! {
     pub(crate) static ref VK_ENTRY: ash::Entry = unsafe { ash::Entry::load().expect("Failed to create vulkan entry")};
@@ -282,10 +291,52 @@ impl Instance {
     /// Get infomation about all the devices that are available
     pub fn phys_devices(&self) -> Result<Vec<crate::PhysDeviceInfo>, crate::Error> {
         let devices = unsafe { self.inner.raw.enumerate_physical_devices()? };
-        devices.iter().map(|&d| self.get_phys_device_info(d)).collect::<Result<Vec<_>, _>>()
+        devices.iter().enumerate().map(|(idx, &d)| self.get_phys_device_info(d, idx)).collect::<Result<Vec<_>, _>>()
     }
 
-    fn get_phys_device_info(&self, phys_device: vk::PhysicalDevice) -> Result<crate::PhysDeviceInfo, crate::Error> {
+    /// Returns Ok(true) if the devices can support all of the features Ok(false) if it can't and Err(_) if the vulkan api returns an error to a query
+    pub fn phys_device_supports_features(&self, device: &vk::PhysicalDevice, features: crate::DeviceFeatures) -> Result<bool, crate::Error> {
+        
+        // check that the PhysicalDeviceFeatures are all present
+
+        let has = unsafe { self.inner.raw.get_physical_device_features(*device) };
+
+        let req: vk::PhysicalDeviceFeatures = features.into();
+
+        if req.tessellation_shader > has.tessellation_shader { return Ok(false) }
+        if req.geometry_shader > has.geometry_shader { return Ok(false) }
+        if req.image_cube_array > has.image_cube_array { return Ok(false) }
+        if req.wide_lines > has.wide_lines { return Ok(false) }
+        if req.large_points > has.large_points { return Ok(false) }
+        if req.vertex_pipeline_stores_and_atomics > has.vertex_pipeline_stores_and_atomics { return Ok(false) }
+        if req.fragment_stores_and_atomics > has.fragment_stores_and_atomics { return Ok(false) }
+        if req.fill_mode_non_solid > has.fill_mode_non_solid { return Ok(false) }
+        if req.sampler_anisotropy > has.sampler_anisotropy { return Ok(false) }
+        if req.shader_storage_image_multisample > has.shader_storage_image_multisample { return Ok(false) }
+        if req.shader_float64 > has.shader_float64 { return Ok(false) }
+        if req.shader_int64 > has.shader_int64 { return Ok(false) }
+        if req.shader_int16 > has.shader_int16 { return Ok(false) }
+        if req.depth_clamp > has.depth_clamp { return Ok(false) }
+        if req.sample_rate_shading > has.sample_rate_shading { return Ok(false) }
+        if req.shader_uniform_buffer_array_dynamic_indexing > has.shader_uniform_buffer_array_dynamic_indexing { return Ok(false) }
+        if req.shader_storage_buffer_array_dynamic_indexing > has.shader_storage_buffer_array_dynamic_indexing { return Ok(false) }
+        if req.shader_storage_image_array_dynamic_indexing > has.shader_storage_image_array_dynamic_indexing { return Ok(false) }
+
+        // check that the extensions are all there
+
+        let has_ext_list = unsafe { self.inner.raw.enumerate_device_extension_properties(*device)? };
+        let has_exts = has_ext_list.into_iter().map(|ext| unsafe { CStr::from_ptr(&ext.extension_name[0]) }).collect::<HashSet<_>>();
+
+        let req_exts = ffi::device_extension_names(features);
+
+        for &req_ext in &req_exts {
+            if !has_exts.contains(req_ext) { return Ok(false) }
+        }
+
+        Ok(true)
+    }
+
+    fn get_phys_device_info(&self, phys_device: vk::PhysicalDevice, idx: usize) -> Result<crate::PhysDeviceInfo, crate::Error> {
         let properties = unsafe { self.inner.raw.get_physical_device_properties(phys_device) };
         let api = properties.api_version;
         let major = vk::api_version_major(api);
@@ -310,11 +361,12 @@ impl Instance {
             .collect();
 
         Ok(crate::PhysDeviceInfo {
-            id: phys_device.as_raw(),
+            id: phys_device,
             name,
             api_version: (major, minor, patch),
             driver_version: properties.driver_version,
             vendor_id: properties.vendor_id,
+            index: idx,
             device_type: if ty == vk::PhysicalDeviceType::CPU {
                 DeviceType::Cpu
             } else if ty == vk::PhysicalDeviceType::INTEGRATED_GPU {

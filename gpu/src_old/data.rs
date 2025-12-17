@@ -95,15 +95,15 @@ impl Into<vk::PhysicalDeviceFeatures> for DeviceFeatures {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum DeviceType {
     /// unknown
-    Other,
+    Other                = 0,
     /// vulkan simulated on cpu
-    Cpu,
+    Cpu                  = 1,
     /// virtual gpu
-    VirtualGpu,
+    VirtualGpu           = 2,
     /// integrated gpu
-    IntegratedGpu,
+    IntegratedGpu        = 3,
     /// discrete gpu
-    DiscreteGpu,
+    DiscreteGpu          = 4,
 }
 
 /// Methods on how images can be presented to the screen
@@ -181,7 +181,7 @@ impl Into<vk::Offset3D> for Offset3D {
 }
 
 /// A 2d area
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
 pub struct Extent2D {
     #[allow(missing_docs)]
     pub width: u32,

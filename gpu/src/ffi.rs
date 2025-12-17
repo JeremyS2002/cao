@@ -43,13 +43,12 @@ pub(crate) fn instance_extension_names(debug: bool) -> Vec<&'static CStr> {
     v
 }
 
-// pub(crate) fn device_extension_names(features: crate::DeviceFeatures) -> Vec<&'static CStr> {
-pub(crate) fn device_extension_names() -> Vec<&'static CStr> {
-    let v = vec![];
-    // if features.contains(crate::DeviceFeatures::SWAPCHAIN) {
-    //     v.push(ash::khr::swapchain::NAME);
-    //     v.push(ash::ext::swapchain_maintenance1::NAME);
-    // }
+pub(crate) fn device_extension_names(features: crate::DeviceFeatures) -> Vec<&'static CStr> {
+    let mut v = vec![];
+    if features.contains(crate::DeviceFeatures::SWAPCHAIN) {
+        v.push(ash::khr::swapchain::NAME);
+        v.push(ash::ext::swapchain_maintenance1::NAME);
+    }
     v
 }
 

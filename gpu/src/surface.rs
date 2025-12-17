@@ -1,5 +1,4 @@
 
-use std::mem::ManuallyDrop as Md;
 use std::sync::Arc;
 use std::ptr;
 
@@ -9,15 +8,15 @@ use ash::khr;
 use raw_window_handle::{ HasWindowHandle, HasDisplayHandle, RawWindowHandle, RawDisplayHandle };
 
 pub(crate) struct SurfaceInner {
-	pub raw: Md<vk::SurfaceKHR>,
-	pub instance: khr::surface::Instance,
+	pub(crate) raw: vk::SurfaceKHR,
+	pub(crate) loader: khr::surface::Instance,
+	pub(crate) instance: Arc<crate::InstanceInner>,
 }
 
 impl Drop for SurfaceInner {
 	fn drop(&mut self) {
 		unsafe {
-			let raw = Md::take(&mut self.raw);
-			self.instance.destroy_surface(raw, None);
+			self.loader.destroy_surface(self.raw, None);
 		}
 	}
 }
@@ -25,12 +24,11 @@ impl Drop for SurfaceInner {
 #[derive(Clone)]
 pub struct Surface {
 	pub(crate) inner: Arc<SurfaceInner>,
-	pub(crate) instance: Arc<crate::InstanceInner>,
 }
 
 impl std::fmt::Debug for Surface {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Surface({:?})", *self.inner.raw)
+        writeln!(f, "Surface({:?})", self.inner.raw)
     }
 }
 
@@ -94,10 +92,10 @@ impl Surface {
         let surface_instance = khr::surface::Instance::new(&*crate::VK_ENTRY, &instance.inner.raw);
         Ok(Self {
             inner: Arc::new(SurfaceInner {
-            	raw: Md::new(raw),
-            	instance: surface_instance,
+            	raw: raw,
+            	loader: surface_instance,
+                instance: Arc::clone(&instance.inner),
             }),
-            instance: Arc::clone(&instance.inner),
         })
     }
 }

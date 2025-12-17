@@ -50,14 +50,14 @@ impl BasicApp {
 
         let surface = instance.create_surface(&window).unwrap();
 
-        // println!("create device");
+        println!("create device");
 
-        // let device = instance
-        //     .create_device(&gpu::DeviceDesc {
-        //         compatible_surfaces: &[&surface],
-        //         ..Default::default()
-        //     })
-        //     .unwrap();
+        let device = instance
+            .create_device(&gpu::DeviceDesc {
+                compatible_surfaces: &[&surface],
+                ..Default::default()
+            })
+            .unwrap();
 
         // println!("create swapchain");
 
